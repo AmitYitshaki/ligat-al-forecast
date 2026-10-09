@@ -2,7 +2,7 @@
 
 חיזוי הסתברותי של הטבלה הסופית בליגת העל בכדורגל: לכל קבוצה הסיכוי לכל מקום, לאליפות ולירידה, מתעדכן אחרי כל מחזור.
 
-**הגישה בקצרה:** מודל XGBoost חוזה כמה שערים כל קבוצה תבקיע בכל משחק → סימולציית מונטה קרלו של יתרת העונה כולל הפלייאוף → מודל שני מתקן הטיות שיטתיות בנקודות.
+**הגישה המתוכננת:** חיזוי משחקים וסימולציית יתרת העונה. בחירת המודלים תיעשה לפי הדאטה שייאסף; שילוב XGBoost ו-Dixon-Coles הוא כיוון לבדיקה. כרגע מתמקדים באיסוף מידע.
 
 **הדאטה:** כל משחקי ליגת העל מ-2007/08, מהאתר הרשמי של ההתאחדות לכדורגל בישראל.
 
@@ -22,7 +22,34 @@
 
 ## התקנה
 
-יעודכן ב-T-001.
+סביבת העבודה היא `venv`, עם Python 3.13 בהקמה הנוכחית. ה-CI בודק Windows ו-Linux.
+
+ב-PowerShell, מתוך תיקיית הפרויקט:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.lock
+.\.venv\Scripts\python.exe -m pip install --no-deps --no-build-isolation -e .
+.\.venv\Scripts\python.exe -m pip check
+```
+
+בדיקות:
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy ligat
+.\.venv\Scripts\python.exe -m pytest
+```
+
+ב-Linux/macOS מחליפים את הנתיב ל-Python ב-`.venv/bin/python`.
+להפעלת hooks יש להפעיל את הסביבה ואז להריץ `python -m pre_commit install`.
+`requirements-dev.lock` נוצר עם pip-tools על Python 3.13/Windows; CI בודק גם Linux.
+לרענון הנעילה בסביבה הפעילה: `python -m piptools compile --extra dev --strip-extras --allow-unsafe --no-emit-index-url --no-emit-trusted-host --output-file requirements-dev.lock pyproject.toml`.
+התלויות החיצוניות נעולות; החבילה המקומית מותקנת בנפרד במצב editable.
+
+לפי אישור עמית, מותקנות ספריות האיסוף, הדאטה, המודלים, הגרפים ואיכות הקוד המפורטות ב-`pyproject.toml`. התקנת ספריות מודלים אינה החלטה על בחירת המודל. Kaleido דורשת Chrome/Chromium לצורך ייצוא תמונות.
+עדיין אין סקרייפר או מודל פעיל.
 
 ## צוות
 
