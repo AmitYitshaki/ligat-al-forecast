@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Data (not tracked; reproducible from the scraper)
+data/
+# forecasts/ IS tracked on purpose: dated commits prove each forecast was made before the round
+models/artifacts/
+mlruns/
+
+# Keep small test fixtures
+!tests/fixtures/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.DS_Store
+.env

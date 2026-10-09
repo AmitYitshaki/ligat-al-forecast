@@ -1,0 +1,38 @@
+# Season format configuration for the Israeli Premier League (IFA league_id=40).
+# season_id = start_year - 1998.
+# verified: true  -> checked against IFA data (see docs/DATA_SOURCES.md)
+# verified: false -> assumption; must be confirmed in T-007 before use.
+# tiebreakers / playoff_schedule are filled in T-006.
+
+defaults:
+  league_id: 40
+  points_win: 3
+  points_draw: 1
+  relegated: 2
+
+seasons:
+  - {season_id: 9,  label: "2007/08", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: true}
+  - {season_id: 10, label: "2008/09", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: false}
+  - {season_id: 11, label: "2009/10", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: true}
+  - {season_id: 12, label: "2010/11", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: false}
+  - {season_id: 13, label: "2011/12", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: false}
+  - {season_id: 14, label: "2012/13", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: true}
+  - {season_id: 15, label: "2013/14", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 16, label: "2014/15", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 17, label: "2015/16", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 18, label: "2016/17", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 19, label: "2017/18", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 20, label: "2018/19", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 21, label: "2019/20", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 22, label: "2020/21", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: true}
+  - {season_id: 23, label: "2021/22", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 24, label: "2022/23", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 25, label: "2023/24", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
+  - {season_id: 26, label: "2024/25", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false, holdout: true}
+  - {season_id: 27, label: "2025/26", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: true,  holdout: true}
+  - {season_id: 28, label: "2026/27", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: true,  live: true}
+
+playoff_formats:
+  upper:  {teams: 6, rounds: 10, legs: 2}   # verified for 14-team era
+  lower:  {teams: 8, rounds: 7,  legs: 1}   # verified for 14-team era
+  middle: {teams: null, rounds: null, legs: null}   # 16-team era; fill in T-007
