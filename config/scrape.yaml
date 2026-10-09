@@ -1,0 +1,9 @@
+raw_root: data/raw/ifa/rounds
+league_id: 40
+first_season_id: 8
+live_season_id: 28
+delay_seconds: 2.0
+timeout_seconds: 30.0
+max_attempts: 3
+backoff_seconds: 2.0
+user_agent: "LigatAlForecast/0.1 (research; https://github.com/AmitYitshaki/ligat-al-forecast)"
