@@ -1,3 +1,9 @@
+# Generated outputs
+reports/figures/
+reports/gallery/*.html
+build/
+dist/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -11,7 +17,7 @@ venv/
 htmlcov/
 
 # Data (not tracked; reproducible from the scraper)
-data/
+/data/
 # forecasts/ IS tracked on purpose: dated commits prove each forecast was made before the round
 models/artifacts/
 mlruns/
