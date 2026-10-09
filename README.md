@@ -48,7 +48,7 @@ python -m venv .venv
 לרענון הנעילה בסביבה הפעילה: `python -m piptools compile --extra dev --strip-extras --allow-unsafe --no-emit-index-url --no-emit-trusted-host --output-file requirements-dev.lock pyproject.toml`.
 התלויות החיצוניות נעולות; החבילה המקומית מותקנת בנפרד במצב editable.
 
-כרגע מותקנים כלי איסוף ואיכות קוד בלבד. ספריות דאטה, מודלים וגרפים יתווספו במשימות המתאימות.
+לפי אישור עמית, מותקנות ספריות האיסוף, הדאטה, המודלים, הגרפים ואיכות הקוד המפורטות ב-`pyproject.toml`. התקנת ספריות מודלים אינה החלטה על בחירת המודל. Kaleido דורשת Chrome/Chromium לצורך ייצוא תמונות.
 עדיין אין סקרייפר או מודל פעיל.
 
 ## צוות

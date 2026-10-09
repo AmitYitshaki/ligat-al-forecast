@@ -11,6 +11,9 @@ requires-python = ">=3.11"
 dependencies = [
     "requests>=2.32", "beautifulsoup4>=4.12", "lxml>=5",
     "PyYAML>=6", "pydantic>=2", "typer>=0.15",
+    "pandas", "numpy", "pyarrow", "pandera[pandas]",
+    "xgboost", "scipy", "scikit-learn", "statsmodels",
+    "plotly", "kaleido", "shap",
 ]
 
 [project.optional-dependencies]
