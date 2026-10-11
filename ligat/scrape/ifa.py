@@ -155,6 +155,10 @@ class IFASource:
         if self._owned_session is not None:
             self._owned_session.close()
 
+    def fetch(self, url: str, params: dict[str, int]) -> requests.Response:
+        """Fetch a source resource with the same throttling, retry and blocking rules."""
+        return self._request(url, params)
+
     def scrape_history(self, seasons: Iterable[int]) -> list[ScrapeResult]:
         """Resume completed-season downloads without replacing any raw response."""
         requested = tuple(dict.fromkeys(seasons))
@@ -183,7 +187,7 @@ class IFASource:
                     timeout=self.config.timeout_seconds,
                     allow_redirects=False,
                 )
-            except (requests.ConnectionError, requests.Timeout):
+            except requests.RequestException:
                 if attempt + 1 == self.config.max_attempts:
                     raise
             else:

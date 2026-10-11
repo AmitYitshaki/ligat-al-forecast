@@ -1,5 +1,6 @@
 """CLI entry points; importing this module never starts a download."""
 
+import json
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -9,6 +10,7 @@ import typer
 
 from ligat.data.build import build_datasets
 from ligat.data.repository import Repository
+from ligat.scrape.games import run_games
 from ligat.scrape.ifa import AccessBlockedError, IFASource, load_scrape_config
 
 app = typer.Typer(no_args_is_help=True)
@@ -99,6 +101,51 @@ def build(
         )
     except (ValueError, OSError, KeyError) as exc:
         logging.getLogger(__name__).error("Build stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
+
+
+@scrape_app.command("games")
+def games(
+    sample: Annotated[bool, typer.Option("--sample")] = False,
+    seasons: Annotated[str | None, typer.Option("--seasons")] = None,
+    live: Annotated[bool, typer.Option("--live")] = False,
+    report: Annotated[bool, typer.Option("--report")] = False,
+    config: ConfigOption = Path("config/scrape.yaml"),
+    pages_config: Annotated[
+        Path, typer.Option("--pages-config", exists=True, dir_okay=False)
+    ] = Path("config/game_pages.yaml"),
+) -> None:
+    """Collect game pages from raw rounds, or verify existing pages with --report."""
+    if sum((sample, seasons is not None, live)) != 1:
+        raise typer.BadParameter("Choose exactly one of --seasons, --live or --sample")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    try:
+        scrape_config = load_scrape_config(config)
+        requested = (
+            parse_seasons(
+                seasons,
+                minimum=scrape_config.first_season_id,
+                maximum=scrape_config.live_season_id,
+            )
+            if seasons is not None
+            else None
+        )
+        summary = run_games(
+            scrape_config,
+            pages_config,
+            seasons=requested,
+            live=live,
+            sample=sample,
+            report_only=report,
+        )
+        typer.echo(json.dumps(summary, ensure_ascii=False, indent=2))
+        if any(
+            row["missing"] or row["invalid"] or row["rejected"] or row["status"] != "completed"
+            for row in summary
+        ):
+            raise typer.Exit(code=1)
+    except (AccessBlockedError, requests.RequestException, ValueError, OSError) as exc:
+        logging.getLogger(__name__).error("Game collection stopped: %s", exc)
         raise typer.Exit(code=1) from exc
 
 
