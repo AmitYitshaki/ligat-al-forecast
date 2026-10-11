@@ -1,8 +1,10 @@
 """Offline scraper behavior tests: no request may reach the real network."""
 
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 import pytest
@@ -196,7 +198,7 @@ def test_nonretryable_status_stops_immediately(tmp_path: Path, status: int) -> N
     assert len(session.calls) == 1
     manifest = json.loads((tmp_path / "raw/8/manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "failed"
-    if status == 403:
+    if status in (403, 429):
         with pytest.raises(AccessBlockedError):
             source.scrape_history([9])
         assert len(session.calls) == 1
@@ -260,9 +262,14 @@ def test_invalid_round_is_preserved_and_run_fails(tmp_path: Path, body: bytes) -
     source, _, _ = make_source(tmp_path, season_replies()[:1] + [response(body)])
     with pytest.raises(SourceFormatError):
         source.scrape_history([8])
-    assert (tmp_path / "raw/8/round_01.xml").read_bytes() == body
+    assert not (tmp_path / "raw/8/round_01.xml").exists()
+    archives = list((tmp_path / "raw/8/rejected").glob("*_round_01.xml"))
+    assert len(archives) == 1
+    assert archives[0].read_bytes() == body
     manifest = json.loads((tmp_path / "raw/8/manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "failed"
+    assert "round_01.xml" not in manifest["files"]
+    assert manifest["rejected"][0]["http_status"] == 200
 
 
 @pytest.mark.parametrize("kind", ["played", "future", "playoff", "promotion"])
@@ -360,3 +367,111 @@ def test_xml_cdata_response_is_supported() -> None:
     validate_round(
         b"<ResponseData><HtmlData><![CDATA[<div>future round</div>]]></HtmlData></ResponseData>"
     )
+
+
+def test_invalid_fifth_round_does_not_poison_the_next_run(tmp_path: Path) -> None:
+    layout = (FIXTURES / "league_2006.html").read_bytes()
+    valid = (FIXTURES / "played.xml").read_bytes()
+    invalid = b"<html><body>Temporary error page</body></html>"
+    source, session, _ = make_source(
+        tmp_path, [response(layout)] + [response(valid)] * 4 + [response(invalid)]
+    )
+    with pytest.raises(SourceFormatError):
+        source.scrape_history([8])
+    assert len(session.calls) == 6
+    directory = tmp_path / "raw/8"
+    assert not (directory / "round_05.xml").exists()
+    rejected = list((directory / "rejected").glob("*_round_05.xml"))
+    assert len(rejected) == 1
+    assert rejected[0].read_bytes() == invalid
+    before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in directory.glob("round_*.xml")}
+    source, session, _ = make_source(tmp_path, [response(valid)] * 29)
+    result = source.scrape_history([8])[0]
+    assert result.cached == 5
+    assert result.downloaded == 29
+    assert len(session.calls) == 29
+    assert before == {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in before}
+    assert rejected[0].read_bytes() == invalid
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "completed"
+    assert len(manifest["rejected"]) == 1
+    assert (directory / "round_05.xml").read_bytes() == valid
+
+
+def test_invalid_league_page_can_be_downloaded_again(tmp_path: Path) -> None:
+    invalid = b"<html>Temporary league error</html>"
+    source, _, _ = make_source(tmp_path, [response(invalid)])
+    with pytest.raises(SourceFormatError):
+        source.scrape_history([8])
+    directory = tmp_path / "raw/8"
+    assert not (directory / "league.html").exists()
+    archive = next((directory / "rejected").glob("*_league.html"))
+    assert archive.read_bytes() == invalid
+    source, session, _ = make_source(tmp_path, season_replies())
+    assert source.scrape_history([8])[0].downloaded == 5
+    assert len(session.calls) == 5
+    assert archive.read_bytes() == invalid
+
+
+def test_interrupted_file_write_leaves_no_final_file_and_can_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class InterruptedWrite:
+        def __init__(self, **kwargs: Any) -> None:
+            self.file = NamedTemporaryFile(**kwargs)
+            self.name = self.file.name
+
+        def __enter__(self) -> "InterruptedWrite":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            self.file.close()
+
+        def write(self, data: bytes) -> None:
+            self.file.write(data[:10])
+            raise OSError("Simulated partial disk write")
+
+    source, _, _ = make_source(tmp_path, season_replies())
+    with monkeypatch.context() as patch:
+        patch.setattr("ligat.scrape.ifa.NamedTemporaryFile", InterruptedWrite)
+        with pytest.raises(OSError, match="partial disk write"):
+            source.scrape_history([8])
+    directory = tmp_path / "raw/8"
+    assert not (directory / "league.html").exists()
+    assert not list(directory.glob("*.tmp"))
+    # A hard-killed process may leave a staging file: the next run must ignore it.
+    orphan = directory / ".league.html.abandoned.tmp"
+    orphan.write_bytes(b"partial")
+    source, _, _ = make_source(tmp_path, season_replies())
+    assert source.scrape_history([8])[0].downloaded == 5
+    assert orphan.read_bytes() == b"partial"
+
+
+def test_atomic_publish_never_overwrites_a_destination_created_concurrently(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_link = os.link
+
+    def collide(source: Path, destination: Path) -> None:
+        destination.write_bytes(b"Existing raw response")
+        original_link(source, destination)
+
+    source, _, _ = make_source(tmp_path, season_replies())
+    monkeypatch.setattr("ligat.scrape.ifa.os.link", collide)
+    with pytest.raises(FileExistsError):
+        source.scrape_history([8])
+    assert (tmp_path / "raw/8/league.html").read_bytes() == b"Existing raw response"
+
+
+def test_rejected_archives_are_unique_even_with_identical_timestamps(tmp_path: Path) -> None:
+    invalid = b"<html>Error</html>"
+    source, _, _ = make_source(tmp_path, [response(invalid), response(invalid)])
+    for _ in range(2):
+        with pytest.raises(SourceFormatError):
+            source.scrape_history([8])
+    directory = tmp_path / "raw/8"
+    archives = list((directory / "rejected").glob("*_league.html"))
+    assert len(archives) == 2
+    assert all(path.read_bytes() == invalid for path in archives)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["rejected"]) == 2

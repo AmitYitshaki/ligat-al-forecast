@@ -3,13 +3,16 @@
 import hashlib
 import json
 import logging
+import os
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any, Literal, Protocol
+from uuid import uuid4
 
 import requests
 import yaml
@@ -72,7 +75,7 @@ class SourceFormatError(ValueError):
 
 
 class AccessBlockedError(RuntimeError):
-    """HTTP 403 stops all further requests through this source instance."""
+    """HTTP 403 or 429 stops all further requests through this source instance."""
 
 
 @dataclass(frozen=True)
@@ -166,7 +169,7 @@ class IFASource:
 
     def _request(self, url: str, params: dict[str, int]) -> requests.Response:
         if self._blocked:
-            raise AccessBlockedError("Source stopped after HTTP 403")
+            raise AccessBlockedError("Source stopped after HTTP 403 or 429")
         for attempt in range(self.config.max_attempts):
             if self._last_finished is not None:
                 remaining = self.config.delay_seconds - (self._monotonic() - self._last_finished)
@@ -184,9 +187,9 @@ class IFASource:
                 if attempt + 1 == self.config.max_attempts:
                     raise
             else:
-                if response.status_code == 403:
+                if response.status_code in (403, 429):
                     self._blocked = True
-                    raise AccessBlockedError(f"HTTP 403: {url}")
+                    raise AccessBlockedError(f"HTTP {response.status_code}: {url}")
                 if not 500 <= response.status_code < 600:
                     response.raise_for_status()
                     if not 200 <= response.status_code < 300:
@@ -247,9 +250,7 @@ class IFASource:
                     for stage in stages
                     if stage.min_round <= round_id <= stage.max_round
                 ]
-                # Save the response and provenance even if format validation fails.
                 self._write_manifest(manifest_path, manifest)
-                validate_round(path.read_bytes())
             manifest["status"] = "completed"
         except Exception as exc:
             manifest["status"] = "failed"
@@ -279,8 +280,7 @@ class IFASource:
         status: int | None = None
         if not cached:
             response = self._request(url, params)
-            with path.open("xb") as stream:
-                stream.write(response.content)
+            self._publish_response(path, response, params, round_id, manifest)
             status = response.status_code
         content = path.read_bytes()
         digest = hashlib.sha256(content).hexdigest()
@@ -288,7 +288,8 @@ class IFASource:
         if path.name in files:
             if files[path.name]["sha256"] != digest:
                 raise SourceFormatError(f"Cached response hash mismatch: {path}")
-        else:
+        self._validate_resource(content, round_id)
+        if path.name not in files:
             files[path.name] = {
                 "url": url,
                 "params": params,
@@ -300,6 +301,61 @@ class IFASource:
             }
         self._write_manifest(path.parent / "manifest.json", manifest)
         return cached
+
+    @staticmethod
+    def _validate_resource(content: bytes, round_id: int | None) -> None:
+        if round_id is None:
+            parse_stages(content)
+        else:
+            validate_round(content)
+
+    def _publish_response(
+        self,
+        path: Path,
+        response: requests.Response,
+        params: dict[str, int],
+        round_id: int | None,
+        manifest: dict[str, Any],
+    ) -> None:
+        # The temporary file is on the same filesystem as the final destination.
+        temporary = NamedTemporaryFile(
+            mode="wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+        )
+        temporary_path = Path(temporary.name)
+        try:
+            with temporary as stream:
+                stream.write(response.content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            content = temporary_path.read_bytes()
+            try:
+                self._validate_resource(content, round_id)
+            except SourceFormatError as exc:
+                rejected = path.parent / "rejected"
+                rejected.mkdir(exist_ok=True)
+                stamp = self._now().astimezone(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+                archive = rejected / f"{stamp}_{uuid4().hex}_{path.name}"
+                temporary_path.rename(archive)
+                manifest.setdefault("rejected", []).append(
+                    {
+                        "path": archive.relative_to(path.parent).as_posix(),
+                        "original_file": path.name,
+                        "url": response.url,
+                        "params": params,
+                        "http_status": response.status_code,
+                        "rejected_at": self._now().astimezone(UTC).isoformat(),
+                        "bytes": len(content),
+                        "sha256": hashlib.sha256(content).hexdigest(),
+                        "error": str(exc),
+                    }
+                )
+                raise
+            # Atomically expose the complete validated file, without replacing an
+            # existing response. Unlike replace(), hard-link creation fails on collision.
+            os.link(temporary_path, path)
+        finally:
+            # Only our staging file is disposable; published and rejected raw bytes stay intact.
+            temporary_path.unlink(missing_ok=True)
 
     @staticmethod
     def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
