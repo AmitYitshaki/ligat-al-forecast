@@ -5,3 +5,7 @@
 *.toml text eol=lf
 *.md text eol=lf
 *.lock text eol=lf
+
+*.ipynb filter=nbstripout
+*.zpln filter=nbstripout
+*.ipynb diff=ipynb

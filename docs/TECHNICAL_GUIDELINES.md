@@ -177,9 +177,15 @@ class FeatureBlock(ABC):
 
 ## 8. מחברות
 
-- מחברות **לא מכילות לוגיקה.** הן מייבאות מ-`ligat` ומציגות.
+- `notebooks/explore/`: מחברות חקירה ו־EDA; לוגיקה זמנית מותרת לבדיקת רעיונות.
+  חישוב שמכריע החלטה מועבר ל־`ligat/analysis/` עם טסט לפני שימוש בו בפרויקט.
+- מחברות הצגה ב־`notebooks/`, מחוץ ל־`explore/`, **לא מכילות לוגיקה**:
+  הן מייבאות מ־`ligat` ומציגות.
 - כל מחברת עוברת **Restart & Run All** לפני commit.
-- פלטים מנוקים לפני commit (`nbstripout`), מלבד מחברת התוצאות הסופיות.
+- פלטים ומספרי הרצה מנוקים לפני commit באמצעות `nbstripout`, ב־Git filter
+  המוגדר ב־`.gitattributes` וב־hook של pre-commit. clone חדש מתקין filter מתוך ה־venv.
+- `ipykernel`, `nbformat` ו־`nbstripout` הן תלויות dev בלבד. המחברות רצות ב־kernel
+  של ה־venv (הוראות רישום ב־`notebooks/explore/README.md`).
 - שמות ממוספרים: `01_raw_data.ipynb`, `02_eda.ipynb`...
 
 ## 9. בדיקות

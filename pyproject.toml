@@ -23,6 +23,7 @@ ligat = "ligat.cli:app"
 dev = [
     "ruff>=0.9", "mypy>=1.14", "pytest>=8", "pytest-cov>=6",
     "pre-commit>=4", "pip-tools>=7", "types-requests", "types-PyYAML",
+    "ipykernel", "nbformat", "nbstripout",
 ]
 
 [tool.setuptools.packages.find]
