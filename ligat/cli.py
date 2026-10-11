@@ -7,6 +7,8 @@ from typing import Annotated
 import requests
 import typer
 
+from ligat.data.build import build_datasets
+from ligat.data.repository import Repository
 from ligat.scrape.ifa import AccessBlockedError, IFASource, load_scrape_config
 
 app = typer.Typer(no_args_is_help=True)
@@ -71,6 +73,33 @@ def history(
 def live(config: ConfigOption = Path("config/scrape.yaml")) -> None:
     """Create a timestamped snapshot of all published current-season rounds."""
     _run(config, None)
+
+
+@app.command("build")
+def build(
+    raw_root: Annotated[Path, typer.Option("--raw-root")] = Path("data/raw/ifa/rounds"),
+    clean_root: Annotated[Path, typer.Option("--clean-root")] = Path("data/clean"),
+    seasons_config: Annotated[
+        Path, typer.Option("--seasons-config", exists=True, dir_okay=False)
+    ] = Path("config/seasons.yaml"),
+    overrides_config: Annotated[
+        Path, typer.Option("--overrides-config", exists=True, dir_okay=False)
+    ] = Path("config/match_overrides.yaml"),
+    teams_config: Annotated[Path, typer.Option("--teams-config")] = Path("config/teams.yaml"),
+) -> None:
+    """Build validated clean Parquet datasets from saved responses; no network access."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    try:
+        build_datasets(
+            raw_root=raw_root,
+            seasons_path=seasons_config,
+            overrides_path=overrides_config,
+            teams_path=teams_config,
+            repository=Repository(clean_root),
+        )
+    except (ValueError, OSError, KeyError) as exc:
+        logging.getLogger(__name__).error("Build stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
 
 
 if __name__ == "__main__":

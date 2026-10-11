@@ -1,0 +1,89 @@
+{
+  "games": [
+    {
+      "game_id": null,
+      "date": "2027-03-06 00:00:00+02:00",
+      "home_team_id": 1064,
+      "away_team_id": 1068,
+      "home_name": "מכבי  פ\"ת",
+      "away_name": "מכבי נתניה",
+      "home_goals": null,
+      "away_goals": null,
+      "venue_raw": "",
+      "venue": ""
+    },
+    {
+      "game_id": null,
+      "date": "2027-03-06 00:00:00+02:00",
+      "home_team_id": 2176,
+      "away_team_id": 4823,
+      "home_name": "הפועל ת\"א",
+      "away_name": "בני סכנין",
+      "home_goals": null,
+      "away_goals": null,
+      "venue_raw": "",
+      "venue": ""
+    },
+    {
+      "game_id": null,
+      "date": "2027-03-06 00:00:00+02:00",
+      "home_team_id": 2171,
+      "away_team_id": 3595,
+      "home_name": "הפועל ב\"ש",
+      "away_name": "בית\"ר י-ם",
+      "home_goals": null,
+      "away_goals": null,
+      "venue_raw": "",
+      "venue": ""
+    },
+    {
+      "game_id": null,
+      "date": "2027-03-06 00:00:00+02:00",
+      "home_team_id": 1005,
+      "away_team_id": 2170,
+      "home_name": "מכבי חיפה",
+      "away_name": "הפועל חיפה",
+      "home_goals": null,
+      "away_goals": null,
+      "venue_raw": "",
+      "venue": ""
+    },
+    {
+      "game_id": null,
+      "date": "2027-03-06 00:00:00+02:00",
+      "home_team_id": 5981,
+      "away_team_id": 2175,
+      "home_name": "הפועל י-ם",
+      "away_name": "הפועל ר\"ג",
+      "home_goals": null,
+      "away_goals": null,
+      "venue_raw": "",
+      "venue": ""
+    },
+    {
+      "game_id": null,
+      "date": "2027-03-06 00:00:00+02:00",
+      "home_team_id": 5455,
+      "away_team_id": 1061,
+      "home_name": "עירוני דורות טבריה",
+      "away_name": "מכבי ת\"א",
+      "home_goals": null,
+      "away_goals": null,
+      "venue_raw": "",
+      "venue": ""
+    },
+    {
+      "game_id": null,
+      "date": "2027-03-06 00:00:00+02:00",
+      "home_team_id": 2182,
+      "away_team_id": 2173,
+      "home_name": "הפועל ק\"ש",
+      "away_name": "הפועל פ\"ת",
+      "home_goals": null,
+      "away_goals": null,
+      "venue_raw": "",
+      "venue": ""
+    }
+  ],
+  "table": []
+}

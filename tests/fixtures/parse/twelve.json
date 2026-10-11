@@ -1,0 +1,222 @@
+{
+  "games": [
+    {
+      "game_id": 113478,
+      "date": "2006-08-26 17:30:00+03:00",
+      "home_team_id": 2266,
+      "away_team_id": 2173,
+      "home_name": "הפועל כפ\"ס",
+      "away_name": "הפועל פ\"ת",
+      "home_goals": 4,
+      "away_goals": 1,
+      "venue_raw": "כפר סבא אצטדיון לויטה",
+      "venue": "כפר סבא אצטדיון לויטה"
+    },
+    {
+      "game_id": 113480,
+      "date": "2006-08-26 19:00:00+03:00",
+      "home_team_id": 1198,
+      "away_team_id": 1003,
+      "home_name": "מ.ס. אשדוד",
+      "away_name": "מכבי הרצליה דיוויד יחזקאל",
+      "home_goals": 1,
+      "away_goals": 0,
+      "venue_raw": "אשדוד אצטדיון הי\"א",
+      "venue": "אשדוד אצטדיון הי\"א"
+    },
+    {
+      "game_id": 113481,
+      "date": "2006-08-26 19:00:00+03:00",
+      "home_team_id": 1064,
+      "away_team_id": 5135,
+      "home_name": "מכבי  פ\"ת",
+      "away_name": "הכח מכבי עמידר ר\"ג",
+      "home_goals": 0,
+      "away_goals": 0,
+      "venue_raw": "(סגור)פ\"ת אצטדיון",
+      "venue": "פ\"ת אצטדיון"
+    },
+    {
+      "game_id": 113479,
+      "date": "2006-08-26 19:30:00+03:00",
+      "home_team_id": 1068,
+      "away_team_id": 1005,
+      "home_name": "מכבי נתניה",
+      "away_name": "מכבי חיפה",
+      "home_goals": 3,
+      "away_goals": 1,
+      "venue_raw": "נתניה",
+      "venue": "נתניה"
+    },
+    {
+      "game_id": 113477,
+      "date": "2006-08-27 20:50:00+03:00",
+      "home_team_id": 1061,
+      "away_team_id": 3595,
+      "home_name": "מכבי ת\"א",
+      "away_name": "בית\"ר י-ם",
+      "home_goals": 1,
+      "away_goals": 2,
+      "venue_raw": "בלומפילד",
+      "venue": "בלומפילד"
+    },
+    {
+      "game_id": 113482,
+      "date": "2006-08-28 20:03:00+03:00",
+      "home_team_id": 4669,
+      "away_team_id": 2176,
+      "home_name": "בני יהודה ת\"א",
+      "away_name": "הפועל ת\"א",
+      "home_goals": 1,
+      "away_goals": 1,
+      "venue_raw": "בלומפילד",
+      "venue": "בלומפילד"
+    }
+  ],
+  "table": [
+    {
+      "team_id": 2266,
+      "name": "הפועל כפ\"ס",
+      "position": 1,
+      "played": 1,
+      "won": 1,
+      "drawn": 0,
+      "lost": 0,
+      "goals_for": 4,
+      "goals_against": 1,
+      "points_official": 3
+    },
+    {
+      "team_id": 1068,
+      "name": "מכבי נתניה",
+      "position": 2,
+      "played": 1,
+      "won": 1,
+      "drawn": 0,
+      "lost": 0,
+      "goals_for": 3,
+      "goals_against": 1,
+      "points_official": 3
+    },
+    {
+      "team_id": 1198,
+      "name": "מ.ס. אשדוד",
+      "position": 3,
+      "played": 1,
+      "won": 1,
+      "drawn": 0,
+      "lost": 0,
+      "goals_for": 1,
+      "goals_against": 0,
+      "points_official": 3
+    },
+    {
+      "team_id": 3595,
+      "name": "בית\"ר י-ם",
+      "position": 4,
+      "played": 1,
+      "won": 1,
+      "drawn": 0,
+      "lost": 0,
+      "goals_for": 2,
+      "goals_against": 1,
+      "points_official": 3
+    },
+    {
+      "team_id": 4669,
+      "name": "בני יהודה ת\"א",
+      "position": 5,
+      "played": 1,
+      "won": 0,
+      "drawn": 1,
+      "lost": 0,
+      "goals_for": 0,
+      "goals_against": 0,
+      "points_official": 1
+    },
+    {
+      "team_id": 5135,
+      "name": "הכח מכבי עמידר ר\"ג",
+      "position": 6,
+      "played": 1,
+      "won": 0,
+      "drawn": 1,
+      "lost": 0,
+      "goals_for": 0,
+      "goals_against": 0,
+      "points_official": 1
+    },
+    {
+      "team_id": 1064,
+      "name": "מכבי  פ\"ת",
+      "position": 7,
+      "played": 1,
+      "won": 0,
+      "drawn": 1,
+      "lost": 0,
+      "goals_for": 0,
+      "goals_against": 0,
+      "points_official": 1
+    },
+    {
+      "team_id": 2176,
+      "name": "הפועל ת\"א",
+      "position": 8,
+      "played": 1,
+      "won": 0,
+      "drawn": 1,
+      "lost": 0,
+      "goals_for": 0,
+      "goals_against": 0,
+      "points_official": 1
+    },
+    {
+      "team_id": 1061,
+      "name": "מכבי ת\"א",
+      "position": 9,
+      "played": 1,
+      "won": 0,
+      "drawn": 0,
+      "lost": 1,
+      "goals_for": 1,
+      "goals_against": 2,
+      "points_official": 0
+    },
+    {
+      "team_id": 1003,
+      "name": "מכבי הרצליה דיוויד יחזקאל",
+      "position": 10,
+      "played": 1,
+      "won": 0,
+      "drawn": 0,
+      "lost": 1,
+      "goals_for": 0,
+      "goals_against": 1,
+      "points_official": 0
+    },
+    {
+      "team_id": 1005,
+      "name": "מכבי חיפה",
+      "position": 11,
+      "played": 1,
+      "won": 0,
+      "drawn": 0,
+      "lost": 1,
+      "goals_for": 1,
+      "goals_against": 3,
+      "points_official": 0
+    },
+    {
+      "team_id": 2173,
+      "name": "הפועל פ\"ת",
+      "position": 12,
+      "played": 1,
+      "won": 0,
+      "drawn": 0,
+      "lost": 1,
+      "goals_for": 1,
+      "goals_against": 4,
+      "points_official": 0
+    }
+  ]
+}
