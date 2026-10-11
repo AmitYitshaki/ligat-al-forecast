@@ -1,11 +1,12 @@
 # Claude Code verification supplied by Amit, 2026-10-11.
-# Only verified entries affect datasets. Candidates await T-007.
+# All eight entries verified and dropped by Amit's decision, 2026-10-11.
+# New 2024/25 point correction is deferred explicitly to preserve existing tables.
 matches:
-  211602: {status: awarded, verified: true, reason: "Ineligible player; source match 1:1, official home 0:3"}
-  240618: {status: awarded, verified: true, reason: "Abandoned at 3:3; official home 0:3"}
-  388645: {status: void, verified: true, reason: "Abandoned derby; article 64, neither team earns points"}
-  525468: {status: awarded, verified: true, reason: "Six foreign players; source home 0:1, official 0:3"}
-  732553: {status: awarded, verified: true, reason: "Six foreign players; source 1:1, official home 3:0"}
-  732312: {status: awarded, verified: true, reason: "Not played; official home 0:3"}
-  954863: {status: void, verified: false, reason: "Candidate only; newspaper report, await T-007"}
-  1060422: {status: awarded, verified: false, reason: "Candidate only; newspaper report, await T-007"}
+  211602: {status: awarded, action: drop, verified: true, reason: "Ineligible player; source match 1:1, official home 0:3"}
+  240618: {status: awarded, action: drop, verified: true, reason: "Abandoned at 3:3; official home 0:3"}
+  388645: {status: void, action: drop, verified: true, reason: "Abandoned derby; article 64, neither team earns points"}
+  525468: {status: awarded, action: drop, verified: true, reason: "Six foreign players; source home 0:1, official 0:3"}
+  732553: {status: awarded, action: drop, verified: true, reason: "Six foreign players; source 1:1, official home 3:0"}
+  732312: {status: awarded, action: drop, verified: true, reason: "Not played; official home 0:3"}
+  954863: {status: void, action: drop, verified: true, adjust_points: false, reason: "Verified via deduction; Amit deferred the point correction to preserve existing tables"}
+  1060422: {status: awarded, action: drop, verified: true, reason: "Verified via deduction; police did not authorize the match"}
