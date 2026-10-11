@@ -6,7 +6,7 @@ import pandas as pd  # type: ignore[import-untyped]
 import pandera.pandas as pa
 
 STAGES = ("regular", "upper", "middle", "lower")
-STATUSES = ("played", "awarded", "void")
+STATUSES = ("played",)
 
 
 def _integer(*, positive: bool = False) -> pa.Column:

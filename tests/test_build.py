@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -51,10 +52,50 @@ def test_verified_overrides_only() -> None:
         525468: "awarded",
         732553: "awarded",
         732312: "awarded",
+        954863: "void",
+        1060422: "awarded",
     }
     assert 732462 not in overrides  # Real 3:0 victory, not a technical result.
-    assert 954863 not in overrides
-    assert 1060422 not in overrides
+
+
+def test_build_drops_exactly_eight_games_and_preserves_void_points(tmp_path: Path) -> None:
+    parsed = parse_round((FIXTURES / "void.xml").read_bytes())
+    void = next(game for game in parsed.games if game.game_id == 388645)
+    dropped = set(_load_overrides(Path("config/match_overrides.yaml")))
+    assert dropped == {211602, 240618, 388645, 525468, 732553, 732312, 954863, 1060422}
+    games = tuple(replace(void, game_id=game_id) for game_id in sorted(dropped | {999999}))
+    config = {
+        "season_id": 16,
+        "label": "2014/15",
+        "regular_rounds": 7,
+        "n_teams": 14,
+        "playoffs": [],
+        "points_halved": False,
+        "points_win": 3,
+        "points_draw": 1,
+    }
+    season = SeasonInput(
+        config,
+        tmp_path,
+        {"files": {"round_07.xml": {"stages": []}}},
+        {7: ParsedRound(games, parsed.table)},
+    )
+    seasons_path = tmp_path / "seasons.yaml"
+    seasons_path.write_text(yaml.safe_dump({"defaults": {}, "seasons": [config]}))
+    baseline = make_frame("round_tables", _table_rows(season, [(7, 2176, 1061)]))
+    with patch("ligat.data.build._load_season", return_value=season):
+        frames = build_datasets(
+            seasons_path=seasons_path,
+            teams_path=tmp_path / "teams.yaml",
+            repository=Repository(tmp_path / "clean"),
+        )
+    assert set(frames["matches"].game_id) == {999999}
+    assert set(frames["matches"].status) == {"played"}
+    assert len(games) - len(frames["matches"]) == 8
+    pd.testing.assert_frame_equal(frames["round_tables"], baseline)
+    table = frames["round_tables"].set_index("team_id")
+    assert table.loc[2176, "points_model"] == 10
+    assert table.loc[1061, "points_model"] == 15
 
 
 def test_void_no_point_and_deduction_not_in_model() -> None:

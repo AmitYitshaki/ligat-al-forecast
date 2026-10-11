@@ -103,16 +103,34 @@ def _stage(season: SeasonInput, round_id: int, home: int, away: int, groups: dic
 
 
 def _load_overrides(path: Path) -> dict[int, str]:
+    """Return verified status overrides for compatibility with source validation."""
+    return _load_override_policy(path)[0]
+
+
+def _load_override_policy(path: Path) -> tuple[dict[int, str], set[int], set[int]]:
+    """Separate status, removal and deferred point corrections explicitly."""
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     result: dict[int, str] = {}
+    dropped: set[int] = set()
+    deferred_points: set[int] = set()
     for game_id, override in document["matches"].items():
         if override["status"] not in ("played", "awarded", "void"):
             raise ValueError(f"Unknown status override for {game_id}")
         if not isinstance(override["verified"], bool):
             raise ValueError(f"Override verified flag must be boolean: {game_id}")
+        action = override.get("action", "keep")
+        if action not in ("keep", "drop"):
+            raise ValueError(f"Unknown override action for {game_id}")
+        adjust_points = override.get("adjust_points", True)
+        if not isinstance(adjust_points, bool):
+            raise ValueError(f"Override adjust_points flag must be boolean: {game_id}")
         if override["verified"]:
             result[int(game_id)] = override["status"]
-    return result
+            if action == "drop":
+                dropped.add(int(game_id))
+            if not adjust_points:
+                deferred_points.add(int(game_id))
+    return result, dropped, deferred_points
 
 
 def model_points(total: int, regular_total: int, *, after_regular: bool, halved: bool) -> int:
@@ -187,7 +205,7 @@ def build_datasets(
         _load_season(raw_root, document["defaults"] | config)
         for config in sorted(document["seasons"], key=lambda item: item["season_id"])
     ]
-    overrides = _load_overrides(overrides_path)
+    overrides, dropped, deferred_points = _load_override_policy(overrides_path)
     matches: list[dict[str, Any]] = []
     fixtures: list[dict[str, Any]] = []
     tables: list[dict[str, Any]] = []
@@ -248,7 +266,7 @@ def build_datasets(
                             "source": "ifa",
                         }
                     )
-                    if status == "void":
+                    if status == "void" and game.game_id not in deferred_points:
                         voids.append((round_id, game.home_team_id, game.away_team_id))
         tables.extend(_table_rows(season, voids))
 
@@ -287,6 +305,8 @@ def build_datasets(
                 }
             )
 
+    # Interpret administrative results for standings before removing match records.
+    matches = [match for match in matches if match["game_id"] not in dropped]
     frames = {
         name: make_frame(name, records)
         for name, records in (
