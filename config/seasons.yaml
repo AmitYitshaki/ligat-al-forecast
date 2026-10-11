@@ -12,11 +12,12 @@ defaults:
   relegated: 2
 
 seasons:
+  - {season_id: 8,  label: "2006/07", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: true}
   - {season_id: 9,  label: "2007/08", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: true}
   - {season_id: 10, label: "2008/09", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: false}
   - {season_id: 11, label: "2009/10", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: true}
   - {season_id: 12, label: "2010/11", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: false}
-  - {season_id: 13, label: "2011/12", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: false}
+  - {season_id: 13, label: "2011/12", n_teams: 16, regular_rounds: 30, playoffs: [upper, lower],           points_halved: false, verified: true}
   - {season_id: 14, label: "2012/13", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: true}
   - {season_id: 15, label: "2013/14", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
   - {season_id: 16, label: "2014/15", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}

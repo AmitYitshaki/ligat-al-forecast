@@ -16,6 +16,9 @@ dependencies = [
     "plotly", "kaleido", "shap",
 ]
 
+[project.scripts]
+ligat = "ligat.cli:app"
+
 [project.optional-dependencies]
 dev = [
     "ruff>=0.9", "mypy>=1.14", "pytest>=8", "pytest-cov>=6",
