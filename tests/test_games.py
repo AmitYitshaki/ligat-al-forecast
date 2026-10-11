@@ -276,10 +276,13 @@ def test_legacy_sample_is_compressed_without_network_or_changing_original(tmp_pa
 
 
 def test_technical_unplayed_page_without_events_is_valid() -> None:
-    path = Path(__file__).parent / "fixtures" / "games" / "732312.synthetic.html"
+    path = Path(__file__).parent / "fixtures" / "games" / "732312.html"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "906df127ca43a955a208df8f07e7bfc65f0e9a2e605786ee77483940b5bd9300"
+    )
     result = inspect_game_page(path.read_bytes(), GameRef(732312, 23, 4823, 1005))
     assert result["game_id_checked"]
-    assert not result["has_halftime"]
+    assert result["has_halftime"]
     assert not result["has_timeline"]
     assert not result["has_lineups"]
 

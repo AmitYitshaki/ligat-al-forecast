@@ -9,3 +9,4 @@
 *.ipynb filter=nbstripout
 *.zpln filter=nbstripout
 *.ipynb diff=ipynb
+tests/fixtures/games/*.html -text
