@@ -1,0 +1,176 @@
+draft: true
+teams:
+- team_id: 1003
+  name_he: מכבי הרצליה דיוויד יחזקאל
+  name_en: null
+  aliases:
+  - מכבי הרצליה דיוויד יחזקאל
+  city: null
+- team_id: 1005
+  name_he: מכבי חיפה
+  name_en: null
+  aliases:
+  - מכבי חיפה
+  city: null
+- team_id: 1061
+  name_he: מכבי ת"א
+  name_en: null
+  aliases:
+  - מכבי ת"א
+  city: null
+- team_id: 1064
+  name_he: מכבי פ"ת
+  name_en: null
+  aliases:
+  - מכבי  פ"ת
+  city: null
+- team_id: 1068
+  name_he: מכבי נתניה
+  name_en: null
+  aliases:
+  - מכבי נתניה
+  city: null
+- team_id: 1198
+  name_he: מ.ס. אשדוד
+  name_en: null
+  aliases:
+  - מ.ס. אשדוד
+  city: null
+- team_id: 1844
+  name_he: מכבי אחי נצרת
+  name_en: null
+  aliases:
+  - מכבי אחי נצרת
+  city: null
+- team_id: 2170
+  name_he: הפועל חיפה
+  name_en: null
+  aliases:
+  - הפועל חיפה
+  city: null
+- team_id: 2171
+  name_he: הפועל ב"ש
+  name_en: null
+  aliases:
+  - הפועל ב"ש
+  city: null
+- team_id: 2173
+  name_he: הפועל פ"ת
+  name_en: null
+  aliases:
+  - הפועל פ"ת
+  city: null
+- team_id: 2175
+  name_he: הפועל ר"ג
+  name_en: null
+  aliases:
+  - הפועל ר"ג
+  city: null
+- team_id: 2176
+  name_he: הפועל ת"א
+  name_en: null
+  aliases:
+  - הפועל ת"א
+  city: null
+- team_id: 2182
+  name_he: הפועל ק"ש
+  name_en: null
+  aliases:
+  - הפועל ק"ש
+  city: null
+- team_id: 2184
+  name_he: הפועל עכו
+  name_en: null
+  aliases:
+  - הפועל עכו
+  city: null
+- team_id: 2185
+  name_he: הפ' נוף הגליל
+  name_en: null
+  aliases:
+  - הפ' נוף הגליל
+  city: null
+- team_id: 2186
+  name_he: הפ' חדרה ש. שוורץ
+  name_en: null
+  aliases:
+  - הפ' חדרה ש. שוורץ
+  city: null
+- team_id: 2194
+  name_he: הפועל ניר רמה"ש
+  name_en: null
+  aliases:
+  - הפועל ניר רמה"ש
+  city: null
+- team_id: 2203
+  name_he: הפועל רעננה
+  name_en: null
+  aliases:
+  - הפועל רעננה
+  city: null
+- team_id: 2213
+  name_he: הפועל ע. אשקלון
+  name_en: null
+  aliases:
+  - הפועל ע. אשקלון / לא פעיל
+  city: null
+- team_id: 2263
+  name_he: הפועל ראשל"צ
+  name_en: null
+  aliases:
+  - הפועל ראשל"צ
+  city: null
+- team_id: 2266
+  name_he: הפועל כפ"ס
+  name_en: null
+  aliases:
+  - הפועל כפ"ס
+  city: null
+- team_id: 3595
+  name_he: בית"ר י-ם
+  name_en: null
+  aliases:
+  - בית"ר י-ם
+  city: null
+- team_id: 4669
+  name_he: בני יהודה ת"א
+  name_en: null
+  aliases:
+  - בני יהודה ת"א
+  city: null
+- team_id: 4823
+  name_he: בני סכנין
+  name_en: null
+  aliases:
+  - בני סכנין
+  city: null
+- team_id: 5135
+  name_he: הכח מכבי עמידר ר"ג
+  name_en: null
+  aliases:
+  - הכח מכבי עמידר ר"ג
+  city: null
+- team_id: 5227
+  name_he: סקציה נס ציונה
+  name_en: null
+  aliases:
+  - סקציה נס ציונה
+  city: null
+- team_id: 5257
+  name_he: מכבי בני ריינה
+  name_en: null
+  aliases:
+  - מכבי בני ריינה
+  city: null
+- team_id: 5455
+  name_he: עירוני דורות טבריה
+  name_en: null
+  aliases:
+  - עירוני דורות טבריה
+  city: null
+- team_id: 5981
+  name_he: הפועל י-ם
+  name_en: null
+  aliases:
+  - הפועל י-ם
+  city: null
