@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import pandas as pd  # type: ignore[import-untyped]
@@ -37,3 +38,12 @@ class Repository:
             os.replace(temporary, target)
         finally:
             temporary.unlink(missing_ok=True)
+
+    def read_filtered(self, name: str, filters: list[tuple[str, str, Any]]) -> pd.DataFrame:
+        """Push filters into Parquet loading so analysis never loads held-out rows."""
+        if not filters:
+            raise ValueError("Filtered repository reads require an explicit selection")
+        schema = SCHEMAS[name]
+        frame = pd.read_parquet(self.root / f"{name}.parquet", filters=filters, engine="pyarrow")
+        schema.validate(frame, lazy=True)
+        return frame

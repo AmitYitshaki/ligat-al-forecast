@@ -14,6 +14,7 @@
 | T-007 | [אימות הדאטה](T-007-validate-data.md) | Claude Code | T-003, T-005 | דוח אימות; `seasons.yaml` מאומת |
 | T-008 | [תשתית ויזואליזציה](T-008-viz-framework.md) | Codex | T-001 | `ligat viz build` + גלריה |
 | T-009 | [גרפי הדאטה](T-009-data-charts.md) | Codex + Claude Code | T-007, T-008 | גרפי איכות וסקירה + דוח |
+| EDA-01 | [הכנת טבלאות ניתוח](EDA-01-prepare-tables.md) | Codex + Claude Code | שלב 1 | תצוגות נתונים מודולריות ומחברת 01 (בשלבים A, B, C) |
 
 ## סדר עבודה
 
