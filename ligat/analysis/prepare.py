@@ -227,8 +227,8 @@ def build_match_table(
             on=["game_id", f"{side}_team_id"],
             validate="one_to_one",
         )
-    next_round = frame.groupby(["season_id", "round"]).date.min()
-    keys = pd.MultiIndex.from_arrays([frame.season_id, frame["round"] + 1])
+    next_round = frame.groupby(["season_id", "stage", "round"], observed=True).date.min()
+    keys = pd.MultiIndex.from_arrays([frame.season_id, frame.stage, frame["round"] + 1])
     dates = pd.Series(next_round.reindex(keys).array, index=frame.index)
     frame["is_postponed"] = frame.date.gt(dates).astype("boolean")
     _goal_summary(frame, inputs["goals"], inputs["red_cards"])

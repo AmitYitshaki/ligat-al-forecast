@@ -189,5 +189,11 @@
     "23": 238,
     "24": 240,
     "25": 240
+  },
+  "postponed_matches": {
+    "total": 49,
+    "by_stage": {
+      "regular": 49
+    }
   }
 }

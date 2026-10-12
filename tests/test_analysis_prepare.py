@@ -234,6 +234,35 @@ def test_postponement_and_column_groups(inputs: tuple[Repository, Path, Path]) -
     assert {"date", "venue", "home_team_id", "away_team_name"} <= set(COLUMN_GROUPS["identity"])
 
 
+@pytest.mark.parametrize("parallel_stage", ["lower", "middle"])
+def test_parallel_playoff_rounds_are_not_postponed(
+    inputs: tuple[Repository, Path, Path], parallel_stage: str
+) -> None:
+    repo = inputs[0]
+    definitions = [
+        (101, 301, "upper", 34, 10),
+        (103, 302, "upper", 35, 17),
+        (102, 303, parallel_stage, 34, 20),
+        (104, 304, parallel_stage, 35, 24),
+    ]
+    for name in ("matches", "game_details", "goals", "red_cards", "coaches"):
+        source = repo.read(name)
+        copies = []
+        for original_id, game_id, stage, round_id, day in definitions:
+            extra = source.loc[source.game_id.eq(original_id)].copy()
+            extra["game_id"] = game_id
+            if name == "matches":
+                extra.loc[:, "stage"] = stage
+                extra["round"] = round_id
+                extra["date"] = pd.Timestamp(f"2006-08-{day} 20:00", tz="Asia/Jerusalem")
+            copies.append(extra)
+        repo.write(name, pd.concat([source, *copies], ignore_index=True))
+    frame = build(inputs)
+    assert not frame.loc[[301, 302, 303, 304], "is_postponed"].any()
+    assert frame.loc[105, "is_postponed"]  # regular round 1 after regular round 2
+    assert not frame.loc[[302, 304], "is_postponed"].any()  # last round of each stage
+
+
 def test_first_goal_uses_half_before_running_minute(inputs: tuple[Repository, Path, Path]) -> None:
     repo = inputs[0]
     goals = repo.read("goals")
