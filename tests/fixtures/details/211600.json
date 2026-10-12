@@ -1,0 +1,71 @@
+{
+  "season_id": 11,
+  "home_id": 1005,
+  "away_id": 2184,
+  "details": {
+    "game_id": 211600,
+    "ht_home_goals": 1,
+    "ht_away_goals": 0,
+    "referee": "משיח מנשה",
+    "has_timeline": true,
+    "has_lineups": false,
+    "has_coaches": false
+  },
+  "goals": [
+    {
+      "game_id": 211600,
+      "team_id": 1005,
+      "minute": 35,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 211600,
+      "team_id": 2184,
+      "minute": 66,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 211600,
+      "team_id": 1005,
+      "minute": 89,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    }
+  ],
+  "red_cards": [
+    {
+      "game_id": 211600,
+      "team_id": 2184,
+      "minute": 72,
+      "is_second_yellow": true
+    }
+  ],
+  "coaches": [
+    {
+      "game_id": 211600,
+      "team_id": 1005,
+      "coach_id": null,
+      "coach_name": null
+    },
+    {
+      "game_id": 211600,
+      "team_id": 2184,
+      "coach_id": null,
+      "coach_name": null
+    }
+  ],
+  "final_score": [
+    2,
+    1
+  ],
+  "lineup_counts": [
+    0,
+    0
+  ],
+  "timeline_nodes": 9
+}

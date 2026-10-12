@@ -9,6 +9,7 @@ import requests
 import typer
 
 from ligat.data.build import build_datasets
+from ligat.data.export import export_excel
 from ligat.data.repository import Repository
 from ligat.scrape.games import run_games
 from ligat.scrape.ifa import AccessBlockedError, IFASource, load_scrape_config
@@ -16,6 +17,8 @@ from ligat.scrape.ifa import AccessBlockedError, IFASource, load_scrape_config
 app = typer.Typer(no_args_is_help=True)
 scrape_app = typer.Typer(no_args_is_help=True)
 app.add_typer(scrape_app, name="scrape")
+export_app = typer.Typer(no_args_is_help=True)
+app.add_typer(export_app, name="export")
 ConfigOption = Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)]
 
 
@@ -148,6 +151,21 @@ def games(
             raise typer.Exit(code=1)
     except (AccessBlockedError, requests.RequestException, ValueError, OSError) as exc:
         logging.getLogger(__name__).error("Game collection stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
+
+
+@export_app.command("excel")
+def excel(
+    clean_root: Annotated[Path, typer.Option("--clean-root")] = Path("data/clean"),
+    teams_config: Annotated[Path, typer.Option("--teams-config")] = Path("config/teams.yaml"),
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+) -> None:
+    """Export eight validated datasets with canonical Hebrew names for inspection only."""
+    try:
+        path = export_excel(Repository(clean_root), output, teams_path=teams_config)
+        typer.echo(f"Excel: {path.resolve()}")
+    except (ValueError, OSError, KeyError) as exc:
+        logging.getLogger(__name__).error("Excel export stopped: %s", exc)
         raise typer.Exit(code=1) from exc
 
 

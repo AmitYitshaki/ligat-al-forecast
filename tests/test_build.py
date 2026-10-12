@@ -109,6 +109,9 @@ def test_build_drops_exactly_eleven_games_and_preserves_void_points(tmp_path: Pa
             repository=Repository(tmp_path / "clean"),
         )
     assert set(frames["matches"].game_id) == {999999}
+    assert set(frames["game_details"].game_id) == {999999}
+    assert set(frames["coaches"].game_id) == {999999}
+    assert frames["goals"].empty and frames["red_cards"].empty
     assert set(frames["matches"].status) == {"played"}
     assert len(games) - len(frames["matches"]) == 11
     pd.testing.assert_frame_equal(frames["round_tables"], baseline)
@@ -295,6 +298,28 @@ def test_integrity_failure_does_not_publish(tmp_path: Path) -> None:
     assert not inputs["teams_path"].exists()
 
 
+def test_details_mismatch_reports_without_replacing_parquet(tmp_path: Path) -> None:
+    inputs = _inputs(tmp_path)
+    repo = Repository(tmp_path / "clean")
+    repo.root.mkdir()
+    existing = repo.root / "matches.parquet"
+    existing.write_bytes(b"previous validated version")
+    with (
+        patch(
+            "ligat.data.build.cross_check",
+            return_value=[
+                {"game_id": 123, "kind": "halftime_goals", "actual": [0, 0], "expected": [1, 0]}
+            ],
+        ),
+        pytest.raises(ValueError, match="Game details validation failed"),
+    ):
+        build_datasets(**inputs, repository=repo)
+    assert existing.read_bytes() == b"previous validated version"
+    report = json.loads((repo.root / "game_details_validation.json").read_text())
+    assert report["issues"] and report["checked_games"] == 11
+    assert not inputs["teams_path"].exists()
+
+
 def test_snapshot_requires_completed_status(tmp_path: Path) -> None:
     inputs = _inputs(tmp_path)
     root = inputs["raw_root"] / "28" / "snapshot"
@@ -391,10 +416,17 @@ def _save_pages(root: Path, sid: int, games: tuple) -> None:
     for game in games:
         if game.game_id is None:
             continue
+        events = "".join(
+            f'<div class="node goal team{side}">'
+            '<div class="minute"><i><div>60</div></i></div></div>'
+            for side, count in ((1, game.home_goals), (2, game.away_goals))
+            for _ in range(count or 0)
+        )
         content = (
             f'<html><body><section class="game-details" id="gfd_{game.game_id}">'
             f'<div class="game-time"><div class="total">{game.home_goals} : {game.away_goals}</div>'
-            '<div class="result-half">99 : 99</div></div></section></body></html>'
+            '<div class="result-half">0 : 0</div></div><div class="timeline">'
+            f'<div class="node number">0</div>{events}</div></section></body></html>'
         ).encode()
         compressed = gzip.compress(content, mtime=0)
         name = f"{game.game_id}.html.gz"

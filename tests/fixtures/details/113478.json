@@ -1,0 +1,93 @@
+{
+  "season_id": 8,
+  "home_id": 2266,
+  "away_id": 2173,
+  "details": {
+    "game_id": 113478,
+    "ht_home_goals": 1,
+    "ht_away_goals": 0,
+    "referee": "יעקב חיים",
+    "has_timeline": true,
+    "has_lineups": false,
+    "has_coaches": false
+  },
+  "goals": [
+    {
+      "game_id": 113478,
+      "team_id": 2266,
+      "minute": 3,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 113478,
+      "team_id": 2266,
+      "minute": 54,
+      "added_time": null,
+      "is_penalty": true,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 113478,
+      "team_id": 2266,
+      "minute": 65,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 113478,
+      "team_id": 2266,
+      "minute": 73,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 113478,
+      "team_id": 2173,
+      "minute": 79,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    }
+  ],
+  "red_cards": [
+    {
+      "game_id": 113478,
+      "team_id": 2173,
+      "minute": 45,
+      "is_second_yellow": true
+    },
+    {
+      "game_id": 113478,
+      "team_id": 2173,
+      "minute": 85,
+      "is_second_yellow": true
+    }
+  ],
+  "coaches": [
+    {
+      "game_id": 113478,
+      "team_id": 2266,
+      "coach_id": null,
+      "coach_name": null
+    },
+    {
+      "game_id": 113478,
+      "team_id": 2173,
+      "coach_id": null,
+      "coach_name": null
+    }
+  ],
+  "final_score": [
+    4,
+    1
+  ],
+  "lineup_counts": [
+    0,
+    0
+  ],
+  "timeline_nodes": 15
+}

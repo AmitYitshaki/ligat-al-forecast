@@ -36,7 +36,15 @@ class GamePageRepository:
 
     def score(self, season_id: int, game_id: int) -> tuple[int, int]:
         """Load a saved score without network access or modifying raw storage."""
+        return parse_game_score(self.read(season_id, game_id), game_id)
+
+    def read(self, season_id: int, game_id: int) -> bytes:
+        """Return original response bytes only after verifying the gzip and manifest."""
         directory = self.root / str(season_id)
+        if not (directory / f"{game_id}.html.gz").exists():
+            raise ValueError(
+                f"חסר עמוד משחק ל-game_id={game_id}; הרץ קודם `ligat scrape games --live`"
+            )
         if season_id not in self._manifests:
             self._manifests[season_id] = json.loads(
                 (directory / "manifest.json").read_text(encoding="utf-8")
@@ -61,4 +69,4 @@ class GamePageRepository:
             or hashlib.sha256(content).hexdigest() != metadata["sha256"]
         ):
             raise ValueError(f"Game-page content integrity mismatch: game_id={game_id}")
-        return parse_game_score(content, game_id)
+        return content

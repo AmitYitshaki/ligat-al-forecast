@@ -49,6 +49,8 @@ debugpy==1.8.22
     # via ipykernel
 distlib==0.4.3
     # via virtualenv
+et-xmlfile==2.0.0
+    # via openpyxl
 executing==2.3.0
     # via stack-data
 fastjsonschema==2.22.2
@@ -139,6 +141,8 @@ numpy==2.5.3
     #   shap
     #   statsmodels
     #   xgboost
+openpyxl==3.1.5
+    # via ligat-al-forecast (pyproject.toml)
 packaging==26.3
     # via
     #   build

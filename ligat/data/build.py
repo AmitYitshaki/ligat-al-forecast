@@ -14,6 +14,7 @@ from uuid import uuid4
 import pandas as pd  # type: ignore[import-untyped]
 import yaml
 
+from ligat.data.details import cross_check, parse_game
 from ligat.data.game_pages import GamePageRepository
 from ligat.data.parse import ParsedRound, TableRow, clean_team_name, parse_round
 from ligat.data.repository import Repository
@@ -337,6 +338,60 @@ def build_datasets(
             ("final_tables", finals),
         )
     }
+    detail_rows: dict[str, list[dict[str, Any]]] = {
+        name: [] for name in ("game_details", "goals", "red_cards", "coaches")
+    }
+    issues = []
+    warnings: list[dict[str, Any]] = []
+    for index, match in enumerate(matches, start=1):
+        content = pages.read(match["season_id"], match["game_id"])
+        try:
+            parsed_game = parse_game(
+                content, match["game_id"], match["home_team_id"], match["away_team_id"]
+            )
+        except ValueError as exc:
+            issues.append({"game_id": match["game_id"], "kind": "page_format", "error": str(exc)})
+            continue
+        if index % 500 == 0:
+            LOGGER.info("Validated game details: %d/%d", index, len(matches))
+        issues.extend(
+            cross_check(
+                parsed_game,
+                match["home_team_id"],
+                match["away_team_id"],
+                (match["home_goals"], match["away_goals"]),
+            )
+        )
+        detail_rows["game_details"].append(parsed_game.details)
+        detail_rows["goals"].extend(parsed_game.goals)
+        detail_rows["red_cards"].extend(parsed_game.red_cards)
+        warnings.extend(
+            {
+                "game_id": match["game_id"],
+                "kind": "unknown_red_card_minute",
+                "team_id": row["team_id"],
+            }
+            for row in parsed_game.red_cards
+            if row["minute"] is None
+        )
+        detail_rows["coaches"].extend(parsed_game.coaches)
+    report_path = repo.root / "game_details_validation.json"
+    repo.root.mkdir(parents=True, exist_ok=True)
+    temporary_report = report_path.with_suffix(".json.tmp")
+    temporary_report.write_text(
+        json.dumps(
+            {"checked_games": len(matches), "issues": issues, "warnings": warnings},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    temporary_report.replace(report_path)
+    if issues:
+        raise ValueError(
+            f"Game details validation failed: {len(issues)} discrepancies; report: {report_path}"
+        )
+    frames.update({name: make_frame(name, rows) for name, rows in detail_rows.items()})
     for name, frame in frames.items():
         repo.write(name, frame)
         LOGGER.info("Built %s: %d rows", name, len(frame))

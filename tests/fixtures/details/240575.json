@@ -1,0 +1,72 @@
+{
+  "season_id": 12,
+  "home_id": 2213,
+  "away_id": 2173,
+  "details": {
+    "game_id": 240575,
+    "ht_home_goals": 1,
+    "ht_away_goals": 0,
+    "referee": "גרינפלד אוראל",
+    "has_timeline": true,
+    "has_lineups": true,
+    "has_coaches": true
+  },
+  "goals": [
+    {
+      "game_id": 240575,
+      "team_id": 2213,
+      "minute": 37,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 240575,
+      "team_id": 2213,
+      "minute": 60,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 240575,
+      "team_id": 2173,
+      "minute": 75,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 240575,
+      "team_id": 2213,
+      "minute": 77,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    }
+  ],
+  "red_cards": [],
+  "coaches": [
+    {
+      "game_id": 240575,
+      "team_id": 2213,
+      "coach_id": null,
+      "coach_name": "עזורי גיא"
+    },
+    {
+      "game_id": 240575,
+      "team_id": 2173,
+      "coach_id": 40721,
+      "coach_name": "אלי מחפוד"
+    }
+  ],
+  "final_score": [
+    3,
+    1
+  ],
+  "lineup_counts": [
+    11,
+    11
+  ],
+  "timeline_nodes": 18
+}

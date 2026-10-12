@@ -1,0 +1,80 @@
+{
+  "season_id": 11,
+  "home_id": 2170,
+  "away_id": 3595,
+  "details": {
+    "game_id": 211773,
+    "ht_home_goals": 3,
+    "ht_away_goals": 1,
+    "referee": "חכמון אלי",
+    "has_timeline": true,
+    "has_lineups": true,
+    "has_coaches": true
+  },
+  "goals": [
+    {
+      "game_id": 211773,
+      "team_id": 2170,
+      "minute": 17,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 211773,
+      "team_id": 2170,
+      "minute": 23,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 211773,
+      "team_id": 2170,
+      "minute": 26,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 211773,
+      "team_id": 3595,
+      "minute": 36,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    },
+    {
+      "game_id": 211773,
+      "team_id": 3595,
+      "minute": 79,
+      "added_time": null,
+      "is_penalty": false,
+      "is_own_goal": false
+    }
+  ],
+  "red_cards": [],
+  "coaches": [
+    {
+      "game_id": 211773,
+      "team_id": 2170,
+      "coach_id": 51894,
+      "coach_name": "שלומי דורה"
+    },
+    {
+      "game_id": 211773,
+      "team_id": 3595,
+      "coach_id": 82193,
+      "coach_name": "יצחק שום"
+    }
+  ],
+  "final_score": [
+    3,
+    2
+  ],
+  "lineup_counts": [
+    11,
+    11
+  ],
+  "timeline_nodes": 18
+}
