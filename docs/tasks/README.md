@@ -9,6 +9,7 @@
 | T-003 | [פענוח ובנייה](T-003-parse-and-build.md) | Codex | T-002 | `matches`, `fixtures`, `round_tables`, `final_tables` |
 | T-004 | [סקרייפר עמודי משחק](T-004-game-page-scraper.md) | Codex | T-003 | כ-4,500 עמודי משחק גולמיים |
 | T-005 | [פענוח עמודי משחק](T-005-game-details-build.md) | Codex | T-004 | `game_details`, `goals`, `red_cards`, `coaches` |
+| T-005b | [שווי סגל מ-Transfermarkt](T-005b-transfermarkt-squad-values.md) | Codex | T-005 | `squad_values` גולמי ונקי, מיפוי מועדונים |
 | T-006 | [חוקי הליגה](T-006-league-rules-research.md) | Claude Code | — | שוברי שוויון ולוח פלייאוף מתועדים |
 | T-007 | [אימות הדאטה](T-007-validate-data.md) | Claude Code | T-003, T-005 | דוח אימות; `seasons.yaml` מאומת |
 | T-008 | [תשתית ויזואליזציה](T-008-viz-framework.md) | Codex | T-001 | `ligat viz build` + גלריה |

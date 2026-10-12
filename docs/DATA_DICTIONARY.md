@@ -132,7 +132,7 @@ round_tables ו־final_tables נשמרות בערכים הקיימים ללא ש
 | `game_id`, `team_id` | int | המשחק והקבוצה שהשער נזקף לזכותה |
 | `half` | Int64 nullable | 1 למחצית ראשונה, 2 לשנייה; null במשחקי ht_conflict |
 | `minute` | int | דקה במקור (ההתאחדות רושמת דקות רצות: 45+2 נרשם כ-47) |
-| `added_time` | Int64 nullable | תוספת זמן כשנכתבה במפורש, למשל 45+2 |
+| `added_time` | Int64 nullable | תוספת זמן כשנכתבה במפורש; בפועל תמיד null כיוון שההתאחדות רושמת דקות רצות (למשל 47), וזיהוי תוספת זמן במחצית 1 מתבצע דרך is_first_half_stoppage |
 | `is_first_half_stoppage` | bool | True כאשר השער במחצית ראשונה ודקתו גדולה מ-45 |
 | `is_penalty`, `is_own_goal` | bool | סוג האירוע לפי ציר הזמן |
 
