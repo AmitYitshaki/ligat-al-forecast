@@ -44,16 +44,16 @@ Totals: 17 left-censored runs and 48 flickers. Counts are descriptive source-qua
 
 ```text
                              date home_team_name away_team_name  home_goals  \
-game_id                                                                       
-793896  2023-02-25 20:00:00+02:00      מכבי חיפה      בית"ר י-ם           2   
+game_id
+793896  2023-02-25 20:00:00+02:00      מכבי חיפה      בית"ר י-ם           2
 
          away_goals  ht_home_goals  ht_away_goals  home_red_cards  \
-game_id                                                             
-793896            1              1              1               0   
+game_id
+793896            1              1              1               0
 
-         away_red_cards  
-game_id                  
-793896                1  
+         away_red_cards
+game_id
+793896                1
 ```
 
 ```text
@@ -88,3 +88,5 @@ target_result      home_win
 - Analysis health checks passed with the same 21 documented warnings.
 - EDA task, data dictionary, notebook README and technical guidance updated.
 - Stop for Claude Code QA. No merge or follow-up branch.
+
+Post-commit check passed: the local notebook is byte-for-byte unchanged with all outputs; the committed notebook has no outputs or execution counts.
