@@ -80,6 +80,7 @@ def live(config: ConfigOption = Path("config/scrape.yaml")) -> None:
 @app.command("build")
 def build(
     raw_root: Annotated[Path, typer.Option("--raw-root")] = Path("data/raw/ifa/rounds"),
+    games_root: Annotated[Path, typer.Option("--games-root")] = Path("data/raw/ifa/games"),
     clean_root: Annotated[Path, typer.Option("--clean-root")] = Path("data/clean"),
     seasons_config: Annotated[
         Path, typer.Option("--seasons-config", exists=True, dir_okay=False)
@@ -94,6 +95,7 @@ def build(
     try:
         build_datasets(
             raw_root=raw_root,
+            games_root=games_root,
             seasons_path=seasons_config,
             overrides_path=overrides_config,
             teams_path=teams_config,

@@ -1,5 +1,6 @@
 """League rules, manifest integrity, snapshot selection and validated Parquet tests."""
 
+import gzip
 import hashlib
 import json
 from dataclasses import replace
@@ -54,15 +55,30 @@ def test_verified_overrides_only() -> None:
         732312: "awarded",
         954863: "void",
         1060422: "awarded",
+        339766: "awarded",
+        954984: "awarded",
+        954988: "awarded",
     }
     assert 732462 not in overrides  # Real 3:0 victory, not a technical result.
 
 
-def test_build_drops_exactly_eight_games_and_preserves_void_points(tmp_path: Path) -> None:
+def test_build_drops_exactly_eleven_games_and_preserves_void_points(tmp_path: Path) -> None:
     parsed = parse_round((FIXTURES / "void.xml").read_bytes())
     void = next(game for game in parsed.games if game.game_id == 388645)
     dropped = set(_load_overrides(Path("config/match_overrides.yaml")))
-    assert dropped == {211602, 240618, 388645, 525468, 732553, 732312, 954863, 1060422}
+    assert dropped == {
+        211602,
+        240618,
+        388645,
+        525468,
+        732553,
+        732312,
+        954863,
+        1060422,
+        339766,
+        954984,
+        954988,
+    }
     games = tuple(replace(void, game_id=game_id) for game_id in sorted(dropped | {999999}))
     config = {
         "season_id": 16,
@@ -83,15 +99,18 @@ def test_build_drops_exactly_eight_games_and_preserves_void_points(tmp_path: Pat
     seasons_path = tmp_path / "seasons.yaml"
     seasons_path.write_text(yaml.safe_dump({"defaults": {}, "seasons": [config]}))
     baseline = make_frame("round_tables", _table_rows(season, [(7, 2176, 1061)]))
+    pages_root = tmp_path / "game_pages"
+    _save_pages(pages_root, 16, games)
     with patch("ligat.data.build._load_season", return_value=season):
         frames = build_datasets(
             seasons_path=seasons_path,
+            games_root=pages_root,
             teams_path=tmp_path / "teams.yaml",
             repository=Repository(tmp_path / "clean"),
         )
     assert set(frames["matches"].game_id) == {999999}
     assert set(frames["matches"].status) == {"played"}
-    assert len(games) - len(frames["matches"]) == 8
+    assert len(games) - len(frames["matches"]) == 11
     pd.testing.assert_frame_equal(frames["round_tables"], baseline)
     table = frames["round_tables"].set_index("team_id")
     assert table.loc[2176, "points_model"] == 10
@@ -226,7 +245,16 @@ def _inputs(tmp_path: Path) -> dict[str, Path]:
         ),
         encoding="utf-8",
     )
-    return {"raw_root": raw, "seasons_path": config, "teams_path": tmp_path / "teams.yaml"}
+    pages = tmp_path / "game_pages"
+    for sid, fixture in ((8, "twelve"), (28, "mixed")):
+        games = parse_round((FIXTURES / f"{fixture}.xml").read_bytes()).games
+        _save_pages(pages, sid, games)
+    return {
+        "raw_root": raw,
+        "games_root": pages,
+        "seasons_path": config,
+        "teams_path": tmp_path / "teams.yaml",
+    }
 
 
 def test_build_offline_and_repository_roundtrip(tmp_path: Path) -> None:
@@ -301,6 +329,8 @@ def test_build_cli(tmp_path: Path) -> None:
             "build",
             "--raw-root",
             str(inputs["raw_root"]),
+            "--games-root",
+            str(inputs["games_root"]),
             "--clean-root",
             str(tmp_path / "clean"),
             "--seasons-config",
@@ -352,3 +382,29 @@ def test_schema_rejects_same_team_and_duplicate_match() -> None:
     record["away_team_id"] = game.away_team_id
     with pytest.raises(pa.errors.SchemaErrors):
         make_frame("matches", [record, record])
+
+
+def _save_pages(root: Path, sid: int, games: tuple) -> None:
+    directory = root / str(sid)
+    directory.mkdir(parents=True)
+    entries = {}
+    for game in games:
+        if game.game_id is None:
+            continue
+        content = (
+            f'<html><body><section class="game-details" id="gfd_{game.game_id}">'
+            f'<div class="game-time"><div class="total">{game.home_goals} : {game.away_goals}</div>'
+            '<div class="result-half">99 : 99</div></div></section></body></html>'
+        ).encode()
+        compressed = gzip.compress(content, mtime=0)
+        name = f"{game.game_id}.html.gz"
+        (directory / name).write_bytes(compressed)
+        entries[name] = {
+            "bytes": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+            "compressed_bytes": len(compressed),
+            "compressed_sha256": hashlib.sha256(compressed).hexdigest(),
+        }
+    (directory / "manifest.json").write_text(
+        json.dumps({"season_id": sid, "status": "completed", "files": entries})
+    )

@@ -1,5 +1,5 @@
 # Claude Code verification supplied by Amit, 2026-10-11.
-# All eight entries verified and dropped by Amit's decision, 2026-10-11.
+# All eleven entries verified and dropped by Amit's decision, 2026-10-11.
 # New 2024/25 point correction is deferred explicitly to preserve existing tables.
 matches:
   211602: {status: awarded, action: drop, verified: true, reason: "Ineligible player; source match 1:1, official home 0:3"}
@@ -10,3 +10,6 @@ matches:
   732312: {status: awarded, action: drop, verified: true, reason: "Not played; official home 0:3"}
   954863: {status: void, action: drop, verified: true, adjust_points: false, reason: "Verified via deduction; Amit deferred the point correction to preserve existing tables"}
   1060422: {status: awarded, action: drop, verified: true, reason: "Verified via deduction; police did not authorize the match"}
+  339766: {status: awarded, action: drop, verified: true, reason: "Source home 2:1; official home 3:0"}
+  954984: {status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
+  954988: {status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}

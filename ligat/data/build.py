@@ -14,6 +14,7 @@ from uuid import uuid4
 import pandas as pd  # type: ignore[import-untyped]
 import yaml
 
+from ligat.data.game_pages import GamePageRepository
 from ligat.data.parse import ParsedRound, TableRow, clean_team_name, parse_round
 from ligat.data.repository import Repository
 from ligat.data.schemas import make_frame
@@ -189,16 +190,17 @@ def _atomic_yaml(path: Path, document: dict[str, Any]) -> None:
 def build_datasets(
     *,
     raw_root: Path = Path("data/raw/ifa/rounds"),
+    games_root: Path = Path("data/raw/ifa/games"),
     seasons_path: Path = Path("config/seasons.yaml"),
     overrides_path: Path = Path("config/match_overrides.yaml"),
     teams_path: Path = Path("config/teams.yaml"),
     repository: Repository | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Build four validated datasets and a team alias draft, entirely offline."""
-    if teams_path.resolve().is_relative_to(raw_root.resolve()):
+    if any(teams_path.resolve().is_relative_to(root.resolve()) for root in (raw_root, games_root)):
         raise ValueError("Team draft cannot write into raw storage")
     repo = repository if repository is not None else Repository()
-    if repo.root.resolve().is_relative_to(raw_root.resolve()):
+    if any(repo.root.resolve().is_relative_to(root.resolve()) for root in (raw_root, games_root)):
         raise ValueError("Clean repository cannot write into raw storage")
     document = yaml.safe_load(seasons_path.read_text(encoding="utf-8"))
     seasons = [
@@ -206,6 +208,25 @@ def build_datasets(
         for config in sorted(document["seasons"], key=lambda item: item["season_id"])
     ]
     overrides, dropped, deferred_points = _load_override_policy(overrides_path)
+    pages = GamePageRepository(games_root)
+    mismatches = []
+    for season in seasons:
+        for round_id, parsed in sorted(season.rounds.items()):
+            if _is_promotion(season, round_id):
+                continue
+            for game in parsed.games:
+                if game.game_id is None:
+                    continue
+                page_score = pages.score(season.config["season_id"], game.game_id)
+                round_score = (game.home_goals, game.away_goals)
+                if page_score != round_score and game.game_id not in overrides:
+                    mismatches.append(
+                        f"game_id={game.game_id}, season_id={season.config['season_id']}, "
+                        f"round={round_id}, page_home_away={page_score}, "
+                        f"round_home_away={round_score}"
+                    )
+    if mismatches:
+        raise ValueError("Undocumented game score mismatches:\n" + "\n".join(mismatches))
     matches: list[dict[str, Any]] = []
     fixtures: list[dict[str, Any]] = []
     tables: list[dict[str, Any]] = []
