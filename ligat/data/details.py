@@ -18,12 +18,14 @@ def load_exceptions(path: Path) -> dict[int, str]:
     entries = yaml.safe_load(path.read_text(encoding="utf-8"))["games"]
     result = {}
     for game_id, entry in entries.items():
-        reason = entry["reason"]
+        reason = entry.get("type", entry["reason"])
         if entry.get("verified") is not True or reason not in {
             "halftime_timeline_conflict",
             "unreliable_timeline_scorers",
         }:
             raise ValueError(f"Unverified or unknown game-detail exception: game_id={game_id}")
+        if not isinstance(entry["reason"], str) or not entry["reason"].strip():
+            raise ValueError(f"Missing game-detail exception explanation: game_id={game_id}")
         result[int(game_id)] = reason
     return result
 
@@ -83,13 +85,39 @@ def parse_game(
     ht_conflict = exception == "halftime_timeline_conflict"
     goals_available = exception != "unreliable_timeline_scorers"
     goals: list[dict[str, Any]] = []
+    if goals_available:
+        for side, team in (("team-home", home_id), ("team-guest", away_id)):
+            goalers = section.select_one(f".{side} .goalers")
+            if goalers is None:
+                continue
+            for label in goalers.select("h4"):
+                label.decompose()
+            text = goalers.get_text(" ", strip=True)
+            for entry in text.split(",") if text else []:
+                match = re.search(r"\s(\d+(?:\s*\+\s*\d+)?)\s*((?:\([פע]\)\s*)*)$", entry)
+                if match is None:
+                    raise ValueError(f"Invalid header scorer: game_id={game_id}, entry={entry!r}")
+                goal_minute, goal_added = parse_minute(match[1])
+                goals.append(
+                    {
+                        "game_id": game_id,
+                        "team_id": team,
+                        "minute": goal_minute,
+                        "added_time": goal_added,
+                        "is_penalty": "(פ)" in match[2],
+                        "is_own_goal": "(ע)" in match[2],
+                        "half": None,
+                        "is_first_half_stoppage": False,
+                    }
+                )
+        # Header sides already credit own goals to the beneficiary; do not flip again.
+        goals.sort(key=lambda row: (row["minute"], row["added_time"] or 0, row["team_id"]))
     reds: list[dict[str, Any]] = []
     nodes = section.select(".timeline .node")
     for node in nodes:
         classes = set(node.get_attribute_list("class"))
-        goal = bool(classes & {"goal", "penalty", "owngoal"})
         red = bool(classes & {"red", "yellow2"})
-        if not goal and not red:
+        if not red:
             continue
         if ("team1" in classes) == ("team2" in classes):
             raise ValueError(f"Missing/ambiguous event team: game_id={game_id}")
@@ -98,23 +126,7 @@ def parse_game(
         if minute_node is None:
             raise ValueError(f"Missing event minute: game_id={game_id}")
         minute_text = minute_node.get_text(" ", strip=True)
-        minute, added = (
-            (None, None) if red and not goal and minute_text == "-1" else parse_minute(minute_text)
-        )
-        if goal and goals_available:
-            own = "owngoal" in classes
-            goals.append(
-                {
-                    "game_id": game_id,
-                    "team_id": (away_id if team == home_id else home_id) if own else team,
-                    "minute": minute,
-                    "added_time": added,
-                    "is_penalty": "penalty" in classes,
-                    "is_own_goal": own,
-                    "half": None,
-                    "is_first_half_stoppage": False,
-                }
-            )
+        minute, added = (None, None) if minute_text == "-1" else parse_minute(minute_text)
         if red:
             reds.append(
                 {
@@ -202,14 +214,21 @@ def cross_check(
                 }
             )
     if game.details["goals_available"] and not game.details["ht_conflict"]:
-        early_second_half = [row for row in game.goals if row["half"] == 2 and row["minute"] < 45]
-        if early_second_half:
+        conflicting_goals = [
+            row
+            for row in game.goals
+            if (row["half"] == 2 and row["minute"] < 45)
+            or (row["half"] == 1 and row["minute"] > 60)
+        ]
+        if conflicting_goals:
             issues.append(
                 {
                     "game_id": game.details["game_id"],
                     "kind": "halftime_timeline_conflict",
-                    "actual": early_second_half,
-                    "expected": "Second-half goals at minute 45 or later",
+                    "actual": conflicting_goals,
+                    "expected": (
+                        "First half at minute 60 or earlier; second half at minute 45 or later"
+                    ),
                 }
             )
     for flag, expected_flag in (

@@ -108,7 +108,7 @@ def test_documented_exceptions_keep_headers_and_other_checks(game_id: int) -> No
 
 
 def test_running_stoppage_minutes_keep_source_values() -> None:
-    page = gzip.decompress((FIXTURES / "113478.html.gz").read_bytes()).replace(b">3<", b">47<")
+    page = gzip.decompress((FIXTURES / "113478.html.gz").read_bytes()).replace(b" 3,", b" 47,")
     game = parse_game(page, 113478, 2266, 2173)
     first = next(row for row in game.goals if row["minute"] == 47)
     assert first["half"] == 1 and first["is_first_half_stoppage"]
@@ -123,6 +123,37 @@ def test_minute_45_can_belong_to_second_half_by_header() -> None:
     goal = next(row for row in game.goals if row["minute"] == 45)
     assert goal["half"] == 2 and not goal["is_first_half_stoppage"]
     assert cross_check(game, ids["home_id"], ids["away_id"], game.final_score) == []
+
+
+def test_real_first_half_stoppage_page_268007() -> None:
+    page = gzip.decompress((FIXTURES / "268007.html.gz").read_bytes())
+    game = parse_game(page, 268007, 1005, 1198)
+    assert game.final_score == (3, 0)
+    assert (game.details["ht_home_goals"], game.details["ht_away_goals"]) == (1, 0)
+    assert [(g["minute"], g["half"], g["is_first_half_stoppage"]) for g in game.goals] == [
+        (46, 1, True),
+        (80, 2, False),
+        (85, 2, False),
+    ]
+    assert cross_check(game, 1005, 1198, (3, 0)) == []
+
+
+@pytest.mark.parametrize("minute,conflict", [(60, False), (61, True)])
+def test_first_half_limit_detects_undocumented_conflict(minute: int, conflict: bool) -> None:
+    page = gzip.decompress((FIXTURES / "268007.html.gz").read_bytes())
+    page = page.replace(b" 46,", f" {minute},".encode())
+    game = parse_game(page, 268007, 1005, 1198)
+    issues = cross_check(game, 1005, 1198, (3, 0))
+    assert bool(issues) == conflict
+    if conflict:
+        assert issues[0]["kind"] == "halftime_timeline_conflict"
+
+
+def test_goal_header_is_authoritative_for_own_goal_credit() -> None:
+    page = gzip.decompress((FIXTURES / "240618.html.gz").read_bytes())
+    page = page.replace(b"node owngoal team2", b"node goal team1")
+    game = parse_game(page, 240618, 1198, 2171)
+    assert [(g["team_id"], g["minute"]) for g in game.goals if g["is_own_goal"]] == [(1198, 26)]
 
 
 def test_unassignable_halftime_fails() -> None:

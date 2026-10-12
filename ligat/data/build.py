@@ -195,6 +195,7 @@ def build_datasets(
     seasons_path: Path = Path("config/seasons.yaml"),
     overrides_path: Path = Path("config/match_overrides.yaml"),
     exceptions_path: Path = Path("config/game_detail_exceptions.yaml"),
+    validate_only: bool = False,
     teams_path: Path = Path("config/teams.yaml"),
     repository: Repository | None = None,
 ) -> dict[str, pd.DataFrame]:
@@ -211,6 +212,7 @@ def build_datasets(
     ]
     overrides, dropped, deferred_points = _load_override_policy(overrides_path)
     exceptions = load_exceptions(exceptions_path)
+    exception_notes = yaml.safe_load(exceptions_path.read_text(encoding="utf-8"))["games"]
     pages = GamePageRepository(games_root)
     mismatches = []
     for season in seasons:
@@ -403,6 +405,7 @@ def build_datasets(
         json.dumps(
             {
                 "checked_games": len(matches),
+                "validate_only": validate_only,
                 "issues": issues,
                 "warnings": warnings,
                 "documented_exceptions": [
@@ -410,7 +413,8 @@ def build_datasets(
                         "game_id": match["game_id"],
                         "season_id": match["season_id"],
                         "season": match["season"],
-                        "reason": exceptions[match["game_id"]],
+                        "type": exceptions[match["game_id"]],
+                        "reason": exception_notes[match["game_id"]]["reason"],
                     }
                     for match in matches
                     if match["game_id"] in exceptions
@@ -432,6 +436,9 @@ def build_datasets(
             f"game_id={sorted({issue['game_id'] for issue in issues})}; report: {report_path}"
         )
     frames.update({name: make_frame(name, rows) for name, rows in detail_rows.items()})
+    if validate_only:
+        LOGGER.info("Validation passed; no Parquet or team draft published (--validate-only)")
+        return frames
     for name, frame in frames.items():
         repo.write(name, frame)
         LOGGER.info("Built %s: %d rows", name, len(frame))

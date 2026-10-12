@@ -95,6 +95,7 @@ def build(
     exceptions_config: Annotated[
         Path, typer.Option("--exceptions-config", exists=True, dir_okay=False)
     ] = Path("config/game_detail_exceptions.yaml"),
+    validate_only: Annotated[bool, typer.Option("--validate-only")] = False,
 ) -> None:
     """Build validated clean Parquet datasets from saved responses; no network access."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -106,6 +107,7 @@ def build(
             overrides_path=overrides_config,
             teams_path=teams_config,
             exceptions_path=exceptions_config,
+            validate_only=validate_only,
             repository=Repository(clean_root),
         )
     except (ValueError, OSError, KeyError) as exc:

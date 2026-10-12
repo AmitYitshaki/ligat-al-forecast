@@ -322,6 +322,22 @@ def test_details_mismatch_reports_without_replacing_parquet(tmp_path: Path) -> N
     assert not inputs["teams_path"].exists()
 
 
+def test_validate_only_preserves_all_existing_outputs(tmp_path: Path) -> None:
+    inputs = _inputs(tmp_path)
+    repo = Repository(tmp_path / "clean")
+    repo.root.mkdir()
+    sentinel = repo.root / "matches.parquet"
+    sentinel.write_bytes(b"keep existing data")
+    inputs["teams_path"].write_text("keep existing teams")
+    frames = build_datasets(**inputs, repository=repo, validate_only=True)
+    assert len(frames) == 8 and len(frames["matches"]) == 11
+    assert sentinel.read_bytes() == b"keep existing data"
+    assert list(repo.root.iterdir()) == [sentinel]
+    assert inputs["teams_path"].read_text() == "keep existing teams"
+    report = json.loads((repo.root.parent / "reports" / "game_details_validation.json").read_text())
+    assert report["validate_only"] and not report["issues"]
+
+
 def test_snapshot_requires_completed_status(tmp_path: Path) -> None:
     inputs = _inputs(tmp_path)
     root = inputs["raw_root"] / "28" / "snapshot"
@@ -424,11 +440,17 @@ def _save_pages(root: Path, sid: int, games: tuple) -> None:
             for side, count in ((1, game.home_goals), (2, game.away_goals))
             for _ in range(count or 0)
         )
+        header_goals = "".join(
+            f'<div class="team-{side}"><span class="goalers">'
+            + ", ".join("Scorer 60" for _ in range(count or 0))
+            + "</span></div>"
+            for side, count in (("home", game.home_goals), ("guest", game.away_goals))
+        )
         content = (
             f'<html><body><section class="game-details" id="gfd_{game.game_id}">'
             f'<div class="game-time"><div class="total">{game.home_goals} : {game.away_goals}</div>'
             '<div class="result-half">0 : 0</div></div><div class="timeline">'
-            f'<div class="node number">0</div>{events}</div></section></body></html>'
+            f'<div class="node number">0</div>{events}</div>{header_goals}</section></body></html>'
         ).encode()
         compressed = gzip.compress(content, mtime=0)
         name = f"{game.game_id}.html.gz"

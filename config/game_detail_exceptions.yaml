@@ -1,17 +1,72 @@
-# Claude Code classified all 68 discrepancies; approved by Amit, 2026-10-12.
-# These exceptions alter detail availability only; matches and standings are unchanged.
+# Claude Code classification, 2026-10-12; approved exceptions, pending final PR QA.
 games:
-  113512: {reason: halftime_timeline_conflict, verified: true}
-  113560: {reason: halftime_timeline_conflict, verified: true}
-  140304: {reason: halftime_timeline_conflict, verified: true}
-  168624: {reason: halftime_timeline_conflict, verified: true}
-  211641: {reason: halftime_timeline_conflict, verified: true}
-  339816: {reason: halftime_timeline_conflict, verified: true}
-  388670: {reason: halftime_timeline_conflict, verified: true}
-  388687: {reason: halftime_timeline_conflict, verified: true}
-  634560: {reason: halftime_timeline_conflict, verified: true}
-  634579: {reason: halftime_timeline_conflict, verified: true}
-  635121: {reason: halftime_timeline_conflict, verified: true}
-  683148: {reason: halftime_timeline_conflict, verified: true}
-  732630: {reason: halftime_timeline_conflict, verified: true}
-  864982: {reason: unreliable_timeline_scorers, verified: true}
+  113512:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  113560:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  140304:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  168624:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  211641:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  339816:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  388670:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  388687:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  634560:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  634579:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  635121:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  683148:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  732630:
+    reason: Claude verified inconsistent halftime header and header scorer minutes;
+      keep halftime, leave goal half unknown.
+    verified: true
+    type: halftime_timeline_conflict
+  864982:
+    reason: Claude verified six header scorers against a 1:2 result; retain match
+      and omit unreliable goal rows.
+    verified: true
+    type: unreliable_timeline_scorers
