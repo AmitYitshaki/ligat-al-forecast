@@ -9,7 +9,9 @@
     "referee": "גרינפלד אוראל",
     "has_timeline": true,
     "has_lineups": true,
-    "has_coaches": true
+    "has_coaches": true,
+    "ht_conflict": false,
+    "goals_available": true
   },
   "goals": [
     {
@@ -18,7 +20,9 @@
       "minute": 37,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 1,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240575,
@@ -26,7 +30,9 @@
       "minute": 60,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 2,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240575,
@@ -34,7 +40,9 @@
       "minute": 75,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 2,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240575,
@@ -42,7 +50,9 @@
       "minute": 77,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 2,
+      "is_first_half_stoppage": false
     }
   ],
   "red_cards": [],

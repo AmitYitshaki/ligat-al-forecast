@@ -14,7 +14,7 @@ from uuid import uuid4
 import pandas as pd  # type: ignore[import-untyped]
 import yaml
 
-from ligat.data.details import cross_check, parse_game
+from ligat.data.details import cross_check, load_exceptions, parse_game
 from ligat.data.game_pages import GamePageRepository
 from ligat.data.parse import ParsedRound, TableRow, clean_team_name, parse_round
 from ligat.data.repository import Repository
@@ -194,10 +194,11 @@ def build_datasets(
     games_root: Path = Path("data/raw/ifa/games"),
     seasons_path: Path = Path("config/seasons.yaml"),
     overrides_path: Path = Path("config/match_overrides.yaml"),
+    exceptions_path: Path = Path("config/game_detail_exceptions.yaml"),
     teams_path: Path = Path("config/teams.yaml"),
     repository: Repository | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Build four validated datasets and a team alias draft, entirely offline."""
+    """Build eight validated datasets and a team alias draft, entirely offline."""
     if any(teams_path.resolve().is_relative_to(root.resolve()) for root in (raw_root, games_root)):
         raise ValueError("Team draft cannot write into raw storage")
     repo = repository if repository is not None else Repository()
@@ -209,6 +210,7 @@ def build_datasets(
         for config in sorted(document["seasons"], key=lambda item: item["season_id"])
     ]
     overrides, dropped, deferred_points = _load_override_policy(overrides_path)
+    exceptions = load_exceptions(exceptions_path)
     pages = GamePageRepository(games_root)
     mismatches = []
     for season in seasons:
@@ -352,7 +354,11 @@ def build_datasets(
         content = pages.read(match["season_id"], match["game_id"])
         try:
             parsed_game = parse_game(
-                content, match["game_id"], match["home_team_id"], match["away_team_id"]
+                content,
+                match["game_id"],
+                match["home_team_id"],
+                match["away_team_id"],
+                exception=exceptions.get(match["game_id"]),
             )
         except ValueError as exc:
             issues.append(
@@ -395,16 +401,35 @@ def build_datasets(
     temporary_report = report_path.with_suffix(".json.tmp")
     temporary_report.write_text(
         json.dumps(
-            {"checked_games": len(matches), "issues": issues, "warnings": warnings},
+            {
+                "checked_games": len(matches),
+                "issues": issues,
+                "warnings": warnings,
+                "documented_exceptions": [
+                    {
+                        "game_id": match["game_id"],
+                        "season_id": match["season_id"],
+                        "season": match["season"],
+                        "reason": exceptions[match["game_id"]],
+                    }
+                    for match in matches
+                    if match["game_id"] in exceptions
+                ],
+            },
             ensure_ascii=False,
             indent=2,
         ),
         encoding="utf-8",
     )
     temporary_report.replace(report_path)
+    if warnings:
+        LOGGER.warning(
+            "Retained %d red cards with unknown minutes; report: %s", len(warnings), report_path
+        )
     if issues:
         raise ValueError(
-            f"Game details validation failed: {len(issues)} discrepancies; report: {report_path}"
+            f"Game details validation failed: {len(issues)} undocumented discrepancies; "
+            f"game_id={sorted({issue['game_id'] for issue in issues})}; report: {report_path}"
         )
     frames.update({name: make_frame(name, rows) for name, rows in detail_rows.items()})
     for name, frame in frames.items():

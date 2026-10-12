@@ -10,11 +10,24 @@ from typing import Any
 
 # SoupStrainer is a public bs4 re-export omitted from its explicit typing exports.
 from bs4 import BeautifulSoup, SoupStrainer  # type: ignore[attr-defined]
+from lxml import html  # type: ignore[import-untyped]
+
+
+def game_section(content: bytes, game_id: int) -> str:
+    """Extract only the game section with lxml before constructing the slower Soup tree."""
+    sections = html.fromstring(content).xpath(f"//section[@id='gfd_{game_id}']")
+    if not sections:
+        raise ValueError(f"Missing game-page total or incorrect identity: game_id={game_id}")
+    return str(html.tostring(sections[0], encoding="unicode"))
 
 
 def parse_game_score(content: bytes, game_id: int) -> tuple[int, int]:
     """Return home, away goals from the game header, never the halftime result."""
-    soup = BeautifulSoup(content, "lxml", parse_only=SoupStrainer("section", id=f"gfd_{game_id}"))
+    soup = BeautifulSoup(
+        game_section(content, game_id),
+        "lxml",
+        parse_only=SoupStrainer("section", id=f"gfd_{game_id}"),
+    )
     section = soup.select_one(f"section.game-details#gfd_{game_id}")
     total = section.select_one(".game-time .total") if section is not None else None
     if total is None:

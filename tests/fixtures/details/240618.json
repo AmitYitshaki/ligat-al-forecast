@@ -9,7 +9,9 @@
     "referee": "אדלר זיו",
     "has_timeline": true,
     "has_lineups": true,
-    "has_coaches": true
+    "has_coaches": true,
+    "ht_conflict": false,
+    "goals_available": true
   },
   "goals": [
     {
@@ -18,7 +20,9 @@
       "minute": 13,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 1,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240618,
@@ -26,7 +30,9 @@
       "minute": 26,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": true
+      "is_own_goal": true,
+      "half": 1,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240618,
@@ -34,7 +40,9 @@
       "minute": 27,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 1,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240618,
@@ -42,7 +50,9 @@
       "minute": 36,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 1,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240618,
@@ -50,7 +60,9 @@
       "minute": 70,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 2,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 240618,
@@ -58,7 +70,9 @@
       "minute": 90,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 2,
+      "is_first_half_stoppage": false
     }
   ],
   "red_cards": [

@@ -9,7 +9,9 @@
     "referee": "משיח מנשה",
     "has_timeline": true,
     "has_lineups": false,
-    "has_coaches": false
+    "has_coaches": false,
+    "ht_conflict": false,
+    "goals_available": true
   },
   "goals": [
     {
@@ -18,7 +20,9 @@
       "minute": 35,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 1,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 211600,
@@ -26,7 +30,9 @@
       "minute": 66,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 2,
+      "is_first_half_stoppage": false
     },
     {
       "game_id": 211600,
@@ -34,7 +40,9 @@
       "minute": 89,
       "added_time": null,
       "is_penalty": false,
-      "is_own_goal": false
+      "is_own_goal": false,
+      "half": 2,
+      "is_first_half_stoppage": false
     }
   ],
   "red_cards": [

@@ -1,0 +1,17 @@
+# Claude Code classified all 68 discrepancies; approved by Amit, 2026-10-12.
+# These exceptions alter detail availability only; matches and standings are unchanged.
+games:
+  113512: {reason: halftime_timeline_conflict, verified: true}
+  113560: {reason: halftime_timeline_conflict, verified: true}
+  140304: {reason: halftime_timeline_conflict, verified: true}
+  168624: {reason: halftime_timeline_conflict, verified: true}
+  211641: {reason: halftime_timeline_conflict, verified: true}
+  339816: {reason: halftime_timeline_conflict, verified: true}
+  388670: {reason: halftime_timeline_conflict, verified: true}
+  388687: {reason: halftime_timeline_conflict, verified: true}
+  634560: {reason: halftime_timeline_conflict, verified: true}
+  634579: {reason: halftime_timeline_conflict, verified: true}
+  635121: {reason: halftime_timeline_conflict, verified: true}
+  683148: {reason: halftime_timeline_conflict, verified: true}
+  732630: {reason: halftime_timeline_conflict, verified: true}
+  864982: {reason: unreliable_timeline_scorers, verified: true}

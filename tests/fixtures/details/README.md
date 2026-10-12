@@ -12,3 +12,6 @@ is credited to home team 1198, not to away team 2171. Coach ID -1 is missing.
 
 Periods: 2006/07, 2009/10 with and without lineups, 2010/11 and 2026/27.
 No fixtures from holdout seasons 2024/25 or 2025/26 are used.
+
+428714 covers a source minute 45 assigned to the second half by the header rule.
+113512 and 864982 cover documented source exceptions and unsuppressed checks.

@@ -5,9 +5,10 @@ import json
 from dataclasses import asdict, replace
 from pathlib import Path
 
+import pandera.pandas as pa
 import pytest
 
-from ligat.data.details import cross_check, parse_game, parse_minute
+from ligat.data.details import cross_check, load_exceptions, parse_game, parse_minute
 from ligat.data.game_pages import GamePageRepository
 from ligat.data.schemas import make_frame
 
@@ -75,7 +76,9 @@ def test_missing_page_has_actionable_message(tmp_path: Path) -> None:
         GamePageRepository(tmp_path).read(28, 123)
 
 
-@pytest.mark.parametrize("game_id,kind", [(113512, "halftime_goals"), (864982, "goals_total")])
+@pytest.mark.parametrize(
+    "game_id,kind", [(113512, "halftime_timeline_conflict"), (864982, "goals_total")]
+)
 def test_real_source_discrepancies_are_not_silently_corrected(game_id: int, kind: str) -> None:
     ids = json.loads((FIXTURES / f"{game_id}.source.json").read_text())
     page = gzip.decompress((FIXTURES / f"{game_id}.html.gz").read_bytes())
@@ -83,3 +86,81 @@ def test_real_source_discrepancies_are_not_silently_corrected(game_id: int, kind
     assert {
         row["kind"] for row in cross_check(game, ids["home_id"], ids["away_id"], game.final_score)
     } == {kind}
+
+
+@pytest.mark.parametrize("game_id", [113512, 864982])
+def test_documented_exceptions_keep_headers_and_other_checks(game_id: int) -> None:
+    ids = json.loads((FIXTURES / f"{game_id}.source.json").read_text())
+    page = gzip.decompress((FIXTURES / f"{game_id}.html.gz").read_bytes())
+    reason = load_exceptions(Path("config/game_detail_exceptions.yaml"))[game_id]
+    game = parse_game(page, game_id, ids["home_id"], ids["away_id"], exception=reason)
+    assert cross_check(game, ids["home_id"], ids["away_id"], game.final_score) == []
+    if game_id == 113512:
+        assert game.details["ht_conflict"] and game.details["goals_available"]
+        assert (game.details["ht_home_goals"], game.details["ht_away_goals"]) == (0, 1)
+        assert game.goals and all(row["half"] is None for row in game.goals)
+        assert not any(row["is_first_half_stoppage"] for row in game.goals)
+    else:
+        assert not game.details["goals_available"] and not game.goals
+    assert "final_score" in {
+        issue["kind"] for issue in cross_check(game, ids["home_id"], ids["away_id"], (99, 99))
+    }
+
+
+def test_running_stoppage_minutes_keep_source_values() -> None:
+    page = gzip.decompress((FIXTURES / "113478.html.gz").read_bytes()).replace(b">3<", b">47<")
+    game = parse_game(page, 113478, 2266, 2173)
+    first = next(row for row in game.goals if row["minute"] == 47)
+    assert first["half"] == 1 and first["is_first_half_stoppage"]
+    assert first["added_time"] is None
+    assert cross_check(game, 2266, 2173, (4, 1)) == []
+
+
+def test_minute_45_can_belong_to_second_half_by_header() -> None:
+    ids = json.loads((FIXTURES / "428714.source.json").read_text())
+    page = gzip.decompress((FIXTURES / "428714.html.gz").read_bytes())
+    game = parse_game(page, 428714, ids["home_id"], ids["away_id"])
+    goal = next(row for row in game.goals if row["minute"] == 45)
+    assert goal["half"] == 2 and not goal["is_first_half_stoppage"]
+    assert cross_check(game, ids["home_id"], ids["away_id"], game.final_score) == []
+
+
+def test_unassignable_halftime_fails() -> None:
+    page = gzip.decompress((FIXTURES / "113478.html.gz").read_bytes())
+    game = parse_game(page, 113478, 2266, 2173)
+    game = replace(game, details=game.details | {"ht_home_goals": 5})
+    assert "halftime_goals" in {issue["kind"] for issue in cross_check(game, 2266, 2173, (4, 1))}
+
+
+def test_exception_list_is_exact_and_verified(tmp_path: Path) -> None:
+    exceptions = load_exceptions(Path("config/game_detail_exceptions.yaml"))
+    assert {
+        gid for gid, reason in exceptions.items() if reason == "halftime_timeline_conflict"
+    } == {
+        113512,
+        113560,
+        140304,
+        168624,
+        211641,
+        339816,
+        388670,
+        388687,
+        634560,
+        634579,
+        635121,
+        683148,
+        732630,
+    }
+    assert exceptions[864982] == "unreliable_timeline_scorers" and len(exceptions) == 14
+    path = tmp_path / "bad.yaml"
+    path.write_text("games: {1: {reason: halftime_timeline_conflict, verified: false}}")
+    with pytest.raises(ValueError, match="Unverified"):
+        load_exceptions(path)
+
+
+@pytest.mark.parametrize("changes", [{"half": 3}, {"is_first_half_stoppage": True}])
+def test_goal_schema_rejects_invalid_half_and_stoppage(changes: dict) -> None:
+    page = gzip.decompress((FIXTURES / "113478.html.gz").read_bytes())
+    game = parse_game(page, 113478, 2266, 2173)
+    with pytest.raises(pa.errors.SchemaErrors):
+        make_frame("goals", [game.goals[0] | changes])

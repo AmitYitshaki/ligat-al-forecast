@@ -62,6 +62,8 @@ SCHEMAS = {
             "ht_away_goals": pa.Column("Int64", pa.Check.ge(0), nullable=True),
             "referee": pa.Column("string", nullable=True),
             **{name: pa.Column(bool) for name in ("has_timeline", "has_lineups", "has_coaches")},
+            "ht_conflict": pa.Column(bool),
+            "goals_available": pa.Column(bool),
         },
         unique=["game_id"],
         strict=True,
@@ -74,7 +76,12 @@ SCHEMAS = {
             "added_time": pa.Column("Int64", pa.Check.ge(0), nullable=True),
             "is_penalty": pa.Column(bool),
             "is_own_goal": pa.Column(bool),
+            "half": pa.Column("Int64", pa.Check.isin([1, 2]), nullable=True),
+            "is_first_half_stoppage": pa.Column(bool),
         },
+        checks=pa.Check(
+            lambda f: f.is_first_half_stoppage == ((f.half == 1).fillna(False) & (f.minute > 45))
+        ),
         strict=True,
     ),
     "red_cards": pa.DataFrameSchema(
