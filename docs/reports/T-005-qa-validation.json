@@ -1,0 +1,192 @@
+{
+  "checked_games": 4831,
+  "validate_only": true,
+  "issues": [],
+  "warnings": [
+    {
+      "season_id": 8,
+      "season": "2006/07",
+      "game_id": 113571,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1005
+    },
+    {
+      "season_id": 10,
+      "season": "2008/09",
+      "game_id": 168932,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1061
+    },
+    {
+      "season_id": 10,
+      "season": "2008/09",
+      "game_id": 168985,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1061
+    },
+    {
+      "season_id": 10,
+      "season": "2008/09",
+      "game_id": 169035,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2176
+    },
+    {
+      "season_id": 11,
+      "season": "2009/10",
+      "game_id": 235788,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2176
+    },
+    {
+      "season_id": 12,
+      "season": "2010/11",
+      "game_id": 240737,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1064
+    },
+    {
+      "season_id": 12,
+      "season": "2010/11",
+      "game_id": 240737,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2173
+    },
+    {
+      "season_id": 13,
+      "season": "2011/12",
+      "game_id": 268360,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2194
+    },
+    {
+      "season_id": 13,
+      "season": "2011/12",
+      "game_id": 268395,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1198
+    },
+    {
+      "season_id": 23,
+      "season": "2021/22",
+      "game_id": 732577,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1005
+    },
+    {
+      "season_id": 24,
+      "season": "2022/23",
+      "game_id": 793961,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1061
+    },
+    {
+      "season_id": 25,
+      "season": "2023/24",
+      "game_id": 864889,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2171
+    }
+  ],
+  "documented_exceptions": [
+    {
+      "game_id": 113512,
+      "season_id": 8,
+      "season": "2006/07",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 113560,
+      "season_id": 8,
+      "season": "2006/07",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 140304,
+      "season_id": 9,
+      "season": "2007/08",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 168624,
+      "season_id": 9,
+      "season": "2007/08",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 211641,
+      "season_id": 11,
+      "season": "2009/10",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 339816,
+      "season_id": 15,
+      "season": "2013/14",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 388670,
+      "season_id": 16,
+      "season": "2014/15",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 388687,
+      "season_id": 16,
+      "season": "2014/15",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 634560,
+      "season_id": 21,
+      "season": "2019/20",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 634579,
+      "season_id": 21,
+      "season": "2019/20",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 635121,
+      "season_id": 21,
+      "season": "2019/20",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 683148,
+      "season_id": 22,
+      "season": "2020/21",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 732630,
+      "season_id": 23,
+      "season": "2021/22",
+      "reason": "Claude verified inconsistent halftime header and header scorer minutes; keep halftime, leave goal half unknown.",
+      "type": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 864982,
+      "season_id": 25,
+      "season": "2023/24",
+      "reason": "Claude verified six header scorers against a 1:2 result; retain match and omit unreliable goal rows.",
+      "type": "unreliable_timeline_scorers"
+    }
+  ],
+  "clean_files_unchanged": true
+}

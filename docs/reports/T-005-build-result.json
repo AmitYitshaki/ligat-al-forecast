@@ -1,0 +1,194 @@
+{
+  "checked_games": 4831,
+  "issues": [],
+  "warnings": [
+    {
+      "season_id": 8,
+      "season": "2006/07",
+      "game_id": 113571,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1005
+    },
+    {
+      "season_id": 10,
+      "season": "2008/09",
+      "game_id": 168932,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1061
+    },
+    {
+      "season_id": 10,
+      "season": "2008/09",
+      "game_id": 168985,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1061
+    },
+    {
+      "season_id": 10,
+      "season": "2008/09",
+      "game_id": 169035,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2176
+    },
+    {
+      "season_id": 11,
+      "season": "2009/10",
+      "game_id": 235788,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2176
+    },
+    {
+      "season_id": 12,
+      "season": "2010/11",
+      "game_id": 240737,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1064
+    },
+    {
+      "season_id": 12,
+      "season": "2010/11",
+      "game_id": 240737,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2173
+    },
+    {
+      "season_id": 13,
+      "season": "2011/12",
+      "game_id": 268360,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2194
+    },
+    {
+      "season_id": 13,
+      "season": "2011/12",
+      "game_id": 268395,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1198
+    },
+    {
+      "season_id": 23,
+      "season": "2021/22",
+      "game_id": 732577,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1005
+    },
+    {
+      "season_id": 24,
+      "season": "2022/23",
+      "game_id": 793961,
+      "kind": "unknown_red_card_minute",
+      "team_id": 1061
+    },
+    {
+      "season_id": 25,
+      "season": "2023/24",
+      "game_id": 864889,
+      "kind": "unknown_red_card_minute",
+      "team_id": 2171
+    }
+  ],
+  "documented_exceptions": [
+    {
+      "game_id": 113512,
+      "season_id": 8,
+      "season": "2006/07",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 113560,
+      "season_id": 8,
+      "season": "2006/07",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 140304,
+      "season_id": 9,
+      "season": "2007/08",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 168624,
+      "season_id": 9,
+      "season": "2007/08",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 211641,
+      "season_id": 11,
+      "season": "2009/10",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 339816,
+      "season_id": 15,
+      "season": "2013/14",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 388670,
+      "season_id": 16,
+      "season": "2014/15",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 388687,
+      "season_id": 16,
+      "season": "2014/15",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 634560,
+      "season_id": 21,
+      "season": "2019/20",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 634579,
+      "season_id": 21,
+      "season": "2019/20",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 635121,
+      "season_id": 21,
+      "season": "2019/20",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 683148,
+      "season_id": 22,
+      "season": "2020/21",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 732630,
+      "season_id": 23,
+      "season": "2021/22",
+      "reason": "halftime_timeline_conflict"
+    },
+    {
+      "game_id": 864982,
+      "season_id": 25,
+      "season": "2023/24",
+      "reason": "unreliable_timeline_scorers"
+    }
+  ],
+  "rows": {
+    "matches": 4831,
+    "fixtures": 142,
+    "round_tables": 10040,
+    "final_tables": 280,
+    "game_details": 4831,
+    "goals": 12124,
+    "red_cards": 1340,
+    "coaches": 9662
+  },
+  "first_half_stoppage_games": 51,
+  "second_half_minute_45_games": [
+    428714,
+    793768,
+    865066
+  ],
+  "raw_unchanged": true,
+  "existing_tables_unchanged": true
+}

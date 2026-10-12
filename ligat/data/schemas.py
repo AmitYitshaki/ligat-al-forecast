@@ -55,6 +55,54 @@ def _table_checks() -> list[pa.Check]:
 
 
 SCHEMAS = {
+    "game_details": pa.DataFrameSchema(
+        {
+            "game_id": _integer(positive=True),
+            "ht_home_goals": pa.Column("Int64", pa.Check.ge(0), nullable=True),
+            "ht_away_goals": pa.Column("Int64", pa.Check.ge(0), nullable=True),
+            "referee": pa.Column("string", nullable=True),
+            **{name: pa.Column(bool) for name in ("has_timeline", "has_lineups", "has_coaches")},
+            "ht_conflict": pa.Column(bool),
+            "goals_available": pa.Column(bool),
+        },
+        unique=["game_id"],
+        strict=True,
+    ),
+    "goals": pa.DataFrameSchema(
+        {
+            "game_id": _integer(positive=True),
+            "team_id": _integer(positive=True),
+            "minute": _integer(),
+            "added_time": pa.Column("Int64", pa.Check.ge(0), nullable=True),
+            "is_penalty": pa.Column(bool),
+            "is_own_goal": pa.Column(bool),
+            "half": pa.Column("Int64", pa.Check.isin([1, 2]), nullable=True),
+            "is_first_half_stoppage": pa.Column(bool),
+        },
+        checks=pa.Check(
+            lambda f: f.is_first_half_stoppage == ((f.half == 1).fillna(False) & (f.minute > 45))
+        ),
+        strict=True,
+    ),
+    "red_cards": pa.DataFrameSchema(
+        {
+            "game_id": _integer(positive=True),
+            "team_id": _integer(positive=True),
+            "minute": pa.Column("Int64", pa.Check.ge(0), nullable=True),
+            "is_second_yellow": pa.Column(bool),
+        },
+        strict=True,
+    ),
+    "coaches": pa.DataFrameSchema(
+        {
+            "game_id": _integer(positive=True),
+            "team_id": _integer(positive=True),
+            "coach_id": pa.Column("Int64", pa.Check.ge(1), nullable=True),
+            "coach_name": pa.Column("string", nullable=True),
+        },
+        unique=["game_id", "team_id"],
+        strict=True,
+    ),
     "matches": pa.DataFrameSchema(
         {
             "game_id": _integer(positive=True),

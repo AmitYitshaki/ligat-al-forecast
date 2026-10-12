@@ -14,6 +14,7 @@ from uuid import uuid4
 import pandas as pd  # type: ignore[import-untyped]
 import yaml
 
+from ligat.data.details import cross_check, load_exceptions, parse_game
 from ligat.data.game_pages import GamePageRepository
 from ligat.data.parse import ParsedRound, TableRow, clean_team_name, parse_round
 from ligat.data.repository import Repository
@@ -193,10 +194,12 @@ def build_datasets(
     games_root: Path = Path("data/raw/ifa/games"),
     seasons_path: Path = Path("config/seasons.yaml"),
     overrides_path: Path = Path("config/match_overrides.yaml"),
+    exceptions_path: Path = Path("config/game_detail_exceptions.yaml"),
+    validate_only: bool = False,
     teams_path: Path = Path("config/teams.yaml"),
     repository: Repository | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Build four validated datasets and a team alias draft, entirely offline."""
+    """Build eight validated datasets and a team alias draft, entirely offline."""
     if any(teams_path.resolve().is_relative_to(root.resolve()) for root in (raw_root, games_root)):
         raise ValueError("Team draft cannot write into raw storage")
     repo = repository if repository is not None else Repository()
@@ -208,6 +211,8 @@ def build_datasets(
         for config in sorted(document["seasons"], key=lambda item: item["season_id"])
     ]
     overrides, dropped, deferred_points = _load_override_policy(overrides_path)
+    exceptions = load_exceptions(exceptions_path)
+    exception_notes = yaml.safe_load(exceptions_path.read_text(encoding="utf-8"))["games"]
     pages = GamePageRepository(games_root)
     mismatches = []
     for season in seasons:
@@ -337,6 +342,103 @@ def build_datasets(
             ("final_tables", finals),
         )
     }
+    detail_rows: dict[str, list[dict[str, Any]]] = {
+        name: [] for name in ("game_details", "goals", "red_cards", "coaches")
+    }
+    issues = []
+    warnings: list[dict[str, Any]] = []
+    season_labels = {season.config["season_id"]: season.config["label"] for season in seasons}
+    for index, match in enumerate(matches, start=1):
+        context = {
+            "season_id": match["season_id"],
+            "season": season_labels[match["season_id"]],
+        }
+        content = pages.read(match["season_id"], match["game_id"])
+        try:
+            parsed_game = parse_game(
+                content,
+                match["game_id"],
+                match["home_team_id"],
+                match["away_team_id"],
+                exception=exceptions.get(match["game_id"]),
+            )
+        except ValueError as exc:
+            issues.append(
+                context
+                | {
+                    "game_id": match["game_id"],
+                    "kind": "page_format",
+                    "actual": str(exc),
+                    "expected": "Valid game page",
+                }
+            )
+            continue
+        if index % 500 == 0:
+            LOGGER.info("Validated game details: %d/%d", index, len(matches))
+        issues.extend(
+            context | issue
+            for issue in cross_check(
+                parsed_game,
+                match["home_team_id"],
+                match["away_team_id"],
+                (match["home_goals"], match["away_goals"]),
+            )
+        )
+        detail_rows["game_details"].append(parsed_game.details)
+        detail_rows["goals"].extend(parsed_game.goals)
+        detail_rows["red_cards"].extend(parsed_game.red_cards)
+        warnings.extend(
+            {
+                **context,
+                "game_id": match["game_id"],
+                "kind": "unknown_red_card_minute",
+                "team_id": row["team_id"],
+            }
+            for row in parsed_game.red_cards
+            if row["minute"] is None
+        )
+        detail_rows["coaches"].extend(parsed_game.coaches)
+    report_path = repo.root.parent / "reports" / "game_details_validation.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_report = report_path.with_suffix(".json.tmp")
+    temporary_report.write_text(
+        json.dumps(
+            {
+                "checked_games": len(matches),
+                "validate_only": validate_only,
+                "issues": issues,
+                "warnings": warnings,
+                "documented_exceptions": [
+                    {
+                        "game_id": match["game_id"],
+                        "season_id": match["season_id"],
+                        "season": match["season"],
+                        "type": exceptions[match["game_id"]],
+                        "reason": exception_notes[match["game_id"]]["reason"],
+                    }
+                    for match in matches
+                    if match["game_id"] in exceptions
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    temporary_report.replace(report_path)
+    if warnings:
+        LOGGER.warning(
+            "Retained %d red cards with unknown minutes; report: %s", len(warnings), report_path
+        )
+    if issues:
+        raise ValueError(
+            f"Game details validation failed: {len(issues)} undocumented discrepancies; "
+            f"game_id={sorted({issue['game_id'] for issue in issues})}; report: {report_path}"
+        )
+    frames.update({name: make_frame(name, rows) for name, rows in detail_rows.items()})
+    if validate_only:
+        LOGGER.info("Validation passed; no Parquet or team draft published (--validate-only)")
+        return frames
     for name, frame in frames.items():
         repo.write(name, frame)
         LOGGER.info("Built %s: %d rows", name, len(frame))
