@@ -5,7 +5,10 @@
 12 אירועי הרחקה עם דקה -1 נשמרים כ־null ואזהרות; אינם גורם לעצירה.
 כל הגדלים וחתימות SHA-256 של העמודים אומתו מול manifests שהושלמו.
 
-הרשימה המלאה ב־T-005-validation.json, וגם מקומית ב־data/clean/game_details_validation.json.
+הרשימה המלאה ב־T-005-validation.json, וגם מקומית ב־data/reports/game_details_validation.json.
+כל רשומת פער כוללת game_id, season_id, season, kind, expected ו־actual.
+זוגות השערים הם בסדר בית, חוץ. goals_total הוא סך השערים מול matches;
+halftime_goals הוא שערים עד דקה 45 מול כותרת המחצית; has_* הם דגלי זמינות מול התוכן.
 בדיקה נוספת עם lxml ישירות על ה־HTML שחזרה בדיוק את אותם 68 משחקים.
 
 ## דוגמאות שנבדקו מול העמוד

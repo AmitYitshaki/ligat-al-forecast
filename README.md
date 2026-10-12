@@ -165,7 +165,7 @@ ligat export excel
 
 הבנייה מוסיפה game_details, goals, red_cards ו־coaches לארבעת הדאטה סטים הקיימים.
 11 המשחקים הטכניים מוחרגים מכל פירוט המשחקים. אימות חתימות והצלבות שערים
-נעשים לפני פרסום; פערי שערים ומחצית מפורטים ב־data/clean/game_details_validation.json.
+נעשים לפני פרסום; פערי שערים ומחצית מפורטים ב־data/reports/game_details_validation.json.
 דקת כרטיס -1 אינה דקה אמיתית: נשמר null ואזהרה בדוח.
 עמוד חסר מפיק הודעה עם game_id ופקודת גרידה. אין גישה לרשת מתוך build.
 

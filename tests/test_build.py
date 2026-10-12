@@ -315,8 +315,10 @@ def test_details_mismatch_reports_without_replacing_parquet(tmp_path: Path) -> N
     ):
         build_datasets(**inputs, repository=repo)
     assert existing.read_bytes() == b"previous validated version"
-    report = json.loads((repo.root / "game_details_validation.json").read_text())
+    report = json.loads((repo.root.parent / "reports" / "game_details_validation.json").read_text())
     assert report["issues"] and report["checked_games"] == 11
+    assert all("season_id" in issue and "season" in issue for issue in report["issues"])
+    assert list(repo.root.iterdir()) == [existing]
     assert not inputs["teams_path"].exists()
 
 

@@ -343,19 +343,33 @@ def build_datasets(
     }
     issues = []
     warnings: list[dict[str, Any]] = []
+    season_labels = {season.config["season_id"]: season.config["label"] for season in seasons}
     for index, match in enumerate(matches, start=1):
+        context = {
+            "season_id": match["season_id"],
+            "season": season_labels[match["season_id"]],
+        }
         content = pages.read(match["season_id"], match["game_id"])
         try:
             parsed_game = parse_game(
                 content, match["game_id"], match["home_team_id"], match["away_team_id"]
             )
         except ValueError as exc:
-            issues.append({"game_id": match["game_id"], "kind": "page_format", "error": str(exc)})
+            issues.append(
+                context
+                | {
+                    "game_id": match["game_id"],
+                    "kind": "page_format",
+                    "actual": str(exc),
+                    "expected": "Valid game page",
+                }
+            )
             continue
         if index % 500 == 0:
             LOGGER.info("Validated game details: %d/%d", index, len(matches))
         issues.extend(
-            cross_check(
+            context | issue
+            for issue in cross_check(
                 parsed_game,
                 match["home_team_id"],
                 match["away_team_id"],
@@ -367,6 +381,7 @@ def build_datasets(
         detail_rows["red_cards"].extend(parsed_game.red_cards)
         warnings.extend(
             {
+                **context,
                 "game_id": match["game_id"],
                 "kind": "unknown_red_card_minute",
                 "team_id": row["team_id"],
@@ -375,8 +390,8 @@ def build_datasets(
             if row["minute"] is None
         )
         detail_rows["coaches"].extend(parsed_game.coaches)
-    report_path = repo.root / "game_details_validation.json"
-    repo.root.mkdir(parents=True, exist_ok=True)
+    report_path = repo.root.parent / "reports" / "game_details_validation.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_report = report_path.with_suffix(".json.tmp")
     temporary_report.write_text(
         json.dumps(

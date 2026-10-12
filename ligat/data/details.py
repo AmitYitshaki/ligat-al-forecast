@@ -155,10 +155,18 @@ def cross_check(
                     "expected": wanted,
                 }
             )
-    if game.details["has_coaches"] != all(row["coach_name"] is not None for row in game.coaches):
-        issues.append({"game_id": game.details["game_id"], "kind": "has_coaches"})
-    if game.details["has_timeline"] != bool(game.timeline_nodes):
-        issues.append({"game_id": game.details["game_id"], "kind": "has_timeline"})
-    if game.details["has_lineups"] != all(game.lineup_counts):
-        issues.append({"game_id": game.details["game_id"], "kind": "has_lineups"})
+    for flag, expected_flag in (
+        ("has_coaches", all(row["coach_name"] is not None for row in game.coaches)),
+        ("has_timeline", bool(game.timeline_nodes)),
+        ("has_lineups", all(game.lineup_counts)),
+    ):
+        if game.details[flag] != expected_flag:
+            issues.append(
+                {
+                    "game_id": game.details["game_id"],
+                    "kind": flag,
+                    "actual": game.details[flag],
+                    "expected": expected_flag,
+                }
+            )
     return issues

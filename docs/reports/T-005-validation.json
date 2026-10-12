@@ -11,7 +11,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 8,
+      "season": "2006/07"
     },
     {
       "game_id": 113560,
@@ -23,7 +25,9 @@
       "expected": [
         2,
         3
-      ]
+      ],
+      "season_id": 8,
+      "season": "2006/07"
     },
     {
       "game_id": 140304,
@@ -35,7 +39,9 @@
       "expected": [
         0,
         2
-      ]
+      ],
+      "season_id": 9,
+      "season": "2007/08"
     },
     {
       "game_id": 168624,
@@ -47,7 +53,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 9,
+      "season": "2007/08"
     },
     {
       "game_id": 211641,
@@ -59,7 +67,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 11,
+      "season": "2009/10"
     },
     {
       "game_id": 268181,
@@ -71,7 +81,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 13,
+      "season": "2011/12"
     },
     {
       "game_id": 268381,
@@ -83,7 +95,9 @@
       "expected": [
         2,
         1
-      ]
+      ],
+      "season_id": 13,
+      "season": "2011/12"
     },
     {
       "game_id": 268007,
@@ -95,7 +109,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 13,
+      "season": "2011/12"
     },
     {
       "game_id": 339816,
@@ -107,7 +123,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 15,
+      "season": "2013/14"
     },
     {
       "game_id": 388670,
@@ -119,7 +137,9 @@
       "expected": [
         0,
         0
-      ]
+      ],
+      "season_id": 16,
+      "season": "2014/15"
     },
     {
       "game_id": 388687,
@@ -131,7 +151,9 @@
       "expected": [
         0,
         4
-      ]
+      ],
+      "season_id": 16,
+      "season": "2014/15"
     },
     {
       "game_id": 388228,
@@ -143,7 +165,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 16,
+      "season": "2014/15"
     },
     {
       "game_id": 428714,
@@ -155,7 +179,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 17,
+      "season": "2015/16"
     },
     {
       "game_id": 428350,
@@ -167,7 +193,9 @@
       "expected": [
         2,
         2
-      ]
+      ],
+      "season_id": 17,
+      "season": "2015/16"
     },
     {
       "game_id": 474329,
@@ -179,7 +207,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 18,
+      "season": "2016/17"
     },
     {
       "game_id": 474462,
@@ -191,7 +221,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 18,
+      "season": "2016/17"
     },
     {
       "game_id": 525437,
@@ -203,7 +235,9 @@
       "expected": [
         2,
         1
-      ]
+      ],
+      "season_id": 19,
+      "season": "2017/18"
     },
     {
       "game_id": 580744,
@@ -215,7 +249,9 @@
       "expected": [
         3,
         0
-      ]
+      ],
+      "season_id": 20,
+      "season": "2018/19"
     },
     {
       "game_id": 580846,
@@ -227,7 +263,9 @@
       "expected": [
         0,
         2
-      ]
+      ],
+      "season_id": 20,
+      "season": "2018/19"
     },
     {
       "game_id": 580590,
@@ -239,7 +277,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 20,
+      "season": "2018/19"
     },
     {
       "game_id": 634477,
@@ -251,7 +291,9 @@
       "expected": [
         2,
         2
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 634504,
@@ -263,7 +305,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 634526,
@@ -275,7 +319,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 634560,
@@ -287,7 +333,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 634579,
@@ -299,7 +347,9 @@
       "expected": [
         0,
         3
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 634643,
@@ -311,7 +361,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 635094,
@@ -323,7 +375,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 635121,
@@ -335,7 +389,9 @@
       "expected": [
         0,
         0
-      ]
+      ],
+      "season_id": 21,
+      "season": "2019/20"
     },
     {
       "game_id": 683098,
@@ -347,7 +403,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 22,
+      "season": "2020/21"
     },
     {
       "game_id": 683148,
@@ -359,7 +417,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 22,
+      "season": "2020/21"
     },
     {
       "game_id": 682925,
@@ -371,7 +431,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 22,
+      "season": "2020/21"
     },
     {
       "game_id": 732495,
@@ -383,7 +445,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 732539,
@@ -395,7 +459,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 732580,
@@ -407,7 +473,9 @@
       "expected": [
         2,
         1
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 732617,
@@ -419,7 +487,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 732624,
@@ -431,7 +501,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 732630,
@@ -443,7 +515,9 @@
       "expected": [
         0,
         0
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 732301,
@@ -455,7 +529,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 732313,
@@ -467,7 +543,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 793768,
@@ -479,7 +557,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 24,
+      "season": "2022/23"
     },
     {
       "game_id": 793896,
@@ -491,7 +571,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 24,
+      "season": "2022/23"
     },
     {
       "game_id": 793922,
@@ -503,7 +585,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 24,
+      "season": "2022/23"
     },
     {
       "game_id": 793938,
@@ -515,7 +599,9 @@
       "expected": [
         3,
         0
-      ]
+      ],
+      "season_id": 24,
+      "season": "2022/23"
     },
     {
       "game_id": 864982,
@@ -527,7 +613,9 @@
       "expected": [
         1,
         2
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 864994,
@@ -539,7 +627,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 864999,
@@ -551,7 +641,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 865003,
@@ -563,7 +655,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 865066,
@@ -575,7 +669,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 865072,
@@ -587,7 +683,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 865153,
@@ -599,7 +697,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 865152,
@@ -611,7 +711,9 @@
       "expected": [
         2,
         1
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 864870,
@@ -623,7 +725,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 864880,
@@ -635,7 +739,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 864903,
@@ -647,7 +753,9 @@
       "expected": [
         0,
         1
-      ]
+      ],
+      "season_id": 25,
+      "season": "2023/24"
     },
     {
       "game_id": 954855,
@@ -659,7 +767,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 26,
+      "season": "2024/25"
     },
     {
       "game_id": 954888,
@@ -671,7 +781,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 26,
+      "season": "2024/25"
     },
     {
       "game_id": 954947,
@@ -683,7 +795,9 @@
       "expected": [
         4,
         0
-      ]
+      ],
+      "season_id": 26,
+      "season": "2024/25"
     },
     {
       "game_id": 954974,
@@ -695,7 +809,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 26,
+      "season": "2024/25"
     },
     {
       "game_id": 954766,
@@ -707,7 +823,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 26,
+      "season": "2024/25"
     },
     {
       "game_id": 954780,
@@ -719,7 +837,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 26,
+      "season": "2024/25"
     },
     {
       "game_id": 954788,
@@ -731,7 +851,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 26,
+      "season": "2024/25"
     },
     {
       "game_id": 1060381,
@@ -743,7 +865,9 @@
       "expected": [
         1,
         2
-      ]
+      ],
+      "season_id": 27,
+      "season": "2025/26"
     },
     {
       "game_id": 1060396,
@@ -755,7 +879,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 27,
+      "season": "2025/26"
     },
     {
       "game_id": 1060411,
@@ -767,7 +893,9 @@
       "expected": [
         1,
         1
-      ]
+      ],
+      "season_id": 27,
+      "season": "2025/26"
     },
     {
       "game_id": 1060468,
@@ -779,7 +907,9 @@
       "expected": [
         0,
         2
-      ]
+      ],
+      "season_id": 27,
+      "season": "2025/26"
     },
     {
       "game_id": 1060492,
@@ -791,7 +921,9 @@
       "expected": [
         2,
         0
-      ]
+      ],
+      "season_id": 27,
+      "season": "2025/26"
     },
     {
       "game_id": 1060507,
@@ -803,7 +935,9 @@
       "expected": [
         1,
         0
-      ]
+      ],
+      "season_id": 27,
+      "season": "2025/26"
     },
     {
       "game_id": 1060537,
@@ -815,69 +949,95 @@
       "expected": [
         3,
         0
-      ]
+      ],
+      "season_id": 27,
+      "season": "2025/26"
     }
   ],
   "warnings": [
     {
       "game_id": 113571,
       "kind": "unknown_red_card_minute",
-      "team_id": 1005
+      "team_id": 1005,
+      "season_id": 8,
+      "season": "2006/07"
     },
     {
       "game_id": 168932,
       "kind": "unknown_red_card_minute",
-      "team_id": 1061
+      "team_id": 1061,
+      "season_id": 10,
+      "season": "2008/09"
     },
     {
       "game_id": 168985,
       "kind": "unknown_red_card_minute",
-      "team_id": 1061
+      "team_id": 1061,
+      "season_id": 10,
+      "season": "2008/09"
     },
     {
       "game_id": 169035,
       "kind": "unknown_red_card_minute",
-      "team_id": 2176
+      "team_id": 2176,
+      "season_id": 10,
+      "season": "2008/09"
     },
     {
       "game_id": 235788,
       "kind": "unknown_red_card_minute",
-      "team_id": 2176
+      "team_id": 2176,
+      "season_id": 11,
+      "season": "2009/10"
     },
     {
       "game_id": 240737,
       "kind": "unknown_red_card_minute",
-      "team_id": 1064
+      "team_id": 1064,
+      "season_id": 12,
+      "season": "2010/11"
     },
     {
       "game_id": 240737,
       "kind": "unknown_red_card_minute",
-      "team_id": 2173
+      "team_id": 2173,
+      "season_id": 12,
+      "season": "2010/11"
     },
     {
       "game_id": 268360,
       "kind": "unknown_red_card_minute",
-      "team_id": 2194
+      "team_id": 2194,
+      "season_id": 13,
+      "season": "2011/12"
     },
     {
       "game_id": 268395,
       "kind": "unknown_red_card_minute",
-      "team_id": 1198
+      "team_id": 1198,
+      "season_id": 13,
+      "season": "2011/12"
     },
     {
       "game_id": 732577,
       "kind": "unknown_red_card_minute",
-      "team_id": 1005
+      "team_id": 1005,
+      "season_id": 23,
+      "season": "2021/22"
     },
     {
       "game_id": 793961,
       "kind": "unknown_red_card_minute",
-      "team_id": 1061
+      "team_id": 1061,
+      "season_id": 24,
+      "season": "2022/23"
     },
     {
       "game_id": 864889,
       "kind": "unknown_red_card_minute",
-      "team_id": 2171
+      "team_id": 2171,
+      "season_id": 25,
+      "season": "2023/24"
     }
   ]
 }
