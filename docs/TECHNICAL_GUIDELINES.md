@@ -196,8 +196,10 @@ class FeatureBlock(ABC):
 - מחברות הצגה ב־`notebooks/`, מחוץ ל־`explore/`, **לא מכילות לוגיקה**:
   הן מייבאות מ־`ligat` ומציגות.
 - כל מחברת עוברת **Restart & Run All** לפני commit.
-- פלטים ומספרי הרצה מנוקים לפני commit באמצעות `nbstripout`, ב־Git filter
-  המוגדר ב־`.gitattributes` וב־hook של pre-commit. clone חדש מתקין filter מתוך ה־venv.
+- הפלטים ומספרי ההרצה נשמרים בקובץ המקומי אחרי Restart & Run All.
+  `nbstripout` מנקה רק את העותק הנשמר ב־Git, באמצעות filter ב־`.gitattributes`.
+  ה־hook בודק את העותק המוכן ל־commit ואינו משנה את הקובץ המקומי.
+  clone חדש מתקין filter מתוך ה־venv.
 - `ipykernel`, `nbformat` ו־`nbstripout` הן תלויות dev בלבד. המחברות רצות ב־kernel
   של ה־venv (הוראות רישום ב־`notebooks/explore/README.md`).
 - שמות ממוספרים: `01_raw_data.ipynb`, `02_eda.ipynb`...

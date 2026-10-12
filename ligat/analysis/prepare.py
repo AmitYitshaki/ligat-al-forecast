@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd  # type: ignore[import-untyped]
 import yaml
+from statsmodels.stats.proportion import proportion_confint  # type: ignore[import-untyped]
 
 from ligat.data.details import load_exceptions
 from ligat.data.repository import Repository
@@ -705,6 +706,8 @@ def build_coach_spells(team_matches: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     source = team_matches.reset_index().sort_values(["team_id", "date", "game_id"])
     source = source.loc[source.season_id.ge(11)]
+    known = source.loc[source.coach_id.notna() | source.coach_name.notna()]
+    first_observed = known.groupby(["team_id", "season_id"]).game_id.first().to_dict()
     for team, games in source.groupby("team_id", sort=True):
         spell: list[Any] = []
         number = 0
@@ -729,6 +732,8 @@ def build_coach_spells(team_matches: pd.DataFrame) -> pd.DataFrame:
                     "matches": len(observed),
                     "points_per_match": sum(g.points_earned for g in observed) / len(observed),
                     "is_mid_season_start": observed[0].match_number > 1,
+                    "is_left_censored": observed[0].match_number > 1
+                    and observed[0].game_id == first_observed[(team_id, observed[0].season_id)],
                 }
             )
 
@@ -763,17 +768,111 @@ def build_coach_spells(team_matches: pd.DataFrame) -> pd.DataFrame:
         "matches",
         "points_per_match",
         "is_mid_season_start",
+        "is_left_censored",
     ]
     frame = _typed_view(
         pd.DataFrame(rows, columns=columns),
         ["team_id", "spell_number", "coach_id", "season_id_start", "season_id_end", "matches"],
-        ["is_mid_season_start"],
+        ["is_mid_season_start", "is_left_censored"],
     )
     frame["coach_name"] = frame.coach_name.astype("string")
     frame["points_per_match"] = frame.points_per_match.astype("Float64")
     for column in ("first_date", "last_date"):
         frame[column] = pd.to_datetime(frame[column], utc=True).dt.tz_convert("Asia/Jerusalem")
+    frame["is_flicker"] = pd.Series(False, index=frame.index, dtype="boolean")
+    for _, group in frame.groupby("team_id", sort=False):
+        for position in range(1, len(group) - 1):
+            before, current, after = (group.iloc[position + offset] for offset in (-1, 0, 1))
+            same = (
+                before.coach_id == after.coach_id
+                if pd.notna(before.coach_id) and pd.notna(after.coach_id)
+                else pd.notna(before.coach_name)
+                and pd.notna(after.coach_name)
+                and before.coach_name == after.coach_name
+            )
+            frame.at[current.name, "is_flicker"] = bool(same) and current.matches <= 2
     return frame.set_index(["team_id", "spell_number"], drop=True)
+
+
+def preview_pre_match_row(
+    tables: AnalysisTables,
+    game_id: int,
+    window: int = 10,
+) -> pd.DataFrame:
+    """Prototype features from strictly earlier games; this is not a trained model.
+
+    Both venue points rates use the same last-window games, possibly across seasons.
+    Missing/conflicting halftimes are excluded from the halftime mean, not imputed.
+    """
+    if window < 1:
+        raise ValueError("window must be positive")
+    if game_id not in tables.match_table.index:
+        raise ValueError(f"Unknown game_id={game_id}")
+    game = tables.match_table.loc[game_id]
+    row: dict[str, Any] = {}
+    for side in ("home", "away"):
+        team_id = game[f"{side}_team_id"]
+        history = tables.team_matches.xs(team_id, level="team_id")
+        history = (
+            history.loc[history.date.lt(game.date)].sort_values(["date", "game_id"]).tail(window)
+        )
+        for column in ("goals_scored", "goals_conceded", "points_earned", "ht_goals_scored"):
+            values = history[column]
+            if column == "ht_goals_scored":
+                values = values.where(~history.ht_conflict)
+            row[f"feature_{side}_{column}_mean"] = _mean(values)
+        for venue, is_home in (("home", True), ("away", False)):
+            row[f"feature_{side}_{venue}_points_per_match"] = _mean(
+                history.loc[history.is_home.eq(is_home), "points_earned"]
+            )
+        row[f"feature_{side}_prev_season_value_share"] = tables.team_seasons.loc[
+            (game.season_id, team_id), "prev_season_value_share"
+        ]
+    row.update(
+        target_home_goals=game.home_goals,
+        target_away_goals=game.away_goals,
+        target_result=game.result,
+    )
+    frame = pd.DataFrame([row], index=pd.Index([game_id], name="game_id"))
+    for column in frame:
+        if column.startswith("feature_"):
+            frame[column] = frame[column].astype("Float64")
+    return frame
+
+
+def outcome_base_rates(match_table: pd.DataFrame) -> pd.DataFrame:
+    """Descriptive B0 home/draw/away rates and marginal 95% Wilson intervals.
+
+    These full-sample rates describe EDA; evaluating future matches must fit B0
+    on training data only. The three marginal intervals are not simultaneous.
+    """
+    labels = ("home_win", "draw", "away_win")
+    if match_table.empty or not match_table.result.isin(labels).all():
+        raise ValueError("B0 requires nonempty matches with known home/draw/away outcomes")
+    rows = []
+    groups = [
+        ("overall", pd.NA, match_table),
+        *[("season", season, games) for season, games in match_table.groupby("season_id")],
+    ]
+    for scope, season, games in groups:
+        for outcome in labels:
+            count = int(games.result.eq(outcome).sum())
+            lower, upper = proportion_confint(count, len(games), alpha=0.05, method="wilson")
+            rows.append(
+                dict(
+                    scope=scope,
+                    season_id=season,
+                    outcome=outcome,
+                    n_matches=len(games),
+                    n_outcomes=count,
+                    rate=count / len(games),
+                    ci_lower=float(lower),
+                    ci_upper=float(upper),
+                )
+            )
+    frame = pd.DataFrame(rows)
+    frame["season_id"] = frame.season_id.astype("Int64")
+    return frame
 
 
 def load_analysis_tables(
@@ -895,7 +994,8 @@ for _table, _columns, _reason in (
     (
         "coach_spells",
         ["coach_id", "coach_name"],
-        "Source can provide a coach name without a linked ID, or an ID without a name.",
+        "Source can provide a coach name without a linked ID, or an ID without a name. "
+        "Coverage/flicker flags document source quality without imputing coaches.",
     ),
 ):
     DOCUMENTED_MISSING_REASONS.update({(_table, column): _reason for column in _columns})

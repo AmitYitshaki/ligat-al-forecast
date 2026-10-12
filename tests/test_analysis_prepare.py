@@ -21,6 +21,8 @@ from ligat.analysis.prepare import (
     describe_missing_values,
     flag_unusual_matches,
     load_analysis_tables,
+    outcome_base_rates,
+    preview_pre_match_row,
     team_history,
     to_team_perspective,
 )
@@ -744,3 +746,90 @@ def test_load_all_tables_uses_scoped_reads(
     assert ("final_tables", [("season_id", "in", [8, 9])]) in calls
     assert calls[-1] == ("squad_values", [("season_id", "in", [7, 8, 9])])
     assert ("goals", [("game_id", "in", tables.match_table.index.tolist())]) in calls
+
+
+def test_preview_features_use_strict_past_and_do_not_leak(
+    healthy_analysis: tuple[AnalysisTables, Path, Path, Path],
+) -> None:
+    tables, *_ = healthy_analysis
+    game_id = tables.match_table.index[-1]
+    before = preview_pre_match_row(tables, game_id, window=2)
+    matches = tables.match_table.copy()
+    matches.loc[game_id, ["home_goals", "away_goals", "total_goals", "goal_difference"]] = [
+        5,
+        0,
+        5,
+        5,
+    ]
+    matches.loc[game_id, "result"] = "home_win"
+    changed = replace(tables, match_table=matches, team_matches=to_team_perspective(matches))
+    after = preview_pre_match_row(changed, game_id, window=2)
+    columns = before.filter(like="feature_").columns
+    pd.testing.assert_frame_equal(before[columns], after[columns])
+    assert after.iloc[0].target_home_goals == 5
+    assert before.iloc[0].feature_home_points_earned_mean == 1
+    team = tables.match_table.loc[game_id, "home_team_id"]
+    history = tables.team_matches.loc[team].sort_values(["date", "game_id"])
+    previous = history.index[-2]
+    history_view = tables.team_matches.copy()
+    history_view.loc[(team, previous), "date"] = tables.match_table.loc[game_id, "date"]
+    history_view.loc[(team, previous), "goals_scored"] = 100
+    simultaneous = preview_pre_match_row(
+        replace(tables, team_matches=history_view), game_id, window=2
+    )
+    assert simultaneous.iloc[0].feature_home_goals_scored_mean == 0
+    first = preview_pre_match_row(tables, tables.match_table.index[0])
+    assert first.filter(like="feature_").isna().all().all()
+    with pytest.raises(ValueError, match="positive"):
+        preview_pre_match_row(tables, game_id, window=0)
+
+
+def test_b0_rates_and_wilson_intervals(
+    healthy_analysis: tuple[AnalysisTables, Path, Path, Path],
+) -> None:
+    tables, *_ = healthy_analysis
+    rates = outcome_base_rates(tables.match_table)
+    assert len(rates) == 6
+    assert rates.groupby("scope").rate.sum().eq(1).all()
+    overall = rates.loc[rates.scope.eq("overall")].set_index("outcome")
+    assert overall.loc["draw", "rate"] == 1
+    assert overall.loc["home_win", "ci_upper"] == pytest.approx(0.01903206032664819)
+    assert overall.ci_lower.le(overall.rate).all()
+    assert overall.ci_upper.ge(overall.rate).all()
+    with pytest.raises(ValueError):
+        outcome_base_rates(tables.match_table.iloc[:0])
+
+
+def test_coach_left_censoring(inputs: tuple[Repository, Path, Path]) -> None:
+    repo, teams, seasons = inputs
+    games = (
+        to_team_perspective(build_match_table(repo, teams_path=teams, seasons_path=seasons))
+        .loc[[1]]
+        .copy()
+    )
+    games["season_id"] = 11
+    games["match_number"] = pd.array([1, 2, 3, 4, 5], dtype="Int64")
+    games["coach_id"] = pd.array([None, None, 10, 20, 10], dtype="Int64")
+    games["coach_name"] = pd.array([None, None, "A", "B", "A"], dtype="string")
+    spells = build_coach_spells(games)
+    assert spells.is_left_censored.tolist() == [True, False, False]
+    assert spells.is_flicker.tolist() == [False, True, False]
+    assert spells.iloc[0].is_mid_season_start
+
+
+@pytest.mark.parametrize(
+    "coaches,flicker", [([10, 20, 20, 10, 10], True), ([10, 20, 20, 20, 10], False)]
+)
+def test_flicker_length_threshold(
+    inputs: tuple[Repository, Path, Path], coaches: list[int], flicker: bool
+) -> None:
+    repo, teams, seasons = inputs
+    games = (
+        to_team_perspective(build_match_table(repo, teams_path=teams, seasons_path=seasons))
+        .loc[[1]]
+        .copy()
+    )
+    games["season_id"] = 11
+    games["coach_id"] = pd.array(coaches, dtype="Int64")
+    games["coach_name"] = pd.array([str(coach) for coach in coaches], dtype="string")
+    assert bool(build_coach_spells(games).iloc[1].is_flicker) == flicker
