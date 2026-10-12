@@ -1,5 +1,6 @@
 """Synthetic four-team/two-season analysis contracts, nulls and temporal isolation."""
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -10,12 +11,337 @@ import yaml
 from ligat.analysis.prepare import (
     ANALYSIS_SEASONS,
     COLUMN_GROUPS,
+    AnalysisTables,
+    build_coach_spells,
+    build_goal_events,
     build_match_table,
+    build_season_summary,
+    build_team_seasons,
+    check_analysis_tables,
+    describe_missing_values,
+    flag_unusual_matches,
+    load_analysis_tables,
     team_history,
     to_team_perspective,
 )
 from ligat.data.repository import Repository
 from ligat.data.schemas import make_frame
+
+
+@pytest.fixture
+def healthy_analysis(
+    inputs: tuple[Repository, Path, Path], tmp_path: Path
+) -> tuple[AnalysisTables, Path, Path, Path]:
+    """Complete 12-team triple round robin: no real or held-out data required."""
+    repo, teams_path, seasons_path = inputs
+    template = (
+        build_match_table(repo, teams_path=teams_path, seasons_path=seasons_path).iloc[0].to_dict()
+    )
+    rows = []
+    ring = list(range(1, 13))
+    for round_id in range(1, 34):
+        for pair in range(6):
+            home, away = ring[pair], ring[-pair - 1]
+            if round_id % 2 == 0:
+                home, away = away, home
+            row = dict(template)
+            row.update(
+                game_id=len(rows) + 1000,
+                season_id=8,
+                season="2006/2007",
+                round=round_id,
+                stage="regular",
+                date=pd.Timestamp("2006-08-01", tz="Asia/Jerusalem")
+                + pd.Timedelta(days=round_id * 7),
+                home_team_id=home,
+                away_team_id=away,
+                home_team_name=f"Team {home}",
+                away_team_name=f"Team {away}",
+                home_goals=0,
+                away_goals=0,
+                total_goals=0,
+                goal_difference=0,
+                result="draw",
+                ht_home_goals=0,
+                ht_away_goals=0,
+                ht_result="draw",
+                home_goals_first_half=0,
+                away_goals_first_half=0,
+                home_red_cards=0,
+                away_red_cards=0,
+                first_goal_side="none",
+                first_goal_minute=pd.NA,
+                is_postponed=False,
+                is_home_venue=True,
+                ht_conflict=False,
+                goals_available=True,
+            )
+            for column in row:
+                if column.endswith("_before"):
+                    row[column] = 0
+            rows.append(row)
+        ring = [ring[0], ring[-1], *ring[1:-1]]
+    matches = pd.DataFrame(rows).set_index("game_id", drop=True)
+    team_matches = to_team_perspective(matches)
+    goals = build_goal_events(matches, make_frame("goals", []))
+    finals = pd.DataFrame(
+        [
+            dict(
+                season_id=8,
+                team_id=team,
+                position=team,
+                points_model=33,
+                points_official=33,
+                deduction=0,
+                final_stage="regular",
+                relegated=team >= 11,
+                promoted_in=pd.NA,
+            )
+            for team in range(1, 13)
+        ]
+    )
+    values = pd.DataFrame(
+        [
+            dict(season_id=8, team_id=team, squad_size=25, avg_value_eur=400, total_value_eur=10000)
+            for team in range(1, 13)
+        ]
+    )
+    seasons = build_team_seasons(team_matches, finals, values)
+    summary = build_season_summary(matches, goals, seasons, {8: {"n_teams": 12}})
+    tables = AnalysisTables(
+        matches, team_matches, goals, seasons, summary, build_coach_spells(team_matches)
+    )
+    overrides = tmp_path / "overrides.yaml"
+    overrides.write_text("matches: {}\n", encoding="utf-8")
+    teams_path.write_text(
+        yaml.safe_dump(
+            {
+                "teams": [
+                    dict(team_id=team, name_he=f"Team {team}", aliases=[f"Team {team}"])
+                    for team in range(1, 13)
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    return tables, seasons_path, overrides, teams_path
+
+
+def test_healthy_analysis(healthy_analysis: tuple[AnalysisTables, Path, Path, Path]) -> None:
+    tables, seasons, overrides, teams = healthy_analysis
+    warnings = check_analysis_tables(tables, seasons, overrides, teams)
+    assert all("missing" in warning for warning in warnings)
+    assert len(tables.team_seasons) == 12
+    assert tables.team_seasons.matches_played.eq(33).all()
+    assert tables.team_seasons.longest_unbeaten_run.eq(33).all()
+    assert tables.team_seasons.longest_winless_run.eq(33).all()
+    assert tables.season_summary.loc[8, "champion_points_per_match"] == 1
+
+
+def test_goal_order_states_and_buckets(inputs: tuple[Repository, Path, Path]) -> None:
+    repo, teams, seasons = inputs
+    matches = build_match_table(repo, teams_path=teams, seasons_path=seasons)
+    goals = repo.read("goals")
+    events = build_goal_events(matches, goals)
+    assert events.loc[(101, 1), "minute_bucket"] == "45+ (first-half stoppage)"
+    assert events.loc[101].score_before.tolist() == ["level", "leading", "trailing"]
+    assert events.loc[104].score_before.isna().all()
+    assert events.loc[(103, 1), "team_id"] == 3  # Own goal already credited to beneficiary.
+    goals.loc[goals.game_id.eq(104), "minute"] = 47
+    assert build_goal_events(matches, goals).loc[104].minute_bucket.isna().all()
+    goals.loc[goals.game_id.eq(101), "minute"] = 46
+    goals.loc[goals.game_id.eq(101), "half"] = 1
+    assert build_goal_events(matches, goals).loc[101].score_before.isna().all()
+
+
+@pytest.mark.parametrize(
+    "half,minute,bucket",
+    [
+        (1, 15, "0-15"),
+        (1, 16, "16-30"),
+        (1, 31, "31-45"),
+        (1, 45, "31-45"),
+        (1, 46, "45+ (first-half stoppage)"),
+        (2, 45, "46-60"),
+        (2, 60, "46-60"),
+        (2, 61, "61-75"),
+        (2, 76, "76-90"),
+        (2, 91, "90+"),
+    ],
+)
+def test_minute_bucket_boundaries(
+    inputs: tuple[Repository, Path, Path], half: int, minute: int, bucket: str
+) -> None:
+    repo, teams, seasons = inputs
+    matches = build_match_table(repo, teams_path=teams, seasons_path=seasons)
+    goals = repo.read("goals").iloc[:1].copy()
+    goals["half"], goals["minute"] = half, minute
+    assert build_goal_events(matches, goals).iloc[0].minute_bucket == bucket
+
+
+def test_coach_spells_bridge_nulls_without_imputing(inputs: tuple[Repository, Path, Path]) -> None:
+    repo, teams, seasons = inputs
+    games = (
+        to_team_perspective(build_match_table(repo, teams_path=teams, seasons_path=seasons))
+        .loc[[1]]
+        .copy()
+    )
+    games["season_id"] = 11
+    games["coach_id"] = pd.array([10, None, 10, 10, 20], dtype="Int64")
+    games["coach_name"] = pd.array(["A", None, "A", "A", "B"], dtype="string")
+    spells = build_coach_spells(games)
+    assert spells.matches.tolist() == [3, 1]
+    assert spells.coach_id.tolist() == [10, 20]
+    assert spells.is_mid_season_start.tolist() == [False, True]
+    assert spells.iloc[0].last_date == games.iloc[3].date
+
+
+def test_current_and_prior_league_denominators(
+    healthy_analysis: tuple[AnalysisTables, Path, Path, Path],
+) -> None:
+    tables, *_ = healthy_analysis
+    finals = tables.team_seasons.reset_index().rename(columns={"final_position": "position"})
+    finals["season_id"] = 9
+    finals["promoted_in"] = False
+    team_matches = tables.team_matches.copy()
+    team_matches["season_id"] = 9
+    values = finals[["season_id", "team_id"]].copy()
+    values["squad_size"], values["avg_value_eur"], values["total_value_eur"] = 10, 10, 100
+    previous = values.copy()
+    previous["season_id"] = 8
+    previous.loc[previous.team_id.eq(12), "team_id"] = 13
+    previous.loc[previous.team_id.eq(13), "total_value_eur"] = 900
+    seasons = build_team_seasons(team_matches, finals, pd.concat([values, previous]))
+    assert seasons.loc[(9, 1), "value_share_of_league"] == pytest.approx(1 / 12)
+    assert seasons.loc[(9, 1), "prev_season_value_share"] == pytest.approx(100 / 2000)
+    assert pd.isna(seasons.loc[(9, 12), "prev_season_value_share"])
+    values.loc[values.team_id.eq(12), "total_value_eur"] = pd.NA
+    seasons = build_team_seasons(team_matches, finals, pd.concat([values, previous]))
+    assert seasons.loc[(9, 1), "value_share_of_league"] == pytest.approx(1 / 11)
+    assert pd.isna(seasons.loc[(9, 12), "total_value_eur"])
+
+
+def test_sporting_benchmarks_ignore_halving_and_deductions(
+    healthy_analysis: tuple[AnalysisTables, Path, Path, Path],
+) -> None:
+    tables, *_ = healthy_analysis
+    seasons = tables.team_seasons.copy()
+    seasons["points_model"], seasons["points_official"] = 17, 8
+    seasons.loc[(8, 1), "points_per_match"] = 2.5
+    seasons.loc[(8, 11), "points_per_match"] = 0.25
+    seasons.loc[(8, 12), "points_per_match"] = 0.1
+    summary = build_season_summary(
+        tables.match_table, tables.goal_events, seasons, {8: {"n_teams": 12}}
+    )
+    assert summary.loc[8, "champion_points_per_match"] == 2.5
+    assert summary.loc[8, "relegation_line_points_per_match"] == 0.25
+    assert summary.loc[8, "top3_value_share"] == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize(
+    "defect,message",
+    [
+        ("two_rows", "two team rows"),
+        ("points", "points_earned"),
+        ("round", "twice in a round"),
+        ("games", "matches_played"),
+        ("pair", "regular pair count"),
+        ("goals", "Goal count mismatch"),
+        ("halftime", "Halftime goal count"),
+        ("team_count", "team_seasons.matches_played"),
+        ("relegation", "relegation count"),
+        ("squad", "squad_values row"),
+        ("coach_overlap", "Overlapping coach"),
+        ("missing", "Undocumented missing"),
+        ("benchmark", "sporting points benchmark"),
+    ],
+)
+def test_health_checks_reject_corruption(
+    healthy_analysis: tuple[AnalysisTables, Path, Path, Path], defect: str, message: str
+) -> None:
+    original, formats, overrides, teams = healthy_analysis
+    tables = replace(
+        original, **{name: frame.copy(deep=True) for name, frame in vars(original).items()}
+    )
+    first_game = tables.match_table.index[0]
+    first_team = tables.team_matches.index[0]
+    if defect == "two_rows":
+        tables = replace(tables, team_matches=tables.team_matches.iloc[1:])
+    elif defect == "points":
+        tables.team_matches.loc[first_team, "points_earned"] = 3
+    elif defect == "round":
+        gid = tables.match_table.index[6]
+        tables.match_table.loc[gid, "round"] = 1
+        tables = replace(tables, team_matches=to_team_perspective(tables.match_table))
+    elif defect == "games":
+        tables.team_seasons.iloc[0, tables.team_seasons.columns.get_loc("matches_played")] = 32
+    elif defect == "pair":
+        tables.match_table["stage"] = "upper"
+        tables = replace(tables, team_matches=to_team_perspective(tables.match_table))
+    elif defect in ("goals", "halftime"):
+        if defect == "halftime":
+            tables.match_table.loc[first_game, "ht_home_goals"] = 1
+        else:
+            row = dict(
+                game_id=first_game,
+                team_id=tables.match_table.loc[first_game, "home_team_id"],
+                minute=30,
+                half=1,
+                added_time=None,
+                is_penalty=False,
+                is_own_goal=False,
+                is_first_half_stoppage=False,
+            )
+            tables = replace(
+                tables,
+                goal_events=build_goal_events(tables.match_table, make_frame("goals", [row])),
+            )
+    elif defect == "team_count":
+        tables = replace(tables, team_seasons=tables.team_seasons.iloc[1:])
+    elif defect == "relegation":
+        tables.team_seasons["relegated"] = False
+    elif defect == "squad":
+        tables.team_seasons["squad_row_available"] = False
+    elif defect == "coach_overlap":
+        rows = [
+            dict(
+                team_id=1,
+                spell_number=n,
+                coach_id=n,
+                coach_name="Coach",
+                season_id_start=8,
+                season_id_end=8,
+                first_date=pd.Timestamp("2009-08-01", tz="Asia/Jerusalem"),
+                last_date=pd.Timestamp("2009-08-02", tz="Asia/Jerusalem"),
+                matches=1,
+                points_per_match=1,
+                is_mid_season_start=False,
+            )
+            for n in (1, 2)
+        ]
+        tables = replace(
+            tables, coach_spells=pd.DataFrame(rows).set_index(["team_id", "spell_number"])
+        )
+    elif defect == "missing":
+        tables.match_table["unexpected"] = pd.NA
+    elif defect == "benchmark":
+        tables.season_summary.loc[8, "champion_points_per_match"] = 0
+    with pytest.raises(AssertionError, match=message):
+        check_analysis_tables(tables, formats, overrides, teams)
+
+
+def test_alias_warning_and_flags(healthy_analysis: tuple[AnalysisTables, Path, Path, Path]) -> None:
+    tables, formats, overrides, teams = healthy_analysis
+    config = yaml.safe_load(teams.read_text(encoding="utf-8"))
+    config["teams"][0]["aliases"] = ["Completely unrelated"]
+    teams.write_text(yaml.safe_dump(config), encoding="utf-8")
+    assert any(
+        "aliases" in warning for warning in check_analysis_tables(tables, formats, overrides, teams)
+    )
+    tables.match_table.iloc[0, tables.match_table.columns.get_loc("is_postponed")] = True
+    assert len(flag_unusual_matches(tables)) == 1
+    missing = describe_missing_values(tables)
+    assert missing.loc[missing.column.eq("first_goal_minute"), "reason"].notna().all()
 
 
 @pytest.fixture
@@ -332,3 +658,89 @@ def test_filtered_reads_and_season_bounds(
     for selection in ([], [26], [8, 8]):
         with pytest.raises(ValueError, match="8–25"):
             build_match_table(repo, seasons=selection, teams_path=inputs[1], seasons_path=inputs[2])
+
+
+def test_dropped_match_schedule_metadata(
+    healthy_analysis: tuple[AnalysisTables, Path, Path, Path],
+) -> None:
+    tables, formats, overrides, teams = healthy_analysis
+    game_id = tables.match_table.index[0]
+    game = tables.match_table.loc[game_id]
+    rule = dict(
+        action="drop",
+        verified=True,
+        season_id=8,
+        round=1,
+        stage="regular",
+        home_team_id=int(game.home_team_id),
+        away_team_id=int(game.away_team_id),
+    )
+    overrides.write_text(yaml.safe_dump({"matches": {int(game_id): rule}}), encoding="utf-8")
+    matches = tables.match_table.drop(game_id)
+    team_matches = to_team_perspective(matches)
+    finals = tables.team_seasons.reset_index().rename(columns={"final_position": "position"})
+    values = finals[["season_id", "team_id", "squad_size", "avg_value_eur", "total_value_eur"]]
+    seasons = build_team_seasons(team_matches, finals, values)
+    summary = build_season_summary(matches, tables.goal_events, seasons, {8: {"n_teams": 12}})
+    reduced = replace(
+        tables,
+        match_table=matches,
+        team_matches=team_matches,
+        team_seasons=seasons,
+        season_summary=summary,
+    )
+    check_analysis_tables(reduced, formats, overrides, teams)
+    overrides.write_text("matches: {}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="Wrong schedule length"):
+        check_analysis_tables(reduced, formats, overrides, teams)
+
+
+def test_load_all_tables_uses_scoped_reads(
+    inputs: tuple[Repository, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, teams, seasons = inputs
+    original = repo.read_filtered
+    calls = []
+
+    def filtered(name: str, filters: list[tuple[str, str, Any]]) -> pd.DataFrame:
+        calls.append((name, filters))
+        assert all(
+            not ({26, 27, 28} & set(value)) for column, _, value in filters if column == "season_id"
+        )
+        if name == "final_tables":
+            return make_frame(
+                "final_tables",
+                [
+                    dict(
+                        season_id=season,
+                        round=2,
+                        team_id=team,
+                        position=team,
+                        played=0,
+                        won=0,
+                        drawn=0,
+                        lost=0,
+                        goals_for=0,
+                        goals_against=0,
+                        points_model=0,
+                        points_official=0,
+                        deduction=0,
+                        final_stage="regular",
+                        relegated=team >= 3,
+                        promoted_in=None if season == 8 else False,
+                        regular_season_points=0,
+                    )
+                    for season in (8, 9)
+                    for team in range(1, 5)
+                ],
+            )
+        return original(name, filters)
+
+    monkeypatch.setattr(repo, "read_filtered", filtered)
+    monkeypatch.setattr(repo, "read", lambda _: pytest.fail("Unfiltered read"))
+    tables = load_analysis_tables(repo, seasons=[8, 9], teams_path=teams, seasons_path=seasons)
+    assert set(tables.team_seasons.index.get_level_values("season_id")) == {8, 9}
+    assert ("final_tables", [("season_id", "in", [8, 9])]) in calls
+    assert calls[-1] == ("squad_values", [("season_id", "in", [7, 8, 9])])
+    assert ("goals", [("game_id", "in", tables.match_table.index.tolist())]) in calls

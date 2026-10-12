@@ -2,14 +2,14 @@
 # All eleven entries verified and dropped by Amit's decision, 2026-10-11.
 # New 2024/25 point correction is deferred explicitly to preserve existing tables.
 matches:
-  211602: {status: awarded, action: drop, verified: true, reason: "Ineligible player; source match 1:1, official home 0:3"}
-  240618: {status: awarded, action: drop, verified: true, reason: "Abandoned at 3:3; official home 0:3"}
-  388645: {status: void, action: drop, verified: true, reason: "Abandoned derby; article 64, neither team earns points"}
-  525468: {status: awarded, action: drop, verified: true, reason: "Six foreign players; source home 0:1, official 0:3"}
-  732553: {status: awarded, action: drop, verified: true, reason: "Six foreign players; source 1:1, official home 3:0"}
-  732312: {status: awarded, action: drop, verified: true, reason: "Not played; official home 0:3"}
-  954863: {status: void, action: drop, verified: true, adjust_points: false, reason: "Verified via deduction; Amit deferred the point correction to preserve existing tables"}
-  1060422: {status: awarded, action: drop, verified: true, reason: "Verified via deduction; police did not authorize the match"}
-  339766: {status: awarded, action: drop, verified: true, reason: "Source home 2:1; official home 3:0"}
-  954984: {status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
-  954988: {status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
+  211602: {season_id: 11, round: 1, home_team_id: 1198, away_team_id: 4669, stage: regular, status: awarded, action: drop, verified: true, reason: "Ineligible player; source match 1:1, official home 0:3"}
+  240618: {season_id: 12, round: 6, home_team_id: 1198, away_team_id: 2171, stage: regular, status: awarded, action: drop, verified: true, reason: "Abandoned at 3:3; official home 0:3"}
+  388645: {season_id: 16, round: 7, home_team_id: 2176, away_team_id: 1061, stage: regular, status: void, action: drop, verified: true, reason: "Abandoned derby; article 64, neither team earns points"}
+  525468: {season_id: 19, round: 11, home_team_id: 2184, away_team_id: 1064, stage: regular, status: awarded, action: drop, verified: true, reason: "Six foreign players; source home 0:1, official 0:3"}
+  732553: {season_id: 23, round: 15, home_team_id: 3595, away_team_id: 5981, stage: regular, status: awarded, action: drop, verified: true, reason: "Six foreign players; source 1:1, official home 3:0"}
+  732312: {season_id: 23, round: 35, home_team_id: 4823, away_team_id: 1005, stage: upper, status: awarded, action: drop, verified: true, reason: "Not played; official home 0:3"}
+  954863: {season_id: 26, status: void, action: drop, verified: true, adjust_points: false, reason: "Verified via deduction; Amit deferred the point correction to preserve existing tables"}
+  1060422: {season_id: 27, status: awarded, action: drop, verified: true, reason: "Verified via deduction; police did not authorize the match"}
+  339766: {season_id: 15, round: 6, home_team_id: 4823, away_team_id: 1198, stage: regular, status: awarded, action: drop, verified: true, reason: "Source home 2:1; official home 3:0"}
+  954984: {season_id: 26, status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
+  954988: {season_id: 26, status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
