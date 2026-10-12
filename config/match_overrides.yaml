@@ -8,8 +8,8 @@ matches:
   525468: {season_id: 19, round: 11, home_team_id: 2184, away_team_id: 1064, stage: regular, status: awarded, action: drop, verified: true, reason: "Six foreign players; source home 0:1, official 0:3"}
   732553: {season_id: 23, round: 15, home_team_id: 3595, away_team_id: 5981, stage: regular, status: awarded, action: drop, verified: true, reason: "Six foreign players; source 1:1, official home 3:0"}
   732312: {season_id: 23, round: 35, home_team_id: 4823, away_team_id: 1005, stage: upper, status: awarded, action: drop, verified: true, reason: "Not played; official home 0:3"}
-  954863: {season_id: 26, status: void, action: drop, verified: true, adjust_points: false, reason: "Verified via deduction; Amit deferred the point correction to preserve existing tables"}
-  1060422: {season_id: 27, status: awarded, action: drop, verified: true, reason: "Verified via deduction; police did not authorize the match"}
+  954863: {season_id: 26, round: 2, home_team_id: 2171, away_team_id: 4823, stage: regular, status: void, action: drop, verified: true, adjust_points: false, reason: "Verified via deduction; Amit deferred the point correction to preserve existing tables"}
+  1060422: {season_id: 27, round: 7, home_team_id: 2176, away_team_id: 1061, stage: regular, status: awarded, action: drop, verified: true, reason: "Verified via deduction; police did not authorize the match"}
   339766: {season_id: 15, round: 6, home_team_id: 4823, away_team_id: 1198, stage: regular, status: awarded, action: drop, verified: true, reason: "Source home 2:1; official home 3:0"}
-  954984: {season_id: 26, status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
-  954988: {season_id: 26, status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
+  954984: {season_id: 26, round: 19, home_team_id: 4823, away_team_id: 1005, stage: regular, status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}
+  954988: {season_id: 26, round: 20, home_team_id: 1005, away_team_id: 1061, stage: regular, status: awarded, action: drop, verified: true, reason: "Source 1:1; official home 0:3"}

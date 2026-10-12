@@ -224,7 +224,15 @@ round_tables ו־final_tables נשמרות בערכים הקיימים ללא ש
 # תצוגות EDA-01 ומחברת 01 (ללא קובצי Parquet חדשים)
 
 המחברת `notebooks/explore/01_prepare_analysis_tables.ipynb` מציגה שש תצוגות
-בזיכרון, לעונות 8–25 בלבד. אין כתיבה ל־data/clean, השלמה או אימון.
+בזיכרון, לעונות 8–27 השלמות, בהתאם לעדכון C2. אין כתיבה ל־data/clean,
+השלמה או אימון. עונה 28 חיה ואינה נטענת.
+
+season_role הוא category ב־match_table, team_matches, team_seasons
+ו־season_summary: development (8–25), final_validation (26), test (27).
+הסטטיסטיקות המחקריות, B0 ו־teams_overview מוגבלים ל־development.
+team_profile מציג עונות קבוצה עם תפקיד, מיקום, שערים ונקודות למשחק ושווי;
+data_availability מציג אחוזי כיסוי לכל עונה, כולל שני התפקידים הסופיים.
+במחצית סתירת מקור אינה זמינה; במאמנים ובשווי מחשבים ממוצע בין שני הצדדים.
 
 תוספות ל־`coach_spells` (אינדקס `team_id, spell_number`):
 
@@ -238,7 +246,8 @@ round_tables ו־final_tables נשמרות בערכים הקיימים ללא ש
 משויכים למאמן. is_mid_season_start נשאר דגל של תחילת רצף נצפה; בשילוב
 is_left_censored אין להסיק ממנו שהוחלף מאמן. דגלי האיכות אינם חסרים.
 
-`preview_pre_match_row(tables, game_id, window=10)` הוא אב־טיפוס בלבד:
+`preview_pre_match_row(tables, game_id, window=10)` הוא אב־טיפוס בלבד,
+שנשאר בחבילה אך אינו מופעל במחברת 01 לאחר C2:
 שורה אחת באינדקס game_id, עם feature_home_* ו־feature_away_* מול
 target_home_goals, target_away_goals ו־target_result. ממוצעי שערים, ספיגה,
 נקודות ושערי מחצית משתמשים בעד window משחקים שתאריכם קטן ממש מתאריך
