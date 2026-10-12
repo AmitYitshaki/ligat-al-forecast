@@ -11,8 +11,10 @@ import typer
 from ligat.data.build import build_datasets
 from ligat.data.export import export_excel
 from ligat.data.repository import Repository
+from ligat.data.squad_values import build_squad_values
 from ligat.scrape.games import run_games
 from ligat.scrape.ifa import AccessBlockedError, IFASource, load_scrape_config
+from ligat.scrape.transfermarkt import TransfermarktSource
 
 app = typer.Typer(no_args_is_help=True)
 scrape_app = typer.Typer(no_args_is_help=True)
@@ -166,12 +168,40 @@ def excel(
     teams_config: Annotated[Path, typer.Option("--teams-config")] = Path("config/teams.yaml"),
     output: Annotated[Path | None, typer.Option("--output")] = None,
 ) -> None:
-    """Export eight validated datasets with canonical Hebrew names for inspection only."""
+    """Export validated datasets with canonical Hebrew names for inspection only."""
     try:
         path = export_excel(Repository(clean_root), output, teams_path=teams_config)
         typer.echo(f"Excel: {path.resolve()}")
     except (ValueError, OSError, KeyError) as exc:
         logging.getLogger(__name__).error("Excel export stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
+
+
+@scrape_app.command("transfermarkt")
+def transfermarkt(
+    raw_root: Annotated[Path, typer.Option("--raw-root")] = Path("data/raw/transfermarkt/ISR1"),
+) -> None:
+    """Collect the 21 authorized season roster pages, stopping immediately on blocks."""
+    try:
+        result = TransfermarktSource(raw_root).collect()
+        typer.echo(f"Transfermarkt: {result['status']}; {len(result['files'])} seasons")
+    except (AccessBlockedError, requests.RequestException, ValueError, OSError) as exc:
+        logging.getLogger(__name__).error("Transfermarkt collection stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("build-squad-values")
+def squad_values(
+    raw_root: Annotated[Path, typer.Option("--raw-root")] = Path("data/raw/transfermarkt/ISR1"),
+    mapping: Annotated[Path, typer.Option("--mapping")] = Path("config/transfermarkt_teams.yaml"),
+    clean_root: Annotated[Path, typer.Option("--clean-root")] = Path("data/clean"),
+) -> None:
+    """Build squad values offline, preserving existing IFA datasets and source nulls."""
+    try:
+        frame = build_squad_values(raw_root, mapping, Repository(clean_root))
+        typer.echo(f"squad_values: {len(frame)} rows")
+    except (ValueError, OSError, KeyError) as exc:
+        logging.getLogger(__name__).error("Squad-values build stopped: %s", exc)
         raise typer.Exit(code=1) from exc
 
 

@@ -1,0 +1,173 @@
+{
+  "rows": 294,
+  "seasons": [
+    {
+      "season_id": 8,
+      "saison_id": 2006,
+      "clubs": 12,
+      "source_total_eur": 40420000,
+      "known_sum_eur": 40420000,
+      "rounding_tolerance_eur": 65000.0
+    },
+    {
+      "season_id": 9,
+      "saison_id": 2007,
+      "clubs": 12,
+      "source_total_eur": 53650000,
+      "known_sum_eur": 53660000,
+      "rounding_tolerance_eur": 60500.0
+    },
+    {
+      "season_id": 10,
+      "saison_id": 2008,
+      "clubs": 12,
+      "source_total_eur": 47080000,
+      "known_sum_eur": 47090000,
+      "rounding_tolerance_eur": 55500.0
+    },
+    {
+      "season_id": 11,
+      "saison_id": 2009,
+      "clubs": 16,
+      "source_total_eur": 108600000,
+      "known_sum_eur": 108620000,
+      "rounding_tolerance_eur": 85000.0
+    },
+    {
+      "season_id": 12,
+      "saison_id": 2010,
+      "clubs": 16,
+      "source_total_eur": 125650000,
+      "known_sum_eur": 125670000,
+      "rounding_tolerance_eur": 85000.0
+    },
+    {
+      "season_id": 13,
+      "saison_id": 2011,
+      "clubs": 16,
+      "source_total_eur": 113200000,
+      "known_sum_eur": 113250000,
+      "rounding_tolerance_eur": 85000.0
+    },
+    {
+      "season_id": 14,
+      "saison_id": 2012,
+      "clubs": 14,
+      "source_total_eur": 120150000,
+      "known_sum_eur": 120210000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 15,
+      "saison_id": 2013,
+      "clubs": 14,
+      "source_total_eur": 118050000,
+      "known_sum_eur": 118090000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 16,
+      "saison_id": 2014,
+      "clubs": 14,
+      "source_total_eur": 127730000,
+      "known_sum_eur": 127760000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 17,
+      "saison_id": 2015,
+      "clubs": 14,
+      "source_total_eur": 150430000,
+      "known_sum_eur": 150440000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 18,
+      "saison_id": 2016,
+      "clubs": 14,
+      "source_total_eur": 161830000,
+      "known_sum_eur": 161860000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 19,
+      "saison_id": 2017,
+      "clubs": 14,
+      "source_total_eur": 143350000,
+      "known_sum_eur": 143380000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 20,
+      "saison_id": 2018,
+      "clubs": 14,
+      "source_total_eur": 174800000,
+      "known_sum_eur": 174820000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 21,
+      "saison_id": 2019,
+      "clubs": 14,
+      "source_total_eur": 125980000,
+      "known_sum_eur": 126020000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 22,
+      "saison_id": 2020,
+      "clubs": 14,
+      "source_total_eur": 140280000,
+      "known_sum_eur": 140300000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 23,
+      "saison_id": 2021,
+      "clubs": 14,
+      "source_total_eur": 139250000,
+      "known_sum_eur": 139270000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 24,
+      "saison_id": 2022,
+      "clubs": 14,
+      "source_total_eur": 171260000,
+      "known_sum_eur": 171290000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 25,
+      "saison_id": 2023,
+      "clubs": 14,
+      "source_total_eur": 171450000,
+      "known_sum_eur": 171470000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 26,
+      "saison_id": 2024,
+      "clubs": 14,
+      "source_total_eur": 179990000,
+      "known_sum_eur": 180030000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 27,
+      "saison_id": 2025,
+      "clubs": 14,
+      "source_total_eur": 209840000,
+      "known_sum_eur": 209860000,
+      "rounding_tolerance_eur": 75000.0
+    },
+    {
+      "season_id": 28,
+      "saison_id": 2026,
+      "clubs": 14,
+      "source_total_eur": 187290000,
+      "known_sum_eur": 187330000,
+      "rounding_tolerance_eur": 75000.0
+    }
+  ]
+}

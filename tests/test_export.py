@@ -12,12 +12,14 @@ from ligat.data.export import DATASETS, export_excel
 from ligat.data.repository import Repository
 
 
-def test_export_eight_sheets_and_versioning(tmp_path: Path) -> None:
+@pytest.mark.parametrize("with_squad_values", [False, True])
+def test_export_sheets_and_versioning(tmp_path: Path, with_squad_values: bool) -> None:
     teams = tmp_path / "teams.yaml"
     teams.write_text("teams:\n- team_id: 1\n  name_he: '=literal'\n", encoding="utf-8")
     repo = Repository(tmp_path / "clean")
     repo.root.mkdir()
-    for name in DATASETS:
+    datasets = DATASETS + (("squad_values",) if with_squad_values else ())
+    for name in datasets:
         (repo.root / f"{name}.parquet").write_bytes(name.encode())
     hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in repo.root.iterdir()}
     date = pd.Timestamp("2026-10-12 18:00", tz="Asia/Jerusalem")
@@ -30,7 +32,7 @@ def test_export_eight_sheets_and_versioning(tmp_path: Path) -> None:
         assert output.name == "ligat_al_data_0.3.xlsx"
         assert export_excel(repo, teams_path=teams) == output
         book = load_workbook(output)
-        assert book.sheetnames == list(DATASETS)
+        assert book.sheetnames == list(datasets)
         for sheet in book:
             assert [cell.value for cell in sheet[1]] == [
                 "team_id",
