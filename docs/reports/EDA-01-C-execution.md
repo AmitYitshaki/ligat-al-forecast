@@ -1,23 +1,24 @@
-# EDA-01 C: execution and validation
+# EDA-01 C: דוח הרצה ואימות
 
-EDA-01 stage C provides an executed Hebrew notebook telling the story from validated data to a pre-match feature row. Each code cell follows a short Markdown explanation and displays output.
+שלב C של EDA-01 מוסיף מחברת בעברית, מהדאטה המאומת לשורת פיצ׳רים לפני המשחק. כל תא קוד מלווה בהסבר קצר ובפלט גלוי.
 
-## Scope and implementation
+## המימוש וההיקף
 
-- Seasons 8?25 only; no held-out reads, clean-data writes, Excel export or training.
-- Prototype preview_pre_match_row uses strictly earlier timestamps and a last-10-game window. Simultaneous/current/future games are excluded. Venue rates split that same window; unknown/conflicting halftime values remain missing.
-- B0 overall and per-season outcome rates with marginal 95% Wilson intervals; full-sample rates are descriptive, not out-of-sample scores.
-- Coach quality flags identify left censoring and short A/B/A runs. Flags are retrospective diagnostics, not pre-match features; no source rows or coach identities are changed.
-- nbstripout Git filter strips only the staged copy. The hook now verifies staged notebooks without mutating local outputs; regression tests cover clean/dirty staged copies and retain the existing venv/Plotly kernel test.
+- עונות 8–25 בלבד; ללא טעינת עונות ההחזקה, כתיבה לדאטה הנקי, Excel או אימון.
+- preview_pre_match_row משתמש בחלון עשרת המשחקים שתאריכם קודם ממש למשחק. משחקים באותו זמן, המשחק עצמו והעתיד מוחרגים. ממוצעי בית/חוץ מפצלים את אותו חלון, ומחצית חסרה או סותרת אינה מושלמת.
+- בנצ׳מרק B0: שיעורי תוצאות כוללים ולפי עונה, עם רווחי Wilson נפרדים של 95%. השיעורים הכוללים מתארים את התקופה; בבקטסט נדרש לחשב מאימון בלבד.
+- דגלי קדנציות: כיסוי שמתחיל מאוחר וריצוד קצר A→B→A. אלה דגלי איכות בדיעבד, לא פיצ׳רים טרום־משחק. אין שינוי בזהויות מאמנים או מחיקת שורות.
+- filter של nbstripout מנקה רק את העותק הנשמר ב־Git. ה־hook מאמת את העותק המוכן ל־commit ללא שינוי בקובץ המקומי. טסטי הרגרסיה בודקים גם עותק נקי וגם עותק עם פלטים; בדיקת kernel/Plotly הקיימת נשמרה.
 
-## Fresh-kernel execution
+## Restart & Run All
 
-- 31 Markdown cells + 29 code cells = 60 total; 18 sections; 6 Plotly figures.
-- Full Restart & Run All: 161.23 seconds, using the project venv kernel.
-- Reopened local notebook: every code cell has outputs and an execution count, six Plotly MIME outputs are present, and tables have HTML/plain-text outputs. Display settings show all 21 warnings and the complete 18-row season summary.
-- Local execution evidence: data/reports/eda01c_execution.json. Commit/staged output preservation is verified separately.
+- 31 תאי Markdown ו־29 תאי קוד: 60 תאים, 18 חלקים ושישה גרפי Plotly.
+- ריצה מלאה ב־kernel של ה־venv: 161.23 שניות.
+- הקובץ המקומי נפתח מחדש לבדיקה: לכל תא קוד יש פלט ומספר הרצה, שש תצוגות Plotly נשמרו, ולטבלאות נשמרו פלטי HTML וטקסט. כל 21 האזהרות וטבלת 18 העונות מוצגות במלואן.
+- גם אחרי commit הקובץ המקומי נשאר זהה לפי SHA256; בעותק ב־Git אין פלטים או מספרי הרצה.
+- דוח ההרצה המקומי: data/reports/eda01c_execution.json.
 
-## Coach flags by starting season
+## דגלי מאמנים לפי עונת תחילת הקדנציה
 
 ```text
          is_left_censored  is_flicker
@@ -38,9 +39,9 @@ EDA-01 stage C provides an executed Hebrew notebook telling the story from valid
 2023/24                 0           6
 ```
 
-Totals: 17 left-censored runs and 48 flickers. Counts are descriptive source-quality flags.
+בסך הכול: 17 קדנציות עם תחילת כיסוי מאוחרת ו־48 ריצודים. הספירות הן תיאור של איכות המקור, ללא תיקון אוטומטי.
 
-## From data to model: game 793896
+## מהדאטה למודל: משחק 793896
 
 ```text
                              date home_team_name away_team_name  home_goals  \
@@ -55,6 +56,8 @@ game_id
 game_id
 793896                1
 ```
+
+שורת הפיצ׳רים (נתחי השווי מוצגים בעיגול של שש ספרות):
 
 ```text
 game_id                               ערך פיצ׳ר
@@ -74,6 +77,8 @@ feature_away_away_points_per_match          1.6
 feature_away_prev_season_value_share   0.069146
 ```
 
+היעדים בפועל, המוצגים בנפרד מהפיצ׳רים:
+
 ```text
 game_id           יעד בפועל
 target_home_goals         2
@@ -81,12 +86,10 @@ target_away_goals         1
 target_result      home_win
 ```
 
-## Validation
+## בדיקות
 
-- pytest: 248 tests; ruff check, ruff format --check and mypy ligat.
-- Leakage, strict timestamps, empty history, Wilson rates/intervals, coach left censoring, flicker length and local-output preservation covered by tests.
-- Analysis health checks passed with the same 21 documented warnings.
-- EDA task, data dictionary, notebook README and technical guidance updated.
-- Stop for Claude Code QA. No merge or follow-up branch.
-
-Post-commit check passed: the local notebook is byte-for-byte unchanged with all outputs; the committed notebook has no outputs or execution counts.
+- pytest: 248 טסטים עברו; ruff check, ruff format --check ו־mypy ligat עברו.
+- טסטים לדליפה, גבול זמן קשיח, היסטוריה ריקה, שיעורי Wilson, תחילת כיסוי מאוחרת, אורך ריצוד ושמירת הפלטים המקומיים.
+- בדיקות הבריאות עברו עם אותן 21 אזהרות מתועדות.
+- עודכנו EDA-01, מילון הדאטה, README המחברות וההנחיות הטכניות.
+- עצירה לסקירת QA של קלוד. ללא מיזוג או ענף נוסף.
