@@ -55,6 +55,19 @@ def _table_checks() -> list[pa.Check]:
 
 
 SCHEMAS = {
+    "squad_values": pa.DataFrameSchema(
+        {
+            "season_id": pa.Column("int64", pa.Check.in_range(8, 28)),
+            "tm_club_id": _integer(positive=True),
+            "team_id": _integer(positive=True),
+            "squad_size": pa.Column("Int64", pa.Check.ge(0), nullable=True),
+            "avg_value_eur": pa.Column("Int64", pa.Check.ge(0), nullable=True),
+            "total_value_eur": pa.Column("Int64", pa.Check.ge(0), nullable=True),
+        },
+        unique=["season_id", "team_id"],
+        checks=pa.Check(lambda f: ~f.duplicated(["season_id", "tm_club_id"])),
+        strict=True,
+    ),
     "game_details": pa.DataFrameSchema(
         {
             "game_id": _integer(positive=True),

@@ -32,8 +32,12 @@ DATASETS = (
 def _fingerprints(repo: Repository, teams_path: Path) -> dict[str, str]:
     return {
         name: hashlib.sha256((repo.root / f"{name}.parquet").read_bytes()).hexdigest()
-        for name in DATASETS
+        for name in _datasets(repo)
     } | {"teams_yaml": hashlib.sha256(teams_path.read_bytes()).hexdigest()}
+
+
+def _datasets(repo: Repository) -> tuple[str, ...]:
+    return DATASETS + (("squad_values",) if (repo.root / "squad_values.parquet").exists() else ())
 
 
 def _versioned_path(repo: Repository, hashes: dict[str, str], major: bool) -> tuple[Path, bool]:
@@ -75,7 +79,7 @@ def export_excel(
     major: bool = False,
     teams_path: Path = Path("config/teams.yaml"),
 ) -> Path:
-    """Mirror all eight datasets, creating an immutable numbered workbook by default."""
+    """Mirror IFA datasets and collected squad values in an immutable numbered workbook."""
     if output is not None:
         if "raw" in (part.casefold() for part in output.resolve().parts):
             raise ValueError("Excel export cannot write into raw storage")
@@ -84,7 +88,7 @@ def export_excel(
         if re.fullmatch(r"ligat_al_data_\d+\.\d+\.xlsx", output.name) and output.exists():
             raise FileExistsError("An existing numbered Excel version cannot be overwritten")
     repo = repository if repository is not None else Repository()
-    frames = {name: repo.read(name) for name in DATASETS}
+    frames = {name: repo.read(name) for name in _datasets(repo)}
     teams = yaml.safe_load(teams_path.read_text(encoding="utf-8"))
     names = {row["team_id"]: row["name_he"] for row in teams["teams"]}
     for name, frame in frames.items():
@@ -143,7 +147,7 @@ def export_excel(
                     cell.number_format = "0"
     workbook.properties.title = "Ligat Al data"
     workbook.properties.description = (
-        "Eight clean datasets; canonical Hebrew names from teams.yaml; "
+        "Clean datasets; canonical Hebrew names from teams.yaml; "
         "all dates use Asia/Jerusalem local time."
     )
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -153,7 +157,7 @@ def export_excel(
         workbook.save(temporary)
         saved = load_workbook(temporary, read_only=True, data_only=False)
         try:
-            if saved.sheetnames != list(DATASETS):
+            if saved.sheetnames != list(frames):
                 raise ValueError("Unexpected Excel worksheet names")
             for name, frame in frames.items():
                 sheet = saved[name]

@@ -1,4 +1,4 @@
-"""Validated, atomic storage for the eight clean Parquet datasets."""
+"""Validated, atomic storage for the clean Parquet datasets."""
 
 import os
 from pathlib import Path

@@ -1,0 +1,31 @@
+# Manual identity mapping; the two source systems use different IDs.
+clubs:
+  - {tm_club_id: 119, team_id: 1061, name_he: 'מכבי ת"א'}
+  - {tm_club_id: 262, team_id: 2173, name_he: 'הפועל פ"ת'}
+  - {tm_club_id: 554, team_id: 2263, name_he: 'הפועל ראשל"צ'}
+  - {tm_club_id: 810, team_id: 2170, name_he: 'הפועל חיפה'}
+  - {tm_club_id: 1017, team_id: 2176, name_he: 'הפועל ת"א'}
+  - {tm_club_id: 1064, team_id: 1005, name_he: 'מכבי חיפה'}
+  - {tm_club_id: 2785, team_id: 2175, name_he: 'הפועל ר"ג'}
+  - {tm_club_id: 2828, team_id: 1844, name_he: 'מכבי אחי נצרת'}
+  - {tm_club_id: 2976, team_id: 2171, name_he: 'הפועל ב"ש'}
+  - {tm_club_id: 3785, team_id: 1064, name_he: 'מכבי פ"ת'}
+  - {tm_club_id: 3793, team_id: 3595, name_he: 'בית"ר י-ם'}
+  - {tm_club_id: 4769, team_id: 4823, name_he: 'בני סכנין'}
+  - {tm_club_id: 5223, team_id: 1068, name_he: 'מכבי נתניה'}
+  - {tm_club_id: 6025, team_id: 2184, name_he: 'הפועל עכו'}
+  - {tm_club_id: 6028, team_id: 2182, name_he: 'הפועל ק"ש'}
+  - {tm_club_id: 7000, team_id: 2185, name_he: 'הפועל נוף הגליל'}
+  - {tm_club_id: 6105, team_id: 1198, name_he: 'מ.ס. אשדוד'}
+  - {tm_club_id: 7532, team_id: 2266, name_he: 'הפועל כפ"ס'}
+  - {tm_club_id: 8907, team_id: 1003, name_he: 'מכבי הרצליה'}
+  - {tm_club_id: 9095, team_id: 4669, name_he: 'בני יהודה ת"א'}
+  - {tm_club_id: 19977, team_id: 2213, name_he: 'הפועל אשקלון'}
+  - {tm_club_id: 20857, team_id: 2203, name_he: 'הפועל רעננה'}
+  - {tm_club_id: 21535, team_id: 5135, name_he: 'הכח עמידר ר"ג'}
+  - {tm_club_id: 30062, team_id: 5227, name_he: 'סקציה נס ציונה'}
+  - {tm_club_id: 31134, team_id: 2194, name_he: 'הפועל רמת השרון'}
+  - {tm_club_id: 43119, team_id: 5981, name_he: 'הפועל ירושלים'}
+  - {tm_club_id: 51070, team_id: 5455, name_he: 'עירוני טבריה'}
+  - {tm_club_id: 51931, team_id: 2186, name_he: 'הפועל חדרה'}
+  - {tm_club_id: 70178, team_id: 5257, name_he: 'מכבי בני ריינה'}
