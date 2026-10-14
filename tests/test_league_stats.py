@@ -24,6 +24,7 @@ from ligat.viz.season_course import chapter_c_chart
 C_FUNCTIONS = [
     stats.standings_by_match_number,
     stats.table_settling,
+    stats.settling_sensitivity,
     stats.split_movement,
     stats.split_summary,
     stats.stage_comparison,
@@ -37,9 +38,20 @@ def _run_c(
     function: Any, tables: AnalysisTables, seasons: Any = DEVELOPMENT_SEASONS
 ) -> pd.DataFrame:
     options: dict[str, Any] = {}
-    if function in (stats.table_settling, stats.split_movement, stats.split_summary):
+    if function in (
+        stats.table_settling,
+        stats.settling_sensitivity,
+        stats.split_movement,
+        stats.split_summary,
+    ):
         options["upper_sizes"] = {8: None, 11: 2}
-    if function in (stats.table_settling, stats.stage_comparison, stats.final_rounds_check):
+    if function in (
+        stats.table_settling,
+        stats.settling_sensitivity,
+        stats.split_summary,
+        stats.stage_comparison,
+        stats.final_rounds_check,
+    ):
         options["n_bootstrap"] = 50
     return function(tables, seasons, **options)
 
@@ -159,9 +171,10 @@ def test_course_ties_and_split_labels(course_tables: AnalysisTables) -> None:
     ties["goal_difference"] = 0
     ties["goals_scored"] = 0
     result = _run_c(stats.table_settling, replace(course_tables, team_matches=ties))
-    assert result.leader_won_title_rate.isna().all()
+    assert result.leader_won_title_rate.eq(0.25).all()
     assert result.leader_won_title_rate_tied.eq(1).all()
-    assert result.in_upper_line_stayed_rate.isna().all()
+    assert result.xs("16_teams", level="era").in_upper_line_stayed_rate.eq(0.5).all()
+    assert result.leader_won_title_excl_ties.isna().all()
 
 
 def test_course_stage_form_and_upsets(course_tables: AnalysisTables) -> None:
@@ -244,6 +257,8 @@ def test_course_real_invariants(real_tables: AnalysisTables) -> None:
     assert standings.groupby(level=["season_id", "team_id"]).points.diff().dropna().ge(0).all()
     settling = stats.table_settling(real_tables, upper_sizes=sizes, n_bootstrap=50)
     assert settling.spearman_mean.between(-1, 1).all()
+    sensitivity = stats.settling_sensitivity(real_tables, upper_sizes=sizes, n_bootstrap=50)
+    assert sensitivity.max_abs_diff.tolist() == pytest.approx([1 / 44, 1 / 44])
     assert settling.loc[("12_teams", 33), "spearman_mean"] >= 0.99
     assert settling.xs("12_teams", level="era").in_upper_line_stayed_rate.isna().all()
     movement = stats.split_movement(real_tables, upper_sizes=sizes)
@@ -275,12 +290,23 @@ def test_course_real_invariants(real_tables: AnalysisTables) -> None:
 
 
 @pytest.mark.parametrize(
-    "function", [stats.table_settling, stats.stage_comparison, stats.final_rounds_check]
+    "function",
+    [
+        stats.table_settling,
+        stats.settling_sensitivity,
+        stats.split_summary,
+        stats.stage_comparison,
+        stats.final_rounds_check,
+    ],
 )
 def test_course_bootstrap_count(function: Any, course_tables: AnalysisTables) -> None:
     small = _run_c(function, course_tables)
     pd.testing.assert_frame_equal(small, _run_c(function, course_tables))
-    options = {"upper_sizes": {8: None, 11: 2}} if function is stats.table_settling else {}
+    options = (
+        {"upper_sizes": {8: None, 11: 2}}
+        if function in (stats.table_settling, stats.settling_sensitivity, stats.split_summary)
+        else {}
+    )
     with pytest.raises(ValueError, match="n_bootstrap"):
         function(course_tables, n_bootstrap=0, **options)
 
@@ -305,6 +331,63 @@ def test_course_chart_contracts(course_tables: AnalysisTables) -> None:
         fig = chapter_c_chart(kind, frame, extra)
         assert fig.data and any(c.isdigit() for c in fig.layout.title.text)
         assert fig.to_json()
+
+
+def test_fractional_leader_bottom_and_upper_boundary_credit(course_tables: AnalysisTables) -> None:
+    rows = []
+    for game_id, home, away in ((9001, 1, 3), (9002, 2, 4)):
+        for team, won in ((home, True), (away, False)):
+            rows.append(
+                dict(
+                    season_id=11,
+                    team_id=team,
+                    game_id=game_id,
+                    stage="regular",
+                    date=pd.Timestamp("2020-09-01", tz="Asia/Jerusalem"),
+                    era="16_teams",
+                    points_earned=3 if won else 0,
+                    goal_difference=1 if won else -1,
+                    goals_scored=1 if won else 0,
+                )
+            )
+    teams = pd.DataFrame(rows).set_index(["team_id", "game_id"], drop=True)
+    labels = course_tables.team_seasons.xs(11, level="season_id", drop_level=False).copy()
+    labels["final_position"] = [1, 2, 3, 4]
+    labels["relegated"] = [False, False, True, True]
+    labels["final_stage"] = ["upper", "lower", "lower", "lower"]
+    tables = replace(course_tables, team_matches=teams, team_seasons=labels)
+    result = stats.table_settling(tables, [11], upper_sizes={11: 1}, n_bootstrap=50).loc[
+        ("16_teams", 1)
+    ]
+    assert result.leader_won_title_rate == 0.5  # One champion out of two tied leaders.
+    assert result.bottom_relegated_rate == 1  # Both tied bottom teams were relegated.
+    assert result.in_upper_line_stayed_rate == 0.5  # One place shared by two tied clubs.
+    assert result.in_upper_line_stayed_rate_team_weight == 1
+    assert result.leader_won_title_rate_n == result.bottom_relegated_rate_n == 1
+    assert result.n_tied_leader == result.n_tied_bottom == 1
+    assert pd.isna(result.leader_won_title_excl_ties)
+    assert pd.isna(result.bottom_relegated_excl_ties)
+    assert result.leader_won_title_rate_ci_method == "bootstrap_seasons"
+    split = stats.split_summary(tables, [11], upper_sizes={11: 1}, n_bootstrap=50)
+    assert split.leader_at_split_won_title_rate.eq(0.5).all()
+    assert split.leader_n.eq(1).all() and split.leader_tied_seasons.eq(1).all()
+    extra = teams.reset_index()
+    extra["season_id"] = 12
+    extra["game_id"] += 100
+    extra = extra.set_index(["team_id", "game_id"], drop=True)
+    extra_labels = labels.reset_index()
+    extra_labels["season_id"] = 12
+    extra_labels.loc[extra_labels.team_id.eq(2), "final_stage"] = "upper"
+    extra_labels = extra_labels.set_index(["season_id", "team_id"], drop=True)
+    two_seasons = replace(
+        tables,
+        team_matches=pd.concat([teams, extra]),
+        team_seasons=pd.concat([labels, extra_labels]),
+    )
+    result = stats.table_settling(two_seasons, [11, 12], upper_sizes={11: 1, 12: 2}, n_bootstrap=50)
+    assert result.loc[("16_teams", 1), "in_upper_line_stayed_rate"] == 0.75
+    assert result.loc[("16_teams", 1), "in_upper_line_stayed_rate_n"] == 2
+    assert result.loc[("16_teams", 1), "in_upper_line_stayed_rate_team_weight"] == 3
 
 
 B_FUNCTIONS = [

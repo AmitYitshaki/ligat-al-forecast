@@ -369,10 +369,11 @@ season_summary הקיימת משמשת ישירות לתצוגת מגמות שע
 | תצוגה | שורה / אינדקס | בסיס, עמודות והחרגות |
 | --- | --- | --- |
 | standings_by_match_number | עונה×k×קבוצה; season_id, k, team_id | stage=regular כברירת מחדל; אפשר upper/middle/lower או all לכל העונה. מסדרים כל קבוצה לפי date ואז game_id, צוברים points (3/1/0), goal_difference, goals_scored. games_played הוא מספר משחקיה שנצברו עד k. קבוצה עם פחות מ-k נשארת בערכים האחרונים עם games_short=True. rank יורד בנקודות → הפרש → שערי זכות, ושוויון מלא מקבל ממוצע המקומות. מזהי האינדקס Int64; אין שוברי שוויון אחרים, עונשים או חצייה |
-| table_settling | עידן×k; era, k | spearman_mean בין rank התיאורי ל-final_position הרשמי, ממוצע שווה־משקל בעונות עם מתאם מוגדר; spearman_n, n_seasons ורווח bootstrap עונתי. leader_won_title_rate רק למובילה יחידה; bottom_relegated_rate רק לאחרונה יחידה; לכל אחד count, n, tied ו-Wilson. מתאם לא מוגדר בטבלה שכולה שווה נשאר חסר |
-| in_upper_line_stayed_rate בתוך table_settling | קבוצה־עונה בקבוצת הייחוס | מבין קבוצות עם rank ≤ upper_sizes[season], השיעור שבסוף שויכו ל-final_stage=upper. אם שוויון מלא חוצה את קו k הקבוצות, עונה×k מוחרגת מהשיעור ומדווחת ב-tied_seasons. n כאן הוא קבוצות־עונות, לא עונות. חסר בפורמטים ללא פיצול. upper_sizes נמסר מ-load_playoff_upper_sizes, כולל 8 בעונה 13 |
+| table_settling | עידן×k; era, k | spearman_mean בין rank ל-final_position הרשמי, ממוצע בעונות עם מתאם מוגדר, spearman_n ו-n_seasons. leader_won_title_rate = ממוצע קרדיט אליפות (מספר אלופות בין המובילות / מספר המובילות); bottom_relegated_rate = ממוצע קרדיט ירידה (מספר יורדות בין האחרונות / מספר האחרונות). כל העונות במכנה. n_tied_leader/n_tied_bottom מדווחים עונות עם שוויון. לכל מדד n, credit_sum ו-ci_method; count נשאר כינוי לסכום קרדיטים ועלול להיות לא שלם. leader_won_title_excl_ties / bottom_relegated_excl_ties הם רגישות בלבד, עם n ורווח Wilson. מתאם בטבלה שכולה שווה חסר |
+| settling_sensitivity | מדד; metric | leader_won_title/bottom_relegated: n_points (צמדי era×k), n_comparable לגרסת ללא שוויונות, mean_abs_diff ו-max_abs_diff בין הגרסאות; פערים בטווח 0–1, למשל 0.0227 = כ־2.3 נקודות אחוז. סיכום תיאורי; צמדי k אינם דוגמאות עצמאיות |
+| in_upper_line_stayed_rate בתוך table_settling | ממוצע עונות עם פיצול | הקבוצות שמעל הקו מקבלות משקל 1; קבוצת שוויון על הקו מקבלת לכל חברה משקל מספר המקומות הפנויים / מספר החברות. סכום משקל × I(final_stage=upper), חלקי גודל העליון, ואז ממוצע שווה־משקל של העונות. n כאן עונות, credit_sum סכום שיעורי העונות, team_weight סכום המקומות ו-weighted_team_count סכום הצלחות משוקללות. tied_seasons מדווח שוויונות על הקו; אין מחיקת עונה בשוויון. NA ללא פיצול; upper_sizes כולל 8 בעונה 13 |
 | split_movement | עונה עם פיצול×קבוצה; season_id, team_id | סוף regular לפי k המרבי שנצפה; rank_at_split, final_position, move=rank_at_split−final_position, group (upper/middle/lower מה-final_stage), team_name, games_short, points_halved (הקשר היסטורי בעונות 11–12; אינו משנה את הניקוד). move חיובי הוא שיפור, ויכול להיות חצי מקום בעקבות שוויון ממוצע |
-| split_summary | קבוצת פלייאוף; group | n קבוצות־עונות, move_mean/median/min/max, improved/unchanged/declined. leader_at_split_won_title_rate עם Wilson, leader_n, leader_won_count ו-leader_tied_seasons (עונות), חוזרים בכל שורת קבוצה לצורך תצוגה. n_seasons ו-n_halved_seasons להקשר. מובילה בשוויון מלא מוחרגת מהשיעור |
+| split_summary | קבוצת פלייאוף; group | n קבוצות־עונות, move_mean/median/min/max ו-improved/unchanged/declined. leader_at_split_won_title_rate לפי קרדיט חלקי, leader_n כל העונות, leader_credit_sum סכום הקרדיטים (leader_won_count כינוי לאותו סכום), leader_tied_seasons. leader_at_split_won_title_excl_ties ו-n לרגישות. n_seasons/n_halved_seasons להקשר; השדות העונתיים חוזרים בכל קבוצת תצוגה |
 | stage_comparison | שלב; stage | n_matches, n_seasons, goals_per_match עם רווח bootstrap של בלוקי עונה; draw/zero_zero/one_one/btts/home_win/away_win/big_margin_rate עם Wilson. one_one=תוצאה 1:1, btts=שער לשני הצדדים, big_margin=הפרש מוחלט ≥3. כל משחק מלא נכלל פעם אחת בלבד |
 | playoff_form | קבוצה×עונה עם פלייאוף; season_id, team_id | ppm_regular ו-ppm_playoff (כל הפלייאוף של הקבוצה), n_regular/n_playoff, ppm_change=פלייאוף−סדיר, team_name ו-final_stage. אין חציית נקודות או השלמה. קבוצה ללא פלייאוף אינה שורה בתצוגה; שינוי יריבות הוא הסתייגות להשוואת הקצב |
 | final_rounds_check | שלב×תקופה; stage, period | last/rest לפי שלושת מספרי המחזור האחרונים (last_n=3) בכל עונה ובאותו stage. n, שיעורי תוצאות ו-goals_per_match עם אותם רווחים; upset_count, upset_n ו-upset_rate עם Wilson. אין קבוצת rest באמצעי: כל 12 משחקיו בשלושת המחזורים האחרונים. תקופה שאין בה משחקים אינה מופיעה |
@@ -392,8 +393,12 @@ season_summary הקיימת משמשת ישירות לתצוגת מגמות שע
 
 כל פונקציה ציבורית של C מקבלת seasons=DEVELOPMENT_SEASONS ודוחה עונה
 אחרת, רשימה ריקה וכפילות. פונקציות המשתמשות ב-bootstrap מקבלות
-n_bootstrap=2000 (50 בטסטים): table_settling, stage_comparison,
-final_rounds_check. רווחי המתאם מדגימת עונות; ממוצעי השערים מבלוקי
+n_bootstrap=2000 (50 בטסטים): table_settling, settling_sensitivity,
+split_summary, stage_comparison, final_rounds_check. לרווחי ממוצע קרדיט
+עם ערכים חלקיים משתמשים ב-bootstrap של עונות; כשהקרדיטים כולם 0/1
+משתמשים ב-Wilson. ci_method מפרט את השיטה (bootstrap_seasons/wilson),
+ו-unavailable כשאין עונות בפורמט. פחות משתי עונות נותנות רווח bootstrap
+חסר. לגרסת הרגישות הבינרית ללא שוויונות משתמשים ב-Wilson תמיד. רווחי המתאם מדגימת עונות; ממוצעי השערים מבלוקי
 עונה עם סכומי שערים ומספר משחקים יחד. אלה רווחים תיאוריים, ללא תיקון
 להשוואות מרובות וללא ביטול תלות בין קבוצות/עונות. בעידני 12/16 רק 3
 עונות; בפלייאוף האמצעי רק 12 משחקים, ולכן אין ממנו מסקנה חזקה.

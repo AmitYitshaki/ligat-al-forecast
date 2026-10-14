@@ -78,7 +78,7 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                         customdata=data[f"{metric}_n"],
                         showlegend=col == 1,
                         hovertemplate=(
-                            "k=%{x}: %{y:.1f}%<br>מקרים ללא שוויון=%{customdata}"
+                            "k=%{x}: %{y:.1f}%<br>עונות כולל שוויונות=%{customdata}"
                             "<extra>%{fullData.name}</extra>"
                         ),
                     ),
@@ -88,12 +88,13 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         k, check = _checkpoint(frame)
         fig.update_layout(
             title=(
-                f"אחרי {k} משחקים המובילה זכתה ב־{int(check.leader_won_title_rate_count.sum())}"
-                f"/{int(check.leader_won_title_rate_n.sum())}; האחרונה ירדה ב־"
-                f"{int(check.bottom_relegated_rate_count.sum())}/{int(check.bottom_relegated_rate_n.sum())}"
+                f"אחרי {k} משחקים קרדיט אליפות {check.leader_won_title_rate_credit_sum.sum():g}"
+                f"/{int(check.leader_won_title_rate_n.sum())}; קרדיט ירידה "
+                f"{check.bottom_relegated_rate_credit_sum.sum():g}"
+                f"/{int(check.bottom_relegated_rate_n.sum())}"
             )
         )
-        fig.update_yaxes(range=[0, 100], title_text="אחוז")
+        fig.update_yaxes(range=[0, 100], title_text="ממוצע קרדיט (%)")
     elif kind == "movement":
         if summary is None or summary.empty:
             raise ValueError("Movement summary is required")
@@ -115,10 +116,11 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 )
             )
         row = summary.iloc[0]
+        label = (
+            "המובילה בפיצול זכתה ב־" if row.leader_tied_seasons == 0 else "קרדיט המובילות בפיצול "
+        )
         fig.update_layout(
-            title=(
-                f"המובילה בפיצול זכתה ב־{int(row.leader_won_count)} מתוך {int(row.leader_n)} עונות"
-            ),
+            title=(f"{label}{row.leader_credit_sum:g} מתוך {int(row.leader_n)} עונות"),
             yaxis_title="דירוג בפיצול פחות מיקום סופי; חיובי = שיפור",
         )
     elif kind == "stages":

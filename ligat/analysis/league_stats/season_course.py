@@ -110,10 +110,33 @@ def split_movement(
     return frame.sort_index()
 
 
-def _unique_extreme(group: pd.DataFrame, highest: bool) -> pd.DataFrame:
+def _extreme(group: pd.DataFrame, highest: bool) -> pd.DataFrame:
     target = group["rank"].min() if highest else group["rank"].max()
     candidates = group.loc[group["rank"].eq(target)]
-    return candidates if len(candidates) == 1 else candidates.iloc[:0]
+    return candidates
+
+
+def _credit_interval(credits: pd.Series, n_bootstrap: int) -> tuple[float, float, float]:
+    credits = credits.dropna().astype(float)
+    if credits.isin([0, 1]).all():
+        return rate_interval(int(credits.sum()), len(credits))
+    lower, upper = _mean_interval(credits, n_bootstrap)
+    return float(credits.mean()), lower, upper
+
+
+def _upper_credit(group: pd.DataFrame, size: int) -> tuple[float, bool]:
+    if not 0 < size < len(group):
+        raise ValueError("Upper playoff size must leave teams on both sides of the boundary")
+    slots, retained, tied = size, 0.0, False
+    for _, candidates in group.groupby("rank", sort=True):
+        if slots <= 0:
+            break
+        take = min(slots, len(candidates))
+        weight = take / len(candidates)
+        retained += weight * int(candidates.final_stage.eq("upper").sum())
+        tied |= take < len(candidates)
+        slots -= take
+    return retained, tied
 
 
 def table_settling(
@@ -123,10 +146,10 @@ def table_settling(
     upper_sizes: Mapping[int, int | None],
     n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
-    """Measure association with the official finish; unique leaders/bottoms only for rates.
+    """Measure association with the finish using equal season weights and fractional tie credit.
 
-    Full ties are excluded from the relevant rate, with explicit denominators and tie counts.
-    Upper-line cohorts spanning a full tie at the cutoff are likewise excluded, not broken.
+    Leader/bottom credit is success count divided by tied group size. At the upper line,
+    remaining places are shared equally across the boundary tie. No season is discarded.
     """
     selected = _selection(seasons)
     _bootstrap_count(n_bootstrap)
@@ -150,23 +173,20 @@ def table_settling(
             ),
             leader=pd.NA,
             bottom=pd.NA,
-            upper_n=0,
-            upper_success=0,
+            upper_credit=float("nan"),
+            upper_places=0,
+            upper_success=0.0,
             upper_tied=False,
         )
-        leader, bottom = _unique_extreme(group, True), _unique_extreme(group, False)
-        if not leader.empty:
-            row["leader"] = bool(leader.final_position.iloc[0] == 1)
-        if not bottom.empty:
-            row["bottom"] = bool(bottom.relegated.iloc[0])
+        leader, bottom = _extreme(group, True), _extreme(group, False)
+        row["leader"] = float(leader.final_position.eq(1).mean())
+        row["bottom"] = float(bottom.relegated.mean())
+        row["leader_tied"], row["bottom_tied"] = len(leader) > 1, len(bottom) > 1
         size = upper_sizes[int(season)]
         if size is not None:
-            upper = group.loc[group["rank"].le(size)]
-            if len(upper) == size:
-                row["upper_n"] = len(upper)
-                row["upper_success"] = int(upper.final_stage.eq("upper").sum())
-            else:
-                row["upper_tied"] = True
+            row["upper_success"], row["upper_tied"] = _upper_credit(group, size)
+            row["upper_credit"] = row["upper_success"] / size
+            row["upper_places"] = size
         observations.append(row)
     rows = []
     for (era, k), group in pd.DataFrame(observations).groupby(["era", "k"], observed=True):
@@ -184,22 +204,68 @@ def table_settling(
             ("leader", "leader_won_title_rate"),
             ("bottom", "bottom_relegated_rate"),
         ):
-            known = group[column].dropna()
-            row[f"{label}_n"] = len(known)
-            row[f"{label}_count"] = int(known.sum())
-            row[f"{label}_tied"] = len(group) - len(known)
-            row[label], row[f"{label}_ci_lower"], row[f"{label}_ci_upper"] = rate_interval(
-                int(known.sum()), len(known)
+            credits = group[column].astype(float)
+            row[f"{label}_n"] = len(credits)
+            row[f"{label}_count"] = float(credits.sum())
+            row[f"{label}_credit_sum"] = float(credits.sum())
+            row[f"{label}_ci_method"] = (
+                "wilson" if credits.isin([0, 1]).all() else "bootstrap_seasons"
+            )
+            row[f"n_tied_{column}"] = int(group[f"{column}_tied"].sum())
+            row[f"{label}_tied"] = row[f"n_tied_{column}"]
+            row[label], row[f"{label}_ci_lower"], row[f"{label}_ci_upper"] = _credit_interval(
+                credits, n_bootstrap
+            )
+            sensitivity = label.removesuffix("_rate") + "_excl_ties"
+            unique = credits.loc[~group[f"{column}_tied"]]
+            row[f"{sensitivity}_n"] = len(unique)
+            row[sensitivity], row[f"{sensitivity}_ci_lower"], row[f"{sensitivity}_ci_upper"] = (
+                rate_interval(int(unique.sum()), len(unique))
             )
         label = "in_upper_line_stayed_rate"
-        row[f"{label}_n"] = int(group.upper_n.sum())
-        row[f"{label}_count"] = int(group.upper_success.sum())
+        credits = group.upper_credit.dropna()
+        row[f"{label}_n"] = len(credits)
+        row[f"{label}_count"] = float(credits.sum())
+        row[f"{label}_credit_sum"] = float(credits.sum())
+        row[f"{label}_ci_method"] = (
+            "unavailable"
+            if credits.empty
+            else "wilson"
+            if credits.isin([0, 1]).all()
+            else "bootstrap_seasons"
+        )
+        row[f"{label}_team_weight"] = int(group.upper_places.sum())
+        row[f"{label}_weighted_team_count"] = float(group.upper_success.sum())
         row[f"{label}_tied_seasons"] = int(group.upper_tied.sum())
-        row[label], row[f"{label}_ci_lower"], row[f"{label}_ci_upper"] = rate_interval(
-            int(group.upper_success.sum()), int(group.upper_n.sum())
+        row[label], row[f"{label}_ci_lower"], row[f"{label}_ci_upper"] = _credit_interval(
+            credits, n_bootstrap
         )
         rows.append(row)
     return pd.DataFrame(rows).set_index(["era", "k"], drop=True).sort_index()
+
+
+def settling_sensitivity(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    upper_sizes: Mapping[int, int | None],
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+) -> pd.DataFrame:
+    """Summarize descriptive differences from excluding ties, across observed era/k cells."""
+    frame = table_settling(tables, seasons, upper_sizes=upper_sizes, n_bootstrap=n_bootstrap)
+    rows = []
+    for metric in ("leader_won_title", "bottom_relegated"):
+        diff = (frame[f"{metric}_rate"] - frame[f"{metric}_excl_ties"]).abs()
+        rows.append(
+            dict(
+                metric=metric,
+                n_points=len(diff),
+                n_comparable=int(diff.count()),
+                mean_abs_diff=diff.mean(),
+                max_abs_diff=diff.max(),
+            )
+        )
+    return pd.DataFrame(rows).set_index("metric", drop=True)
 
 
 def split_summary(
@@ -207,19 +273,26 @@ def split_summary(
     seasons: Iterable[int] = DEVELOPMENT_SEASONS,
     *,
     upper_sizes: Mapping[int, int | None],
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
-    """Describe post-split movement and how often the unique regular-stage leader won."""
+    """Describe movement and fractional title credit among tied regular-stage leaders."""
     selected = _selection(seasons)
+    _bootstrap_count(n_bootstrap)
     source = split_movement(tables, selected, upper_sizes=upper_sizes).reset_index()
     leaders = []
+    unique_leaders = []
     n_tied = 0
     for _, group in source.groupby("season_id", observed=True):
         first = group.loc[group.rank_at_split.eq(group.rank_at_split.min())]
+        leaders.append(float(first.final_position.eq(1).mean()))
         if len(first) == 1:
-            leaders.append(bool(first.final_position.iloc[0] == 1))
+            unique_leaders.append(bool(first.final_position.iloc[0] == 1))
         else:
             n_tied += 1
-    rate, lower, upper = rate_interval(sum(leaders), len(leaders))
+    rate, lower, upper = _credit_interval(pd.Series(leaders, dtype=float), n_bootstrap)
+    sensitivity, sensitivity_lower, sensitivity_upper = rate_interval(
+        sum(unique_leaders), len(unique_leaders)
+    )
     rows = []
     for name, group in source.groupby("group", observed=True):
         rows.append(
@@ -236,9 +309,19 @@ def split_summary(
                 leader_at_split_won_title_rate=rate,
                 leader_at_split_won_title_rate_ci_lower=lower,
                 leader_at_split_won_title_rate_ci_upper=upper,
+                leader_at_split_won_title_rate_ci_method=(
+                    "wilson"
+                    if pd.Series(leaders, dtype=float).isin([0, 1]).all()
+                    else "bootstrap_seasons"
+                ),
                 leader_n=len(leaders),
                 leader_won_count=sum(leaders),
+                leader_credit_sum=sum(leaders),
                 leader_tied_seasons=n_tied,
+                leader_at_split_won_title_excl_ties=sensitivity,
+                leader_at_split_won_title_excl_ties_n=len(unique_leaders),
+                leader_at_split_won_title_excl_ties_ci_lower=sensitivity_lower,
+                leader_at_split_won_title_excl_ties_ci_upper=sensitivity_upper,
                 n_seasons=source.season_id.nunique(),
                 n_halved_seasons=source.loc[source.points_halved, "season_id"].nunique(),
             )
@@ -256,9 +339,15 @@ def split_summary(
         "leader_at_split_won_title_rate",
         "leader_at_split_won_title_rate_ci_lower",
         "leader_at_split_won_title_rate_ci_upper",
+        "leader_at_split_won_title_rate_ci_method",
         "leader_n",
         "leader_won_count",
+        "leader_credit_sum",
         "leader_tied_seasons",
+        "leader_at_split_won_title_excl_ties",
+        "leader_at_split_won_title_excl_ties_n",
+        "leader_at_split_won_title_excl_ties_ci_lower",
+        "leader_at_split_won_title_excl_ties_ci_upper",
         "n_seasons",
         "n_halved_seasons",
     ]
