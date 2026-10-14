@@ -1,7 +1,7 @@
 # הנחיות טכניות
 
 > מסמך חי. כל סוכן שכותב או בודק קוד קורא אותו לפני שמתחיל.
-> עודכן לאחרונה: 14.10.2026. החזון המחייב: [`VISION.md`](VISION.md), גרסה 3.
+> עודכן לאחרונה: 14.10.2026. החזון המחייב: [`VISION.md`](VISION.md), גרסה 4.
 
 ---
 
@@ -48,31 +48,36 @@ ligat-al-forecast/
 │   │   ├── repository.py       # קריאה וכתיבה של כל הדאטה סטים
 │   │   ├── schemas.py          # סכמות pandera
 │   │   └── validate.py         # טבלה מחושבת מול רשמית
-│   ├── features/
+│   ├── features/               # M0 prematch: מצב לפני שריקה (as_of)
 │   │   ├── base.py             # FeatureBlock (ממשק)
-│   │   ├── attack_defense.py
-│   │   ├── home_away.py
-│   │   ├── momentum.py
-│   │   ├── motivation.py
-│   │   ├── matchup.py
-│   │   ├── elo.py
-│   │   └── pipeline.py         # מרכיב FeatureBlocks לטבלת פיצ'רים
-│   ├── models/
-│   │   ├── base.py             # MatchModel (ממשק)
-│   │   ├── registry.py         # יצירת מודל לפי שם מהקונפיגורציה
-│   │   ├── baselines.py        # B0–B3
-│   │   ├── xgb_goals.py        # מודל 1
-│   │   ├── dixon_coles.py      # חלופה
-│   │   └── points_corrector.py # מודל 2
-│   ├── simulate/
+│   │   ├── table_state.py      # M0-A: מצב טבלה מחושב לפי תאריך (ללא דליפה)
+│   │   ├── form.py             # M0-B: כושר נע (5/10/20/EWMA) ומומנטום
+│   │   ├── elo.py              # M0-B: דירוג Elo לפני משחק
+│   │   ├── season_context.py   # M0-C: הקשר עונתי (t-1) ושווי סגל
+│   │   └── pipeline.py         # איחוד כל בלוקי הפיצ'רים לשכבת prematch
+│   ├── motivation/             # M1 motivation: פענוח מוטיבציה וחשיבות תחרותית (0–1)
+│   │   ├── analysis.py         # ניתוח סטיות מול ציפיית Elo
+│   │   ├── leverage.py         # חשיבות משחק (Leverage) וחלופות
+│   │   └── simulator.py        # סימולטור Elo פשוט עבור חישוב חשיבות
+│   ├── models/                 # מודלי שערים ותוצאות
+│   │   ├── base.py             # ממשק אחיד למודלים (fit, predict, save)
+│   │   ├── baselines.py        # קווי בסיס B0–B3
+│   │   ├── goals.py            # M2 goals: חיזוי λ (XGBoost Poisson, ablation מוטיבציה)
+│   │   └── scores.py           # M3 scores: מטריצה 9×9 (Poisson + Dixon-Coles / דו-משתני)
+│   ├── simulate/               # סימולציית ליגה
 │   │   ├── rules.py            # שוברי שוויון, פיצול לפלייאוף, חלוקת נקודות
-│   │   └── season.py           # SeasonSimulator
+│   │   └── season_sim.py       # M4 season_sim: סימולטור Monte Carlo של עונה ופלייאוף
+│   ├── table_model/            # M5 table_model: חיזוי טבלה בלבד מנקודות והפרש שערים
+│   │   ├── base.py             # ממשק מודל טבלה
+│   │   └── ridge.py            # מודל Ridge / חלופות התפלגותיות
+│   ├── blend/                  # M6 blend: השוואה ושילוב נלמד של M4 ו-M5
+│   │   └── ensemble.py         # שילוב התפלגויות וכיול
 │   ├── analysis/               # חישובים לגרפים ולדוחות (טהורים, נבדקים)
 │   ├── viz/                    # תשתית גרפים: ראו docs/VISUALIZATION.md
 │   ├── evaluate/
 │   │   ├── metrics.py          # RPS, log loss, כיול, RMSE
-│   │   └── backtest.py         # walk-forward בשתי קומות
-│   └── cli.py                  # scrape / build / features / train / backtest / forecast
+│   │   └── backtest.py         # walk-forward כרונולוגי מקונן
+│   └── cli.py                  # CLI עם הרצה עצמאית: ligat run <name>
 ├── config/
 │   ├── seasons.yaml            # פורמט כל עונה
 │   ├── teams.yaml              # שם קנוני לכל team_id
@@ -184,7 +189,8 @@ class FeatureBlock(ABC):
 
 - `data/raw/` בלתי ניתן לשינוי. סקרייפר כותב; אף אחד אחר לא.
 - כל שלב קורא מהשכבה הקודמת וכותב לשכבה שלו, בפורמט Parquet.
-- **שכבת תחזיות נגזרת מחוץ ל-`data/clean`:** פלטי ביניים (ציוני מוטיבציה, תחזיות שערים $\lambda$, מטריצות תוצאה, טבלאות מדומיות) נשמרים כשכבת תחזיות נגזרת נפרדת עם מפתחות ברורים (`game_id`, `as_of`, גרסת מודל וסוף תקופת אימון). לעולם לא מחליפים נתוני אמת בתחזיות, ולא דורסים את קובצי המקור ב-`data/clean`.
+- **שכבת תחזיות נגזרת מחוץ ל-`data/clean`:** פלטי ביניים (ציוני מוטיבציה, תחזיות שערים $\lambda$, מטריצות תוצאה, טבלאות מדומות) נשמרים כשכבת תחזיות נגזרת נפרדת עם מפתחות ברורים (`game_id`, `as_of`, גרסת מודל וסוף תקופת אימון). לעולם לא מחליפים נתוני אמת בתחזיות, ולא דורסים את קובצי המקור ב-`data/clean`.
+- **עצמאות רכיבים והרצה נפרדת (VISION §4, כלל 15 והחלטה ה-6):** לכל רכיב בשרשרת (`prematch`, `motivation`, `goals`, `scores`, `season_sim`, `table_model`, `blend`) שם קבוע, מודול משלו ב-`ligat/`, ממשק אחיד (`fit`, `predict`, `save`) ופקודת CLI להרצה לבד (`ligat run <name>`). רכיב **קורא את הפלט השמור והמגורסן של הרכיבים שלפניו** מהשכבה הנגזרת ואינו מריץ את כל השרשרת מחדש. כל רכיב נבדק לבד, עם טסטים וקו בסיס משלו, ומתעד את גרסת הקלט שבה השתמש.
 - כל דאטה סט עובר ולידציה של סכמת pandera בכתיבה ובקריאה.
 - `ligat build` הוא תהליך מקומי: בודק manifest וגודל/SHA-256, מפענח XML ללא שינוי raw,
   ובוחר רק snapshot חי שהושלם. `Repository` מאמת גם את ה־Parquet הזמני לפני החלפה אטומית.
