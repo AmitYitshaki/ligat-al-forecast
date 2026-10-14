@@ -1,5 +1,6 @@
 """Plotly presentation of notebook 02 chapter A; no data loading or feature publication."""
 
+from textwrap import wrap
 from typing import Any
 
 import numpy as np
@@ -13,6 +14,7 @@ AWAY_COLOR = "#f59e0b"
 
 
 def _finish(figure: Any) -> Any:
+    figure.update_layout(title_text="<br>".join(wrap(figure.layout.title.text, width=65)))
     figure.update_layout(
         template="plotly_white",
         height=550,
@@ -66,6 +68,8 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         )
         fig.update_xaxes(type="category")
     elif kind == "attack_defense":
+        top = data.loc[data.final_position.le(3), "goals_scored_per_match"].mean()
+        bottom = data.loc[data.final_position.ge(data.n_teams - 2), "goals_scored_per_match"].mean()
         fig = px.scatter(
             data,
             x="goals_scored_per_match",
@@ -73,7 +77,9 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
             color="final_position",
             hover_data=hover,
             color_continuous_scale="Viridis_r",
-            title="התקפה והגנה מתארות יחד את עונת הקבוצה; המיקום רשמי",
+            title=(
+                f"שלוש הראשונות כבשו {top:.2f} למשחק, מול {bottom:.2f} בשלוש האחרונות; ממוצע עונות"
+            ),
             labels={
                 "goals_scored_per_match": "שערי זכות למשחק",
                 "goals_conceded_per_match": "שערי חובה למשחק",
@@ -97,6 +103,11 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         )
         _diagonal(fig, data, "home_points_per_match", "away_points_per_match")
     elif kind == "win_style":
+        top = data.loc[data.final_position.le(3)]
+        title = (
+            f"בשלוש הראשונות: {top.big_win_rate.mean():.1%} ניצחונות גדולים ו-"
+            f"{top.narrow_win_rate.mean():.1%} צרים מתוך כל המשחקים, בממוצע עונות"
+        )
         fig = px.scatter(
             data,
             x="big_win_rate",
@@ -111,7 +122,7 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 "narrow_win_rate_ci_lower",
                 "narrow_win_rate_ci_upper",
             ],
-            title="ניצחונות גדולים וצרים הם שני חלקים משיעור הניצחונות",
+            title=title,
             labels={
                 "big_win_rate": "ניצחון בהפרש לפחות 3, מכל המשחקים",
                 "narrow_win_rate": "ניצחון בהפרש 1, מכל המשחקים",
@@ -144,7 +155,10 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 )
             )
         fig.update_layout(
-            title="קבוצות עם לפחות 5 עונות: סגנון פתוח בממוצע עונתי, עם רווחי 95%",
+            title=(
+                f"ב-{len(data)} קבוצות עם לפחות 5 עונות: ממוצע BTTS הוא "
+                f"{data.btts_rate.mean():.1%}; רווחי 95% לממוצעי העונות"
+            ),
             yaxis_title="ממוצע שיעור עונתי; bootstrap של עונות",
             xaxis_title="קבוצה, ללא דירוג סיבתי",
         )
@@ -166,6 +180,9 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
             fig, data, "ppm_prev", float(slope), float(summary.loc["ppm", "intercept"])
         )
     elif kind == "value":
+        correlation = (
+            summary.loc["prev_season_value_share", "spearman"] if summary is not None else np.nan
+        )
         complete = data.dropna(subset=["over_under"])
         high = complete.loc[complete.over_under.gt(0)].nlargest(10, "over_under")
         low = complete.loc[complete.over_under.lt(0)].nsmallest(10, "over_under")
@@ -183,7 +200,9 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
             hover_data=[*hover, "expected_ppm", "over_under"],
             color_continuous_scale="RdBu",
             color_continuous_midpoint=0,
-            title="שווי קודם מול נקודות: החריגות הן שאריות תיאוריות בתוך המדגם",
+            title=(f"שווי קודם מול נקודות: ספירמן {correlation:.2f}; החריגות בתוך המדגם")
+            if summary is not None
+            else "שווי קודם ונקודות: שאריות תיאוריות",
             labels={
                 "prev_season_value_share": "נתח השווי בליגה של t−1",
                 "points_per_match": "נקודות למשחק",
@@ -201,12 +220,17 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 float(relation.intercept),
             )
     elif kind == "promoted":
+        complete = data.dropna(subset=["diff"])
+        below = complete["diff"].lt(0).mean()
         fig = px.scatter(
             data,
             x="imputed_share",
             y="value_share_of_league",
             hover_data=["team_name", "season_id", "diff", "ratio"],
-            title="שווי העולות מול כלל ההשלמה: בדיקת סבירות בדיעבד, לא פיצ'ר",
+            title=(
+                f"ב-{below:.1%} מתוך {len(complete)} עולות עם שווי זמין, "
+                "השווי נמוך מערך הכלל; בדיעבד"
+            ),
             labels={
                 "imputed_share": "חציון החצי התחתון לפי שווי באותה עונה",
                 "value_share_of_league": "נתח שווי סגל ממשי באותה עונה",
@@ -233,7 +257,10 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 "mean_ppm_ci_lower",
                 "mean_ppm_ci_upper",
             ],
-            title="יציבות מחושבת רק לקבוצות עם לפחות 3 עונות; יו-יו לפי עליות נצפות",
+            title=(
+                f"מתוך {len(data)} קבוצות עם לפחות 3 עונות, "
+                f"{int(data.is_yoyo.sum())} עלו לפחות פעמיים בפיתוח"
+            ),
             labels={
                 "mean_ppm": "ממוצע נקודות למשחק בין עונות",
                 "std_ppm": "סטיית תקן בין עונות, נקודות למשחק",
