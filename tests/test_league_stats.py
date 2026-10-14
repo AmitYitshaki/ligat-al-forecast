@@ -24,6 +24,7 @@ B_FUNCTIONS = [
     stats.threshold_ranges,
     stats.critical_ties,
     stats.home_advantage_by_season,
+    stats.home_advantage_periods,
     stats.era_comparison,
     stats.competitive_balance,
     stats.champions_summary,
@@ -247,6 +248,10 @@ def test_history_real_counts_and_boundaries(real_tables: AnalysisTables) -> None
     assert thresholds.index[thresholds.flag_inverted].tolist() == [18]
     assert thresholds.loc[11, "title_margin_points"] == -3  # Official title after halving.
     home = stats.home_advantage_by_season(real_tables)
+    periods = stats.home_advantage_periods(real_tables)
+    assert periods.n_seasons.tolist() == [6, 9]
+    assert periods.mean_ppm_gap.tolist() == pytest.approx([0.377695, 0.135130], abs=0.000001)
+    assert periods.mean_home_win_rate.tolist() == pytest.approx([0.428897, 0.388087], abs=0.000001)
     assert (home.home_win_rate + home.draw_rate + home.away_win_rate - 1).abs().lt(1e-12).all()
     for metric in ("home_win_rate", "draw_rate", "away_win_rate"):
         assert home[f"{metric}_ci_lower"].le(home[metric]).all()
@@ -275,7 +280,11 @@ def test_history_chart_contracts(history_tables: AnalysisTables) -> None:
     for kind, frame, summary in [
         ("thresholds", thresholds, None),
         ("threshold_boxes", thresholds, None),
-        ("home", _run_b(stats.home_advantage_by_season, history_tables), None),
+        (
+            "home",
+            _run_b(stats.home_advantage_by_season, history_tables),
+            stats.home_advantage_periods(history_tables),
+        ),
         ("eras", _run_b(stats.era_comparison, history_tables), None),
         ("season_trends", trends, None),
         (
@@ -287,6 +296,60 @@ def test_history_chart_contracts(history_tables: AnalysisTables) -> None:
     ]:
         figure = chapter_b_chart(kind, frame, summary)
         assert figure.data and figure.layout.title.text and figure.to_json()
+
+
+def test_home_period_means_weight_seasons_not_matches(history_tables: AnalysisTables) -> None:
+    base = history_tables.match_table.loc[history_tables.match_table.season_id.eq(8)]
+    groups = []
+    for season, positions in ((11, list(range(5))), (12, [0]), (17, [2])):
+        group = base.iloc[positions].copy()
+        group["season_id"] = season
+        group.index = pd.Index([season * 100 + i for i in range(len(group))], name="game_id")
+        groups.append(group)
+    tables = replace(history_tables, match_table=pd.concat(groups))
+    periods = stats.home_advantage_periods(tables)
+    early, late = periods.iloc[0], periods.iloc[1]
+    assert early.n_seasons == 2 and early.n_matches == 6
+    assert early.mean_home_win_rate == pytest.approx(0.8)  # Mean of 3/5 and 1/1, not 4/6.
+    assert early.mean_ppm_gap == pytest.approx(2.4)  # Mean of +1.8 and +3.0.
+    assert late.n_seasons == 1 and late.mean_ppm_gap == 0
+    subset = stats.home_advantage_periods(tables, [17])
+    assert subset.iloc[0].n_seasons == 0 and pd.isna(subset.iloc[0].mean_ppm_gap)
+    assert subset.iloc[1].n_seasons == 1
+
+
+def test_chapter_b_titles_are_computed_from_changed_data(history_tables: AnalysisTables) -> None:
+    thresholds = _run_b(stats.season_thresholds, history_tables)
+    thresholds["champion_ppm"] = 2.1
+    thresholds["safety_ppm"] = 0.9
+    title = chapter_b_chart("thresholds", thresholds).layout.title.text.replace("<br>", " ")
+    assert "2.1–2.1" in title and "0.90" in title
+    home = stats.home_advantage_by_season(history_tables)
+    periods = stats.home_advantage_periods(history_tables)
+    periods["n_seasons"] = [2, 2]
+    periods["mean_ppm_gap"] = [0.5, 0.1]
+    periods["mean_home_win_rate"] = [0.45, 0.35]
+    title = chapter_b_chart("home", home, periods).layout.title.text.replace("<br>", " ")
+    assert "+0.50" in title and "+0.10" in title and "45%" in title and "35%" in title
+    champions = pd.DataFrame(
+        {"team_name": ["TA", "Haifa", "Other"], "titles": [2, 3, 1]},
+        index=pd.Index([1061, 1005, 99], name="team_id"),
+    )
+    title = chapter_b_chart(
+        "balance", stats.competitive_balance(history_tables), champions
+    ).layout.title.text.replace("<br>", " ")
+    assert "3 מועדונים" in title and "6 אליפויות" in title and "ב־5" in title
+    calendar = stats.calendar_effects(history_tables, n_bootstrap=50)
+    calendar.loc[("kickoff_hour", "20_plus"), "goals_per_match"] = 2.7
+    calendar.loc[("kickoff_hour", "18_to_20"), "goals_per_match"] = 2.2
+    calendar["goals_per_match_ci_lower"] = 2.0
+    calendar["goals_per_match_ci_upper"] = 3.0
+    title = chapter_b_chart("calendar", calendar).layout.title.text.replace("<br>", " ")
+    assert "2.70" in title and "2.20" in title and "בתוך טווחי אי־הוודאות" in title
+    calendar.loc[("kickoff_hour", "20_plus"), "goals_per_match_ci_lower"] = 2.6
+    calendar.loc[("kickoff_hour", "18_to_20"), "goals_per_match_ci_upper"] = 2.3
+    title = chapter_b_chart("calendar", calendar).layout.title.text.replace("<br>", " ")
+    assert "בתוך טווחי אי־הוודאות" not in title
 
 
 FUNCTIONS = [

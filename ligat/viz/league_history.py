@@ -61,7 +61,11 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 )
             )
         fig.update_layout(
-            title="ספי האליפות וההישרדות משתנים בין העונות; קו העליון נמדד מוקדם יותר",
+            title=(
+                f"האלופה צוברת {frame.champion_ppm.min():.1f}–"
+                f"{frame.champion_ppm.max():.1f} נק׳ למשחק; "
+                f"חציון ההישרדות {frame.safety_ppm.median():.2f}"
+            ),
             yaxis_title="נקודות למשחק",
         )
     elif kind == "threshold_boxes":
@@ -101,8 +105,17 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
             )
         )
         overall = (frame.home_win_rate * frame.n).sum() / frame.n.sum()
+        title = f"הבית ניצח ב־{overall:.1%} מהמשחקים"
+        if summary is not None and summary.n_seasons.gt(0).all():
+            early, late = summary.iloc[0], summary.iloc[1]
+            direction = "ירד" if late.mean_ppm_gap < early.mean_ppm_gap else "עלה"
+            title = (
+                f"פער הבית–חוץ {direction} מ־{early.mean_ppm_gap:+.2f} ל־{late.mean_ppm_gap:+.2f} "
+                f"נק׳ למשחק; ניצחונות בית {early.mean_home_win_rate:.0%} "
+                f"מול {late.mean_home_win_rate:.0%}"
+            )
         fig.update_layout(
-            title=f"הבית ניצח ב־{overall:.1%} מהמשחקים; שיעור הביתיות משתנה לאורך הזמן",
+            title=title,
             yaxis_title="ניצחונות בית (%)",
         )
         for season in (21, 22):
@@ -137,8 +150,13 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 row=1,
                 col=col,
             )
+        leading = frame.loc[frame.goals_per_match.idxmax()]
+        era_name = ERA_NAMES[frame.goals_per_match.idxmax()]
         fig.update_layout(
-            title="הבדלי העידנים מופיעים בשערים ובפיזור; בחירת חלון האימון נשארת למחקר",
+            title=(
+                f"בליגת {era_name} יותר שערים ({leading.goals_per_match:.2f}) "
+                f"ו־{leading.big_margin_rate:.0%} הפרשים של 3 ומעלה"
+            ),
             showlegend=False,
         )
     elif kind == "season_trends":
@@ -168,7 +186,17 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 row=1,
                 col=2,
             )
-        fig.update_layout(title="שערים ותיקו אינם קבועים לאורך השנים — משתמשים בסיכום העונה הקיים")
+        endpoints = frame.sort_index().iloc[[0, -1]]
+        first, last = endpoints.iloc[0], endpoints.iloc[1]
+        labels = _years(endpoints)
+        direction = "ירד" if last.draw_rate < first.draw_rate else "עלה"
+        fig.update_layout(
+            title=(
+                f"תיקו {direction} מ־{first.draw_rate:.1%} ל־{last.draw_rate:.1%}; "
+                f"0:0 מ־{first.zero_zero_rate:.1%} ל־{last.zero_zero_rate:.1%} "
+                f"({labels[0]}–{labels[1]})"
+            )
+        )
     elif kind == "balance":
         if summary is None:
             raise ValueError("Champion counts are required for the balance chart")
@@ -187,10 +215,11 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
             row=1,
             col=2,
         )
+        maccabi = summary.loc[summary.index.isin([1061, 1005]), "titles"].sum()
         fig.update_layout(
             title=(
                 f"{len(summary)} מועדונים זכו ב־{int(summary.titles.sum())} אליפויות; "
-                "הפיזור בין הקבוצות משתנה"
+                f"מכבי ת״א ומכבי חיפה ב־{int(maccabi)}"
             ),
             showlegend=False,
         )
@@ -228,8 +257,17 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                     row=row,
                     col=col,
                 )
+        hours = frame.xs("kickoff_hour", level="dimension")
+        late, early = hours.loc["20_plus"], hours.loc["18_to_20"]
+        overlap = max(late.goals_per_match_ci_lower, early.goals_per_match_ci_lower) <= min(
+            late.goals_per_match_ci_upper, early.goals_per_match_ci_upper
+        )
+        caveat = "בתוך טווחי אי־הוודאות" if overlap else "קשר תיאורי, לא סיבה"
         fig.update_layout(
-            title="יום ושעה מציגים קשרים תיאוריים עם טווחי אי־ודאות; אין כאן הוכחה להשפעה",
+            title=(
+                f"ב־20:00+ {late.goals_per_match:.2f} שערים מול "
+                f"{early.goals_per_match:.2f} ב־18:00–19:59; {caveat}"
+            ),
             showlegend=False,
         )
     else:

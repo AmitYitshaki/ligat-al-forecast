@@ -239,6 +239,30 @@ def home_advantage_by_season(
     return pd.DataFrame(rows).set_index("season_id", drop=True).sort_index()
 
 
+def home_advantage_periods(
+    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+) -> pd.DataFrame:
+    """Compare equal-weight season home advantages before/after 2015/16, descriptively.
+
+    Windows are 2009/10–2014/15 and 2015/16–2023/24, as requested in QA.
+    These are means of season rates, not pooled match rates or causal estimates.
+    """
+    frame = home_advantage_by_season(tables, seasons)
+    rows = []
+    for period, start, end in (("2009/10–2014/15", 11, 16), ("2015/16–2023/24", 17, 25)):
+        group = frame.loc[frame.index.to_series().between(start, end)]
+        rows.append(
+            dict(
+                period=period,
+                n_seasons=len(group),
+                n_matches=int(group.n.sum()),
+                mean_ppm_gap=group.ppm_gap.mean(),
+                mean_home_win_rate=group.home_win_rate.mean(),
+            )
+        )
+    return pd.DataFrame(rows).set_index("period", drop=True)
+
+
 def competitive_balance(
     tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
 ) -> pd.DataFrame:

@@ -327,6 +327,7 @@ team_matches ו-team_seasons; אין קריאה ישירה לטבלאות מחז
 | critical_ties | עונה; season_id | title_tie בנקודות האלופה/סגנית הרשמיות; upper_line_tie בין k/k+1 לפי ניקוד השלב הסדיר; relegation_tie בין השורדת האחרונה והיורדת הראשונה לפי המיקום הרשמי. Boolean nullable; קו העליון חסר ללא פיצול |
 | critical_ties_summary | גבול; boundary | n_seasons, n_applicable (15 לקו העליון בפיתוח המלא), n_ties. מקבל את טבלת השוויונות שכבר סוננה; אינו קובע איזה שובר שוויון הכריע |
 | home_advantage_by_season | עונה; season_id | n משחקים, home_win_rate/draw_rate/away_win_rate עם Wilson; home_goals_pm, away_goals_pm ו-goals_pm_gap; home_ppm/away_ppm = 3×שיעור ניצחון + שיעור תיקו, ppm_gap |
+| home_advantage_periods | תקופה; period | 2009/10–2014/15 (עונות 11–16) מול 2015/16–2023/24 (17–25): n_seasons, n_matches, mean_ppm_gap, mean_home_win_rate. ממוצע שווה־משקל של שיעורי העונות, לא איחוד משחקים. תקופה בלי עונות נבחרות נשארת עם n=0 וממוצעים חסרים; אלה נתונים תיאוריים, לא אומדן סיבתי |
 | era_comparison | עידן; era | n_matches, n_seasons, goals_per_match משוקלל במשחקים, draw_rate, zero_zero_rate, home_win_rate, away_win_rate, big_margin_rate (הפרש מוחלט ≥3); std_ppm ו-title_margin_ppm הם ממוצעים שווי משקל של עונות, לא חציית נקודות |
 | competitive_balance | עונה; season_id | std_ppm בין הקבוצות (סטיית תקן מדגמית), top_bottom_ppm_gap = שיעור הניקוד הגבוה פחות הנמוך; title_margin_ppm לפי האלופה/סגנית הרשמיות, ולכן עשוי להיות שלילי |
 | champions_summary | מועדון; team_id | titles לפי מקום ראשון רשמי, team_name מהעונה האחרונה שנבחרה שבה המועדון זכה. סכום 18 בפיתוח המלא |
