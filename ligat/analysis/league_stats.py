@@ -1,6 +1,6 @@
 """Development-only descriptive season statistics; never features or trained forecasts."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 import numpy as np
@@ -50,6 +50,346 @@ RATE_FLAGS = {
     "btts_rate": "btts",
     "over_2_5_rate": "over_2_5",
 }
+
+
+def _regular_points(tables: AnalysisTables, selected: list[int]) -> pd.DataFrame:
+    games = _subset(tables.team_matches, selected).reset_index()
+    return (
+        games.loc[games.stage.eq("regular")]
+        .groupby(["season_id", "team_id"], observed=True)
+        .agg(points=("points_earned", "sum"), games=("game_id", "size"))
+    )
+
+
+def _upper_boundary(regular: pd.DataFrame, k: int) -> pd.DataFrame:
+    if not 0 < k < len(regular):
+        raise ValueError("Upper playoff size must leave teams on both sides of the boundary")
+    # Points alone define the cutoff; team_id only makes tied rows reproducible.
+    return (
+        regular.sort_index()
+        .sort_values("points", ascending=False, kind="stable")
+        .iloc[k - 1 : k + 1]
+    )
+
+
+def season_thresholds(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    upper_sizes: Mapping[int, int | None],
+) -> pd.DataFrame:
+    """Describe observed objectives using full sporting points and official outcome labels.
+
+    Pass upper_sizes loaded from config/seasons.yaml outside this pure calculation.
+    Upper points are at the regular-stage boundary, other points at season end.
+    Ties use the mean games played by tied boundary teams for the descriptive ppm.
+    """
+    selected = _selection(seasons)
+    teams = _subset(tables.team_seasons, selected)
+    regular = _regular_points(tables, selected)
+    eras = _subset(tables.team_matches, selected).groupby("season_id", observed=True).era.first()
+    rows = []
+    for season, group in teams.groupby(level="season_id", observed=True):
+        if season not in upper_sizes:
+            raise ValueError(f"Missing playoff configuration for season_id={season}")
+        champion = group.loc[group.final_position.eq(1)].iloc[0]
+        runner = group.loc[group.final_position.eq(2)].iloc[0]
+        survivors = group.loc[~group.relegated]
+        relegated = group.loc[group.relegated]
+        row: dict[str, Any] = dict(
+            season_id=season,
+            era=eras.loc[season],
+            n_teams=len(group),
+            games_per_team=group.matches_played.mean(),
+            games_per_team_min=group.matches_played.min(),
+            games_per_team_max=group.matches_played.max(),
+            n_relegated=int(group.relegated.sum()),
+        )
+        for label, candidates, points in (
+            ("champion", group.loc[group.final_position.eq(1)], champion.points_from_matches),
+            ("runner_up", group.loc[group.final_position.eq(2)], runner.points_from_matches),
+            ("safety", survivors, survivors.points_from_matches.min()),
+            ("relegated_max", relegated, relegated.points_from_matches.max()),
+        ):
+            tied = candidates.loc[candidates.points_from_matches.eq(points)]
+            games = tied.matches_played.mean()
+            row.update(
+                {f"{label}_points": points, f"{label}_ppm": points / games, f"{label}_games": games}
+            )
+        row["title_margin_points"] = row["champion_points"] - row["runner_up_points"]
+        row["title_margin_ppm"] = row["champion_ppm"] - row["runner_up_ppm"]
+        row["upper_line_points"] = row["upper_line_ppm"] = row["upper_line_games"] = float("nan")
+        k = upper_sizes[int(season)]
+        if k is not None:
+            season_regular = regular.xs(season, level="season_id")
+            points = _upper_boundary(season_regular, k).points.iloc[0]
+            games = season_regular.loc[season_regular.points.eq(points), "games"].mean()
+            row.update(
+                upper_line_points=points, upper_line_ppm=points / games, upper_line_games=games
+            )
+        row["flag_inverted"] = row["relegated_max_points"] > row["safety_points"]
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("season_id", drop=True).sort_index()
+
+
+def critical_ties(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    upper_sizes: Mapping[int, int | None],
+) -> pd.DataFrame:
+    """Count equal sporting points across official title/relegation and regular playoff lines."""
+    selected = _selection(seasons)
+    thresholds = season_thresholds(tables, selected, upper_sizes=upper_sizes)
+    regular = _regular_points(tables, selected)
+    teams = _subset(tables.team_seasons, selected)
+    rows = []
+    for season, group in teams.groupby(level="season_id", observed=True):
+        survivor = group.loc[~group.relegated].sort_values("final_position").iloc[-1]
+        relegated = group.loc[group.relegated].sort_values("final_position").iloc[0]
+        upper: Any = pd.NA
+        k = upper_sizes[int(season)]
+        if k is not None:
+            boundary = _upper_boundary(regular.xs(season, level="season_id"), k)
+            upper = boundary.points.iloc[0] == boundary.points.iloc[1]
+        rows.append(
+            dict(
+                season_id=season,
+                title_tie=thresholds.loc[season, "title_margin_points"] == 0,
+                upper_line_tie=upper,
+                relegation_tie=survivor.points_from_matches == relegated.points_from_matches,
+            )
+        )
+    frame = pd.DataFrame(rows).set_index("season_id", drop=True).sort_index()
+    return frame.astype("boolean")
+
+
+def threshold_ranges(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    upper_sizes: Mapping[int, int | None],
+    era: str = "14_teams",
+) -> pd.DataFrame:
+    """Summarize observed objective totals within one era, retaining stage-specific game counts."""
+    frame = season_thresholds(tables, seasons, upper_sizes=upper_sizes)
+    frame = frame.loc[frame.era.eq(era)]
+    rows = []
+    for objective in ("champion", "upper_line", "safety", "relegated_max"):
+        points = frame[f"{objective}_points"].dropna()
+        rows.append(
+            dict(
+                objective=objective,
+                n=len(points),
+                points_min=points.min(),
+                points_median=points.median(),
+                points_max=points.max(),
+                ppm_mean=frame[f"{objective}_ppm"].mean(),
+                games_min=frame[f"{objective}_games"].min(),
+                games_max=frame[f"{objective}_games"].max(),
+            )
+        )
+    return pd.DataFrame(rows).set_index("objective", drop=True)
+
+
+def critical_ties_summary(ties: pd.DataFrame) -> pd.DataFrame:
+    """Summarize ties with the applicable-season denominator, not fictitious pre-playoff lines."""
+    rows = [
+        dict(
+            boundary=column,
+            n_seasons=len(ties),
+            n_applicable=int(ties[column].count()),
+            n_ties=int(ties[column].sum()),
+        )
+        for column in ties
+    ]
+    return pd.DataFrame(rows).set_index("boundary", drop=True)
+
+
+def _match_rates(games: pd.DataFrame) -> dict[str, Any]:
+    row: dict[str, Any] = {"n": len(games), "goals_per_match": games.total_goals.mean()}
+    for label, flag in (
+        ("home_win_rate", games.result.eq("home_win")),
+        ("draw_rate", games.result.eq("draw")),
+        ("away_win_rate", games.result.eq("away_win")),
+        ("zero_zero_rate", games.total_goals.eq(0)),
+        ("big_margin_rate", (games.home_goals - games.away_goals).abs().ge(3)),
+    ):
+        row[label], row[f"{label}_ci_lower"], row[f"{label}_ci_upper"] = rate_interval(
+            int(flag.sum()), len(games)
+        )
+    return row
+
+
+def home_advantage_by_season(
+    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+) -> pd.DataFrame:
+    """Compare home and away goals/points per match, retaining uncertainty in result rates."""
+    matches = _subset(tables.match_table, _selection(seasons))
+    rows = []
+    for season, games in matches.groupby("season_id", observed=True):
+        row = dict(season_id=season, **_match_rates(games))
+        row["home_goals_pm"] = games.home_goals.mean()
+        row["away_goals_pm"] = games.away_goals.mean()
+        row["goals_pm_gap"] = row["home_goals_pm"] - row["away_goals_pm"]
+        row["home_ppm"] = 3 * row["home_win_rate"] + row["draw_rate"]
+        row["away_ppm"] = 3 * row["away_win_rate"] + row["draw_rate"]
+        row["ppm_gap"] = row["home_ppm"] - row["away_ppm"]
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("season_id", drop=True).sort_index()
+
+
+def home_advantage_periods(
+    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+) -> pd.DataFrame:
+    """Compare equal-weight season home advantages before/after 2015/16, descriptively.
+
+    Windows are 2009/10–2014/15 and 2015/16–2023/24, as requested in QA.
+    These are means of season rates, not pooled match rates or causal estimates.
+    """
+    frame = home_advantage_by_season(tables, seasons)
+    rows = []
+    for period, start, end in (("2009/10–2014/15", 11, 16), ("2015/16–2023/24", 17, 25)):
+        group = frame.loc[frame.index.to_series().between(start, end)]
+        rows.append(
+            dict(
+                period=period,
+                n_seasons=len(group),
+                n_matches=int(group.n.sum()),
+                mean_ppm_gap=group.ppm_gap.mean(),
+                mean_home_win_rate=group.home_win_rate.mean(),
+            )
+        )
+    return pd.DataFrame(rows).set_index("period", drop=True)
+
+
+def competitive_balance(
+    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+) -> pd.DataFrame:
+    """Measure dispersion between sporting team rates without assuming official rank orders ppm."""
+    teams = _subset(tables.team_seasons, _selection(seasons))
+    rows = []
+    for season, group in teams.groupby(level="season_id", observed=True):
+        champion = group.loc[group.final_position.eq(1), "points_per_match"].iloc[0]
+        runner = group.loc[group.final_position.eq(2), "points_per_match"].iloc[0]
+        rows.append(
+            dict(
+                season_id=season,
+                std_ppm=group.points_per_match.std(),
+                top_bottom_ppm_gap=group.points_per_match.max() - group.points_per_match.min(),
+                title_margin_ppm=champion - runner,
+            )
+        )
+    return pd.DataFrame(rows).set_index("season_id", drop=True).sort_index()
+
+
+def champions_summary(
+    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+) -> pd.DataFrame:
+    """Count titles by official champion labels; names use the latest selected season."""
+    teams = _subset(tables.team_seasons, _selection(seasons)).sort_index().reset_index()
+    winners = teams.loc[teams.final_position.eq(1)]
+    return (
+        winners.groupby("team_id")
+        .agg(titles=("season_id", "size"), team_name=("team_name", "last"))
+        .sort_values("titles", ascending=False)
+    )
+
+
+def _goals_interval(games: pd.DataFrame, n_bootstrap: int) -> tuple[float, float]:
+    # Season-block bootstrap preserves within-season dependence and weights by matches.
+    grouped = games.groupby("season_id", observed=True).total_goals.agg(["sum", "count"])
+    if len(grouped) < 2:
+        return float("nan"), float("nan")
+    data = grouped.to_numpy(dtype=float)
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    sampled = data[rng.integers(len(data), size=(n_bootstrap, len(data)))].sum(axis=1)
+    estimates = sampled[:, 0] / sampled[:, 1]
+    low, high = np.quantile(estimates, [0.025, 0.975])
+    return float(low), float(high)
+
+
+def era_comparison(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+) -> pd.DataFrame:
+    """Compare match-weighted era outcomes and season-weighted competitive dispersion."""
+    selected = _selection(seasons)
+    _bootstrap_count(n_bootstrap)
+    matches = _subset(tables.match_table, selected)
+    balance = competitive_balance(tables, selected)
+    rows = []
+    for era, games in matches.groupby("era", observed=True):
+        seasons_in_era = games.season_id.unique()
+        row = dict(era=era, **_match_rates(games), n_seasons=len(seasons_in_era))
+        row["n_matches"] = row.pop("n")
+        row["std_ppm"] = balance.loc[seasons_in_era, "std_ppm"].mean()
+        row["title_margin_ppm"] = balance.loc[seasons_in_era, "title_margin_ppm"].mean()
+        row["goals_per_match_ci_lower"], row["goals_per_match_ci_upper"] = _goals_interval(
+            games, n_bootstrap
+        )
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("era", drop=True).sort_index()
+
+
+def calendar_effects(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+) -> pd.DataFrame:
+    """Describe calendar groups in Israel local time; preserve missing dates as unknown groups."""
+    games = _subset(tables.match_table, _selection(seasons))
+    _bootstrap_count(n_bootstrap)
+    dates = pd.to_datetime(games.date, utc=True).dt.tz_convert("Asia/Jerusalem")
+    games["weekday"] = dates.dt.dayofweek.map({5: "Saturday", 6: "Sunday", 0: "Monday"}).fillna(
+        "other"
+    )
+    games.loc[dates.isna(), "weekday"] = "unknown"
+    hours = dates.dt.hour
+    games["kickoff_hour"] = np.select(
+        [hours.lt(18), hours.lt(20), hours.ge(20)],
+        ["before_18", "18_to_20", "20_plus"],
+        default="unknown",
+    )
+    games["month"] = dates.dt.month.astype("Int64").astype("string").fillna("unknown")
+    rows = []
+    for dimension in ("weekday", "kickoff_hour", "month"):
+        for level, group in games.groupby(dimension, observed=True):
+            row = dict(
+                dimension=dimension,
+                level=level,
+                **_match_rates(group),
+                n_seasons=group.season_id.nunique(),
+            )
+            row["goals_per_match_ci_lower"], row["goals_per_match_ci_upper"] = _goals_interval(
+                group, n_bootstrap
+            )
+            rows.append(row)
+    return pd.DataFrame(rows).set_index(["dimension", "level"], drop=True).sort_index()
+
+
+def postponed_summary(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+) -> pd.DataFrame:
+    """Compare observed postponed matches with all others; flags are limited to the same stage."""
+    games = _subset(tables.match_table, _selection(seasons))
+    _bootstrap_count(n_bootstrap)
+    rows = []
+    for postponed, group in games.groupby("is_postponed", observed=True):
+        row = dict(
+            is_postponed=postponed, **_match_rates(group), n_seasons=group.season_id.nunique()
+        )
+        row["goals_per_match_ci_lower"], row["goals_per_match_ci_upper"] = _goals_interval(
+            group, n_bootstrap
+        )
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("is_postponed", drop=True).sort_index()
 
 
 def _selection(seasons: Iterable[int]) -> list[int]:

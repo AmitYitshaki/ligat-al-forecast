@@ -891,6 +891,21 @@ def outcome_base_rates(match_table: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def load_playoff_upper_sizes(
+    seasons_path: Path = Path("config/seasons.yaml"),
+) -> dict[int, int | None]:
+    """Load playoff cutoffs once; descriptive calculations receive this mapping explicitly."""
+    config = yaml.safe_load(seasons_path.read_text(encoding="utf-8"))
+    return {
+        int(row["season_id"]): (
+            int(row.get("playoff_groups", config["defaults"]["playoff_groups"])["upper"])
+            if "upper" in row["playoffs"]
+            else None
+        )
+        for row in config["seasons"]
+    }
+
+
 def load_analysis_tables(
     repository: Repository | None = None,
     seasons: range | list[int] = ALL_SEASONS,

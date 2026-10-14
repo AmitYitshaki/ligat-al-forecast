@@ -309,3 +309,51 @@ ci_lower, ci_upper. השיעורים ורווחי Wilson של 95% הם תיאו�
 הם תיאוריים בדיעבד; זו בדיקת סבירות לכלל prematch ולא השלמה או שינוי בכלל.
 בפעימה A אין ניתוחי מחצית או דקות שערים, ולכן ht_conflict ו-goals_available
 אינם מסננים תוצאות משחק מלא. אין שינוי בסכמות או בקונפיגורציית היורדות.
+
+## EDA-02, פעימה B — הליגה לאורך השנים
+
+תצוגות בזיכרון בלבד, באותו מודול league_stats ובאותו בסיס ספורטיבי של
+פעימה A. כל פונקציה המקבלת AnalysisTables מסננת את seasons לעונות פיתוח
+8–25 בלבד ודוחה עונות אחרות, כפילויות ורשימה ריקה. המקור הוא match_table,
+team_matches ו-team_seasons; אין קריאה ישירה לטבלאות מחזור או סיום.
+המיקומים ודגלי הירידה הרשמיים נשמרים כהקשר מהתצוגות הקיימות.
+סיכומי סוף עונה אינם קלט לחיזוי באותה עונה.
+
+| תצוגה | שורה / אינדקס | עמודות, בסיס והחרגות |
+| --- | --- | --- |
+| season_thresholds | עונה; season_id | champion/runner_up לפי final_position 1/2; safety הוא הניקוד הנמוך ביותר של שורדת, relegated_max הגבוה ביותר של יורדת. לכל יעד `_points`, `_ppm`, `_games`. title_margin_points/ppm הם אלופה פחות סגנית. n_teams, games_per_team (ממוצע), games_per_team_min/max, n_relegated ו-era |
+| upper_line בתוך season_thresholds | סף מוקדם באותה עונה | צבירת points_earned ממשחקי stage=regular בלבד; הניקוד במקום k בסדר יורד. upper_sizes מועבר במפורש לפונקציה הטהורה, מתוך load_playoff_upper_sizes הקורא config/seasons.yaml: ללא סף בעונות 8–10, k=6 בעונות 11–12 ו-14+, k=8 בעונה 13. אין שוברי שוויון בחישוב הניקוד |
+| threshold_ranges | יעד; objective | סיכום לעידן נבחר (ברירת מחדל 14_teams): n עונות עם סף זמין, points_min/median/max, ppm_mean, games_min/max. אינו הבטחה שניקוד מסוים מספיק להישרדות |
+| critical_ties | עונה; season_id | title_tie בנקודות האלופה/סגנית הרשמיות; upper_line_tie בין k/k+1 לפי ניקוד השלב הסדיר; relegation_tie בין השורדת האחרונה והיורדת הראשונה לפי המיקום הרשמי. Boolean nullable; קו העליון חסר ללא פיצול |
+| critical_ties_summary | גבול; boundary | n_seasons, n_applicable (15 לקו העליון בפיתוח המלא), n_ties. מקבל את טבלת השוויונות שכבר סוננה; אינו קובע איזה שובר שוויון הכריע |
+| home_advantage_by_season | עונה; season_id | n משחקים, home_win_rate/draw_rate/away_win_rate עם Wilson; home_goals_pm, away_goals_pm ו-goals_pm_gap; home_ppm/away_ppm = 3×שיעור ניצחון + שיעור תיקו, ppm_gap |
+| home_advantage_periods | תקופה; period | 2009/10–2014/15 (עונות 11–16) מול 2015/16–2023/24 (17–25): n_seasons, n_matches, mean_ppm_gap, mean_home_win_rate. ממוצע שווה־משקל של שיעורי העונות, לא איחוד משחקים. תקופה בלי עונות נבחרות נשארת עם n=0 וממוצעים חסרים; אלה נתונים תיאוריים, לא אומדן סיבתי |
+| era_comparison | עידן; era | n_matches, n_seasons, goals_per_match משוקלל במשחקים, draw_rate, zero_zero_rate, home_win_rate, away_win_rate, big_margin_rate (הפרש מוחלט ≥3); std_ppm ו-title_margin_ppm הם ממוצעים שווי משקל של עונות, לא חציית נקודות |
+| competitive_balance | עונה; season_id | std_ppm בין הקבוצות (סטיית תקן מדגמית), top_bottom_ppm_gap = שיעור הניקוד הגבוה פחות הנמוך; title_margin_ppm לפי האלופה/סגנית הרשמיות, ולכן עשוי להיות שלילי |
+| champions_summary | מועדון; team_id | titles לפי מקום ראשון רשמי, team_name מהעונה האחרונה שנבחרה שבה המועדון זכה. סכום 18 בפיתוח המלא |
+| calendar_effects | ממד×קטגוריה; dimension, level | weekday: Saturday/Sunday/Monday/other; kickoff_hour: before_18/18_to_20/20_plus; month: 1–12 כמחרוזת. תאריך מומר ל-Asia/Jerusalem, כולל תזוזת יום בחצות. n, n_seasons, goals_per_match ושיעורי תוצאות; תאריך חסר נשמר בקבוצת unknown בכל ממד, אינו מומצא או מושמט |
+| postponed_summary | דגל דחייה; is_postponed | n, n_seasons, goals_per_match ושיעורי תוצאות מול שאר המשחקים. משתמש ב-is_postponed המתוקן: המחזור הבא באותו stage בלבד; 49 נדחים בפיתוח |
+
+`flag_inverted` מסומן כש-relegated_max_points > safety_points; אין כישלון
+בגלל סדר זה. גם upper_line_points יכול להיות נמוך מ-safety_points הסופי:
+הם נמדדים בזמנים שונים. בפיתוח זה קורה בעונות 20 ו-25. בעונה 18 יורדת
+צברה 38 נקודות על המגרש לעומת שורדת עם 32; ובעונה 11 האלופה הרשמית
+צברה 84 לעומת 87 לסגנית, כאשר כאן לא חוצים את הנקודות ההיסטוריות.
+
+לכל סף הניקוד נלקח מהקבוצה/ות המתאימות. אם כמה קבוצות באותו ניקוד על
+הסף, `_games` הוא ממוצע מספר המשחקים שלהן ו-`_ppm` הוא הניקוד חלקי
+ממוצע זה; אינו בחירה של שובר שוויון. title_margin_ppm הוא הפרש שני
+השיעורים, ולא חלוקת הפרש הנקודות במספר משחקים משותף שרירותי.
+
+כל שיעור בתצוגות B מקבל `<rate>_ci_lower/upper` של 95% Wilson, עם n
+משחקים כמכנה. ממוצעי השערים ב-era_comparison, calendar_effects
+ו-postponed_summary מקבלים goals_per_match_ci_lower/upper מ-bootstrap
+של בלוקי עונה (סכומי שערים ומספר משחקים יחד, לשמירת המשקל במשחקים).
+ברירת המחדל n_bootstrap=2000, זרע 20261014; הטסטים משתמשים ב-50.
+פחות משתי עונות → רווח ממוצע חסר. אין תיקון להשוואות מרובות, ואין
+פרשנות סיבתית ליום, שעה, עידן או דחייה.
+
+season_summary הקיימת משמשת ישירות לתצוגת מגמות שערים, תיקו, 0:0,
+שערי פנדל ואדומים; ערכים אלה אינם מחושבים מחדש בפעימה B. ניתוחי
+תוצאות מלאות אינם מסננים ht_conflict או goals_available; אין כאן ניתוח
+תזמון שערים או מחצית. אין שינוי ב-data/clean או בקונפיגורציית הירידה.
