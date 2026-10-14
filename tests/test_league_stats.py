@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from ligat.analysis import league_stats as stats
+from ligat.analysis.league_stats.season_course import _pregame_rates
 from ligat.analysis.prepare import (
     DEVELOPMENT_SEASONS,
     AnalysisTables,
@@ -18,6 +19,293 @@ from ligat.analysis.prepare import (
 from ligat.data.repository import Repository
 from ligat.viz.league_history import chapter_b_chart
 from ligat.viz.league_stats import chapter_a_chart
+from ligat.viz.season_course import chapter_c_chart
+
+C_FUNCTIONS = [
+    stats.standings_by_match_number,
+    stats.table_settling,
+    stats.split_movement,
+    stats.split_summary,
+    stats.stage_comparison,
+    stats.playoff_form,
+    stats.final_rounds_check,
+    stats.season_points_race,
+]
+
+
+def _run_c(
+    function: Any, tables: AnalysisTables, seasons: Any = DEVELOPMENT_SEASONS
+) -> pd.DataFrame:
+    options: dict[str, Any] = {}
+    if function in (stats.table_settling, stats.split_movement, stats.split_summary):
+        options["upper_sizes"] = {8: None, 11: 2}
+    if function in (stats.table_settling, stats.stage_comparison, stats.final_rounds_check):
+        options["n_bootstrap"] = 50
+    return function(tables, seasons, **options)
+
+
+@pytest.fixture
+def course_tables() -> AnalysisTables:
+    matches, teams, finals = [], [], []
+    for season in (8, 11):
+        schedule = [
+            (1, 2, 2, 0, 1, "regular"),
+            (3, 4, 1, 1, 1, "regular"),
+            (1, 3, 0, 0, 2, "regular"),
+            (2, 4, 1, 0, 2, "regular"),
+            (1, 4, 0, 0, 3, "regular"),
+            (2, 3, 0, 0, 3, "regular"),
+        ]
+        if season == 11:
+            schedule += [(1, 2, 0, 1, 4, "upper"), (3, 4, 0, 1, 4, "lower")]
+        for i, (home, away, hg, ag, round_id, stage) in enumerate(schedule):
+            game_id = season * 100 + i
+            date = pd.Timestamp(f"2020-09-{round_id:02d} 20:00", tz="Asia/Jerusalem")
+            matches.append(
+                dict(
+                    game_id=game_id,
+                    season_id=season,
+                    stage=stage,
+                    round=round_id,
+                    date=date,
+                    home_team_id=home,
+                    away_team_id=away,
+                    home_goals=hg,
+                    away_goals=ag,
+                    total_goals=hg + ag,
+                    era="12_teams" if season == 8 else "16_teams",
+                    result="home_win" if hg > ag else "away_win" if hg < ag else "draw",
+                )
+            )
+            for team, scored, conceded in ((home, hg, ag), (away, ag, hg)):
+                teams.append(
+                    dict(
+                        team_id=team,
+                        game_id=game_id,
+                        season_id=season,
+                        stage=stage,
+                        date=date,
+                        era=matches[-1]["era"],
+                        goals_scored=scored,
+                        goals_conceded=conceded,
+                        goal_difference=scored - conceded,
+                        points_earned=3 if scored > conceded else 0 if scored < conceded else 1,
+                    )
+                )
+        positions = {1: 1, 2: 2, 3: 3, 4: 4} if season == 8 else {1: 2, 2: 1, 3: 4, 4: 3}
+        for team, position in positions.items():
+            finals.append(
+                dict(
+                    season_id=season,
+                    team_id=team,
+                    team_name=f"Club {team}",
+                    final_position=position,
+                    relegated=position == 4,
+                    final_stage="regular" if season == 8 else "upper" if team <= 2 else "lower",
+                )
+            )
+    empty = pd.DataFrame()
+    return AnalysisTables(
+        pd.DataFrame(matches).set_index("game_id", drop=True),
+        pd.DataFrame(teams).set_index(["team_id", "game_id"], drop=True),
+        empty,
+        pd.DataFrame(finals).set_index(["season_id", "team_id"], drop=True),
+        empty,
+        empty,
+    )
+
+
+@pytest.mark.parametrize("function", C_FUNCTIONS)
+@pytest.mark.parametrize("seasons", [[26], [27], [28], [8, 26], [], [8, 8]])
+def test_course_development_scope(
+    function: Any, seasons: list[int], course_tables: AnalysisTables
+) -> None:
+    with pytest.raises(ValueError, match="development"):
+        _run_c(function, course_tables, seasons)
+
+
+def test_course_known_standings_and_short_games(course_tables: AnalysisTables) -> None:
+    frame = stats.standings_by_match_number(course_tables)
+    assert frame.loc[(8, 3, 1), "points"] == 5
+    assert frame.loc[(8, 3, 1), "goal_difference"] == 2
+    assert frame.loc[(8, 3, 1), "goals_scored"] == 2
+    assert frame.loc[(8, 1, 3), "rank"] == 2.5  # Full tie with club 4.
+    assert frame.loc[(8, 1, 4), "rank"] == 2.5
+    assert frame["rank"].between(1, 4).all()
+    assert frame.groupby(level=["season_id", "team_id"]).points.diff().dropna().ge(0).all()
+    shortened = course_tables.team_matches.drop(index=[(1, 804), (4, 804)])
+    short = stats.standings_by_match_number(replace(course_tables, team_matches=shortened))
+    assert short.loc[(8, 3, 1), "games_short"] and short.loc[(8, 3, 4), "games_short"]
+    assert short.loc[(8, 3, 1), "points"] == short.loc[(8, 2, 1), "points"] == 4
+    assert short.loc[(8, 3, 1), "games_played"] == 2
+    with pytest.raises(ValueError, match="Unknown stage"):
+        stats.standings_by_match_number(course_tables, stage="bad")
+
+
+def test_course_ties_and_split_labels(course_tables: AnalysisTables) -> None:
+    settling = _run_c(stats.table_settling, course_tables)
+    assert settling.loc[("12_teams", 3), "spearman_mean"] == pytest.approx(1)
+    assert settling.xs("12_teams", level="era").in_upper_line_stayed_rate.isna().all()
+    assert settling.loc[("16_teams", 3), "leader_won_title_rate"] == 0
+    assert settling.loc[("16_teams", 3), "in_upper_line_stayed_rate"] == 1
+    movement = _run_c(stats.split_movement, course_tables)
+    assert set(movement.index.get_level_values("season_id")) == {11}
+    assert movement.loc[(11, 1), "move"] == -1 and movement.loc[(11, 2), "move"] == 1
+    assert movement.points_halved.all()
+    summary = _run_c(stats.split_summary, course_tables)
+    assert summary.leader_n.eq(1).all() and summary.leader_won_count.eq(0).all()
+    ties = course_tables.team_matches.copy()
+    ties["points_earned"] = 1
+    ties["goal_difference"] = 0
+    ties["goals_scored"] = 0
+    result = _run_c(stats.table_settling, replace(course_tables, team_matches=ties))
+    assert result.leader_won_title_rate.isna().all()
+    assert result.leader_won_title_rate_tied.eq(1).all()
+    assert result.in_upper_line_stayed_rate.isna().all()
+
+
+def test_course_stage_form_and_upsets(course_tables: AnalysisTables) -> None:
+    stages = _run_c(stats.stage_comparison, course_tables)
+    assert stages.n_matches.to_dict() == {"lower": 1, "regular": 12, "upper": 1}
+    assert stages.loc["regular", "one_one_rate"] == pytest.approx(1 / 6)
+    form = stats.playoff_form(course_tables)
+    assert form.loc[(11, 1), "ppm_regular"] == pytest.approx(5 / 3)
+    assert form.loc[(11, 1), "ppm_playoff"] == 0
+    assert form.loc[(11, 2), "ppm_playoff"] == 3
+    final = stats.final_rounds_check(course_tables, last_n=1, n_bootstrap=50)
+    assert final.n.sum() == 14
+    assert final.loc[("regular", "last"), "n"] == 4
+    assert final.loc[("upper", "last"), "upset_rate"] == 1
+    assert final.loc[("lower", "last"), "upset_rate"] == 1
+    assert final.loc[("regular", "rest"), "upset_n"] == 4
+    assert final.loc[("regular", "rest"), "upset_count"] == 2
+    with pytest.raises(ValueError, match="last_n"):
+        stats.final_rounds_check(course_tables, last_n=0)
+
+
+def test_course_upsets_use_strictly_prior_results(course_tables: AnalysisTables) -> None:
+    original = _pregame_rates(course_tables, [8, 11])
+    changed = course_tables.team_matches.copy()
+    changed.loc[(1, 1102), "points_earned"] = 0
+    changed.loc[(3, 1102), "points_earned"] = 3
+    new = _pregame_rates(replace(course_tables, team_matches=changed), [8, 11])
+    pd.testing.assert_frame_equal(original.loc[[1102, 1103]], new.loc[[1102, 1103]])
+    assert original.loc[(1104, 1), "ppm_before"] != new.loc[(1104, 1), "ppm_before"]
+
+
+@pytest.mark.parametrize("function", C_FUNCTIONS)
+def test_course_indices_input_immutability_and_holdouts(
+    function: Any, course_tables: AnalysisTables
+) -> None:
+    original = [
+        f.copy(deep=True)
+        for f in (course_tables.match_table, course_tables.team_matches, course_tables.team_seasons)
+    ]
+
+    def heldout(frame: pd.DataFrame) -> pd.DataFrame:
+        extra = frame.reset_index()
+        extra["season_id"] = 26
+        extra = extra.drop_duplicates(list(frame.index.names)).set_index(
+            list(frame.index.names), drop=True
+        )
+        return pd.concat([frame, extra])
+
+    contaminated = replace(
+        course_tables,
+        match_table=heldout(course_tables.match_table),
+        team_matches=heldout(course_tables.team_matches),
+        team_seasons=heldout(course_tables.team_seasons),
+    )
+    result = _run_c(function, course_tables)
+    pd.testing.assert_frame_equal(result, _run_c(function, contaminated))
+    assert result.index.is_unique and not set(result.index.names) & set(result.columns)
+    for old, new in zip(
+        original,
+        (course_tables.match_table, course_tables.team_matches, course_tables.team_seasons),
+        strict=True,
+    ):
+        pd.testing.assert_frame_equal(old, new)
+
+
+def test_course_real_invariants(real_tables: AnalysisTables) -> None:
+    sizes = load_playoff_upper_sizes()
+    standings = stats.standings_by_match_number(real_tables)
+    last = standings.reset_index().groupby("season_id").k.transform("max")
+    totals = standings.reset_index().loc[lambda g: g.k.eq(last)].set_index(["season_id", "team_id"])
+    expected = (
+        real_tables.team_matches.loc[real_tables.team_matches.stage.eq("regular")]
+        .reset_index()
+        .groupby(["season_id", "team_id"])
+        .points_earned.sum()
+    )
+    pd.testing.assert_series_equal(
+        totals.points.astype("Int64"), expected.astype("Int64"), check_names=False
+    )
+    assert standings.groupby(level=["season_id", "team_id"]).points.diff().dropna().ge(0).all()
+    settling = stats.table_settling(real_tables, upper_sizes=sizes, n_bootstrap=50)
+    assert settling.spearman_mean.between(-1, 1).all()
+    assert settling.loc[("12_teams", 33), "spearman_mean"] >= 0.99
+    assert settling.xs("12_teams", level="era").in_upper_line_stayed_rate.isna().all()
+    movement = stats.split_movement(real_tables, upper_sizes=sizes)
+    assert set(movement.index.get_level_values("season_id")) == set(range(11, 26))
+    for season, group in movement.groupby(level="season_id", observed=True):
+        cutoff = sizes[int(season)]
+        assert cutoff is not None
+        assert group.loc[group.group.eq("upper"), "final_position"].between(1, cutoff).all()
+        middle = group.loc[group.group.eq("middle")]
+        if not middle.empty:
+            assert int(season) in (11, 12) and middle.final_position.between(7, 10).all()
+        lower_start = 11 if int(season) in (11, 12) else cutoff + 1
+        assert (
+            group.loc[group.group.eq("lower"), "final_position"]
+            .between(lower_start, len(group))
+            .all()
+        )
+    stages = stats.stage_comparison(real_tables, n_bootstrap=50)
+    assert stages.n_matches.sum() == 4315 and stages.loc["middle", "n_matches"] == 12
+    assert set(
+        real_tables.match_table.loc[real_tables.match_table.stage.eq("middle"), "season_id"]
+    ) == {11, 12}
+    rounds = stats.final_rounds_check(real_tables, n_bootstrap=50)
+    pd.testing.assert_series_equal(
+        rounds.groupby(level="stage").n.sum().sort_index(),
+        stages.n_matches.sort_index(),
+        check_names=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "function", [stats.table_settling, stats.stage_comparison, stats.final_rounds_check]
+)
+def test_course_bootstrap_count(function: Any, course_tables: AnalysisTables) -> None:
+    small = _run_c(function, course_tables)
+    pd.testing.assert_frame_equal(small, _run_c(function, course_tables))
+    options = {"upper_sizes": {8: None, 11: 2}} if function is stats.table_settling else {}
+    with pytest.raises(ValueError, match="n_bootstrap"):
+        function(course_tables, n_bootstrap=0, **options)
+
+
+def test_course_chart_contracts(course_tables: AnalysisTables) -> None:
+    settling = _run_c(stats.table_settling, course_tables)
+    movement = _run_c(stats.split_movement, course_tables)
+    summary = _run_c(stats.split_summary, course_tables)
+    stages = _run_c(stats.stage_comparison, course_tables)
+    form = stats.playoff_form(course_tables)
+    final = _run_c(stats.final_rounds_check, course_tables)
+    race = stats.season_points_race(course_tables, [11])
+    for kind, frame, extra in [
+        ("settling", settling, None),
+        ("leaders", settling, None),
+        ("movement", movement, summary),
+        ("stages", stages, None),
+        ("form", form, None),
+        ("last_rounds", final, None),
+        ("race", race, None),
+    ]:
+        fig = chapter_c_chart(kind, frame, extra)
+        assert fig.data and any(c.isdigit() for c in fig.layout.title.text)
+        assert fig.to_json()
+
 
 B_FUNCTIONS = [
     stats.season_thresholds,
