@@ -40,7 +40,7 @@ class Repository:
             temporary.unlink(missing_ok=True)
 
     def read_filtered(self, name: str, filters: list[tuple[str, str, Any]]) -> pd.DataFrame:
-        """Push filters into Parquet loading so analysis never loads held-out rows."""
+        """Push explicit season/game selections into Parquet loading before validation."""
         if not filters:
             raise ValueError("Filtered repository reads require an explicit selection")
         schema = SCHEMAS[name]

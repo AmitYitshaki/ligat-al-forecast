@@ -2,11 +2,14 @@
 
 import json
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import nbformat
+import pytest
 from jupyter_client import KernelManager
 from jupyter_client.kernelspec import KernelSpecManager
 
@@ -88,3 +91,38 @@ def test_venv_kernel_plotly_and_output_stripping(tmp_path: Path) -> None:
     finally:
         client.stop_channels()
         manager.shutdown_kernel(now=True)
+
+
+main = runpy.run_path(
+    str(Path(__file__).resolve().parents[1] / "scripts/check_notebook_outputs.py")
+)["main"]
+
+
+@pytest.mark.parametrize("staged_clean", [True, False])
+def test_hook_preserves_local_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    staged_clean: bool,
+) -> None:
+    notebook = nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell("1 + 1")])
+    notebook.cells[0].execution_count = 1
+    notebook.cells[0].outputs = [
+        nbformat.v4.new_output("execute_result", data={"text/plain": "2"}, execution_count=1)
+    ]
+    path = tmp_path / "executed.ipynb"
+    nbformat.write(notebook, path)
+    original = path.read_bytes()
+    run = subprocess.run
+    clean = run(
+        [sys.executable, "-m", "nbstripout"], input=original, capture_output=True, check=True
+    ).stdout
+    staged = clean if staged_clean else original
+
+    def fake_git(args: list[str], **kwargs: Any) -> Any:
+        if args[0] == "git":
+            return subprocess.CompletedProcess(args, 0, stdout=staged)
+        return run(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fake_git)
+    assert main([str(path)]) == (0 if staged_clean else 1)
+    assert path.read_bytes() == original
