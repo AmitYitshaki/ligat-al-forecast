@@ -79,13 +79,21 @@ def rate_interval(count: int, n: int) -> tuple[float, float, float]:
     return count / n, float(low), float(high)
 
 
-def _mean_interval(values: pd.Series) -> tuple[float, float]:
+def _bootstrap_count(n_bootstrap: int) -> None:
+    if n_bootstrap < 1:
+        raise ValueError("n_bootstrap must be positive")
+
+
+def _mean_interval(
+    values: pd.Series, n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS
+) -> tuple[float, float]:
+    _bootstrap_count(n_bootstrap)
     data = values.dropna().to_numpy(dtype=float)
     if len(data) < 2:
         return float("nan"), float("nan")
     # Fixed seed; resampling season observations, not treating all matches as independent.
     rng = np.random.default_rng(BOOTSTRAP_SEED)
-    samples = rng.choice(data, size=(MEAN_BOOTSTRAP_DRAWS, len(data)), replace=True).mean(axis=1)
+    samples = rng.choice(data, size=(n_bootstrap, len(data)), replace=True).mean(axis=1)
     low, high = np.quantile(samples, [0.025, 0.975])
     return float(low), float(high)
 
@@ -136,7 +144,10 @@ def team_season_stats(
 
 
 def position_profile(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
     """Compare official finishing places within 12/16/14-team eras using sporting rates."""
     source = team_season_stats(tables, seasons).reset_index()
@@ -148,7 +159,9 @@ def position_profile(
             values = group[metric]
             for operation in ("mean", "median", "min", "max"):
                 row[f"{metric}_{operation}"] = getattr(values, operation)()
-            row[f"{metric}_ci_lower"], row[f"{metric}_ci_upper"] = _mean_interval(values)
+            row[f"{metric}_ci_lower"], row[f"{metric}_ci_upper"] = _mean_interval(
+                values, n_bootstrap
+            )
         rows.append(row)
     return pd.DataFrame(rows).set_index(["era", "final_position"], drop=True).sort_index()
 
@@ -179,7 +192,13 @@ def season_persistence(
     ).set_index(["season_id", "team_id"], drop=True)
 
 
-def _relationship(frame: pd.DataFrame, x: str, y: str, intervals: bool = False) -> dict[str, Any]:
+def _relationship(
+    frame: pd.DataFrame,
+    x: str,
+    y: str,
+    intervals: bool = False,
+    n_bootstrap: int = RELATIONSHIP_BOOTSTRAP_DRAWS,
+) -> dict[str, Any]:
     complete = frame[[x, y]].dropna().astype(float)
     row: dict[str, Any] = {
         "n": len(complete),
@@ -200,12 +219,13 @@ def _relationship(frame: pd.DataFrame, x: str, y: str, intervals: bool = False) 
                 spearman=complete[x].corr(complete[y], method="spearman"),
             )
     if intervals:
+        _bootstrap_count(n_bootstrap)
         blocks = list(complete.groupby(level="season_id").indices.values())
         row["n_seasons"] = len(blocks)
         draws: dict[str, list[float]] = {metric: [] for metric in ("pearson", "spearman", "slope")}
         if len(blocks) >= 2 and np.isfinite(row["slope"]):
             rng = np.random.default_rng(BOOTSTRAP_SEED)
-            for _ in range(RELATIONSHIP_BOOTSTRAP_DRAWS):
+            for _ in range(n_bootstrap):
                 indices = np.concatenate(
                     [blocks[i] for i in rng.integers(len(blocks), size=len(blocks))]
                 )
@@ -220,15 +240,23 @@ def _relationship(frame: pd.DataFrame, x: str, y: str, intervals: bool = False) 
 
 
 def persistence_summary(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = RELATIONSHIP_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
     """Summarize sporting persistence; a slope alone does not prove perfect prediction."""
     pairs = season_persistence(tables, seasons)
     rows = [
-        {"relationship": "ppm", **_relationship(pairs, "ppm_prev", "ppm_t", intervals=True)},
+        {
+            "relationship": "ppm",
+            **_relationship(pairs, "ppm_prev", "ppm_t", intervals=True, n_bootstrap=n_bootstrap),
+        },
         {
             "relationship": "position",
-            **_relationship(pairs, "position_prev", "position_t", intervals=True),
+            **_relationship(
+                pairs, "position_prev", "position_t", intervals=True, n_bootstrap=n_bootstrap
+            ),
         },
     ]
     return pd.DataFrame(rows).set_index("relationship", drop=True)
@@ -257,12 +285,20 @@ def value_vs_performance(
 
 
 def value_summary(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = RELATIONSHIP_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
     """Report complete-pair counts for prior/current value and squad-size associations."""
     frame = value_vs_performance(tables, seasons)
     rows = [
-        {"relationship": name, **_relationship(frame, name, "points_per_match", intervals=True)}
+        {
+            "relationship": name,
+            **_relationship(
+                frame, name, "points_per_match", intervals=True, n_bootstrap=n_bootstrap
+            ),
+        }
         for name in ("prev_season_value_share", "value_share_of_league", "squad_size")
     ]
     return pd.DataFrame(rows).set_index("relationship", drop=True)
@@ -271,17 +307,30 @@ def value_summary(
 def promoted_value_check(
     tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
 ) -> pd.DataFrame:
-    """Retrospective sanity check of a promoted-club value rule; does not impute features."""
-    frame = team_season_stats(tables, seasons)
-    benchmarks = {}
+    """Compare actual t value with t-1 bottom-half median; never use the entrant in its reference.
+
+    Only available shares enter a median; odd reference counts use floor(n/2).
+    The same-t median excluding promoted clubs is a secondary descriptive comparison.
+    """
+    selected = _selection(seasons)
+    context = sorted(set(selected) | {s - 1 for s in selected if s - 1 in DEVELOPMENT_SEASONS})
+    frame = _subset(tables.team_seasons, context)
+    benchmarks, same_season = {}, {}
     for season, group in frame.groupby(level="season_id"):
         shares = group.value_share_of_league.dropna().sort_values()
-        # Bottom half of observed values; an odd observed count uses floor(n/2).
         benchmarks[season] = shares.iloc[: len(shares) // 2].median()
+        incumbent = (
+            group.loc[~group.promoted_in.fillna(False)].value_share_of_league.dropna().sort_values()
+        )
+        same_season[season] = incumbent.iloc[: len(incumbent) // 2].median()
+    frame = _subset(frame, selected)
     frame = frame.loc[frame.promoted_in.eq(True)].copy()
     frame = frame.loc[frame.index.get_level_values("season_id") > 8]
     frame = frame[["team_name", "value_share_of_league"]]
-    frame["imputed_share"] = frame.index.get_level_values("season_id").map(benchmarks)
+    frame["imputed_share"] = (frame.index.get_level_values("season_id") - 1).map(benchmarks)
+    frame["same_season_share_excl_promoted"] = frame.index.get_level_values("season_id").map(
+        same_season
+    )
     frame["diff"] = frame.value_share_of_league - frame.imputed_share
     frame["ratio"] = frame.value_share_of_league / frame.imputed_share.where(
         frame.imputed_share.gt(0)
@@ -312,13 +361,16 @@ def promoted_value_summary(
 
 
 def team_consistency(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
     """Describe equal-weight season consistency and observed promotions, not latent ability."""
     frame = team_season_stats(tables, seasons)
     rows = []
     for team, group in frame.groupby(level="team_id"):
-        low, high = _mean_interval(group.points_per_match)
+        low, high = _mean_interval(group.points_per_match, n_bootstrap)
         rows.append(
             {
                 "team_id": team,
@@ -341,7 +393,10 @@ def team_consistency(
 
 
 def team_style_profile(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
     """Equal-season BTTS/over-2.5 averages for clubs with at least five observed seasons."""
     frame = team_season_stats(tables, seasons)
@@ -357,7 +412,9 @@ def team_style_profile(
         }
         for metric in ("btts_rate", "over_2_5_rate"):
             row[metric] = group[metric].mean()
-            row[f"{metric}_ci_lower"], row[f"{metric}_ci_upper"] = _mean_interval(group[metric])
+            row[f"{metric}_ci_lower"], row[f"{metric}_ci_upper"] = _mean_interval(
+                group[metric], n_bootstrap
+            )
         rows.append(row)
     columns = [
         "team_id",

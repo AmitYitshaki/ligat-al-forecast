@@ -283,7 +283,7 @@ ci_lower, ci_upper. השיעורים ורווחי Wilson של 95% הם תיאו�
 | persistence_summary | קשר; relationship=ppm/position | n לזוגות מלאים, n_seasons, pearson, spearman, slope, intercept ורווחי 95% למתאמים ולשיפוע. שיפוע ההתמדה אינו אחוז דיוק או הוכחת סיבתיות |
 | value_vs_performance | קבוצה×עונה; season_id, team_id | נתח שווי קודם ונתח אותה עונה, ppm, מיקום, squad_size; expected_ppm לפי רגרסיה תיאורית של ppm על נתח קודם; over_under=ppm−expected_ppm. השארית בתוך המדגם, ללא הערכת תחזית |
 | value_summary | קשר; relationship=prev_season_value_share/value_share_of_league/squad_size | n לזוגות מלאים, n_seasons, מתאמים, רגרסיה תיאורית ורווחי 95%. נתח אותה עונה כולל מידע סוף עונה ואינו קלט למודל באותה עונה |
-| promoted_value_check | עולה×עונה; season_id, team_id | רק promoted_in=True ובעונות 9–25: נתח אותה עונה, imputed_share כחציון החצי התחתון לפי שווי באותה עונה, diff=ממשי−כלל, ratio=ממשי/כלל. לא מתבצעת השלמה בפועל |
+| promoted_value_check | עולה×עונה; season_id, team_id | רק promoted_in=True ובעונות 9–25: נתח שווי בעונה t, imputed_share כחציון החצי התחתון של הליגה בעונת t−1; same_season_share_excl_promoted הוא חציון החצי התחתון בעונה t לאחר הסרת כל העולות, להשוואה משנית בלבד. diff=ממשי−כלל t−1, ratio=ממשי/כלל t−1. לא מתבצעת השלמה בפועל |
 | promoted_value_summary | סיכום; scope=promoted | n לזוגות מלאים, n_missing, median_diff ו-fraction_below בטווח 0–1 עם רווח Wilson. המקור החסר אינו אפס ואינו נכנס למכנה |
 | team_consistency | קבוצה; team_id | seasons, mean_ppm ו-std_ppm בין עונות (חסר בפחות מ-3), רווח ממוצע, מיקומי שיא/שפל רשמיים, titles, top3_seasons, relegations, promotions ו-is_yoyo (לפחות שתי עליות נצפות בפיתוח) |
 | team_style_profile | קבוצה עם לפחות 5 עונות; team_id | ממוצעים עונתיים שווי משקל של btts_rate ו-over_2_5_rate, רווחי 95%, n_seasons ו-n_matches. זו אינה חלוקה בסך המשחקים בכל העונות |
@@ -295,12 +295,17 @@ ci_lower, ci_upper. השיעורים ורווחי Wilson של 95% הם תיאו�
 
 רווחי ממוצעי עונות מבוססים על 2,000 דגימות bootstrap של תצפיות עונה.
 רווחי קשרים מבוססים על 1,000 דגימות של בלוקי עונה עם כל הקבוצות באותו בלוק.
+אלה ברירות המחדל במחברת; `n_bootstrap` מאפשר לבחור מספר דגימות חיובי
+ב-position_profile, persistence_summary, value_summary, team_consistency
+ו-team_style_profile. הטסטים משתמשים ב-50 דגימות, ללא שינוי אומדני המרכז.
 הזרע קבוע (20261014); הרווחים שוליים, ללא תיקון להשוואות מרובות, ואינם
 מבטלים את התלות בין עונות של אותה קבוצה. פחות משתי עונות או שונות אפס
 מניבים רווח/מתאם חסר לפי העניין.
 
 בבדיקת העולות, ערכי שווי חסרים נשארים חסרים. החצי התחתון נבחר רק מערכים
-זמינים לפי השווי, ובמספר אי-זוגי גודלו floor(n/2). ערך הכלל אינו ידוע מראש
-ביום משחק: זו בדיקת סבירות בדיעבד ולא חישוב פיצ'ר prematch.
+זמינים לפי השווי, ובמספר אי-זוגי גודלו floor(n/2). ערך הכלל נלקח מהעונה
+הקודמת: עולות עונה 9 משתמשות בעונה 8, גם כאשר מבקשים רק את עונת העלייה.
+העולה אינה חלק מליגת t−1. השווי בפועל בעונה t וההשוואה המשנית ללא עולות
+הם תיאוריים בדיעבד; זו בדיקת סבירות לכלל prematch ולא השלמה או שינוי בכלל.
 בפעימה A אין ניתוחי מחצית או דקות שערים, ולכן ht_conflict ו-goals_available
 אינם מסננים תוצאות משחק מלא. אין שינוי בסכמות או בקונפיגורציית היורדות.

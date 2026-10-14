@@ -159,7 +159,7 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 f"ב-{len(data)} קבוצות עם לפחות 5 עונות: ממוצע BTTS הוא "
                 f"{data.btts_rate.mean():.1%}; רווחי 95% לממוצעי העונות"
             ),
-            yaxis_title="ממוצע שיעור עונתי; bootstrap של עונות",
+            yaxis_title="ממוצע שיעור עונתי, עם טווח אי-ודאות",
             xaxis_title="קבוצה, ללא דירוג סיבתי",
         )
         fig.update_yaxes(tickformat=".0%")
@@ -232,7 +232,7 @@ def chapter_a_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 "השווי נמוך מערך הכלל; בדיעבד"
             ),
             labels={
-                "imputed_share": "חציון החצי התחתון לפי שווי באותה עונה",
+                "imputed_share": "ערך הכלל לפי שווי בעונה הקודמת",
                 "value_share_of_league": "נתח שווי סגל ממשי באותה עונה",
             },
         )

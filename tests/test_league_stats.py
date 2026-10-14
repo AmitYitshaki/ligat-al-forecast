@@ -30,6 +30,19 @@ FUNCTIONS = [
     stats.team_style_profile,
 ]
 
+BOOTSTRAP_FUNCTIONS = {
+    stats.position_profile,
+    stats.persistence_summary,
+    stats.value_summary,
+    stats.team_consistency,
+    stats.team_style_profile,
+}
+
+
+def _run(function: Any, tables: AnalysisTables) -> pd.DataFrame:
+    options = {"n_bootstrap": 50} if function in BOOTSTRAP_FUNCTIONS else {}
+    return function(tables, **options)
+
 
 @pytest.fixture
 def synthetic_tables() -> AnalysisTables:
@@ -125,7 +138,7 @@ def test_known_score_rates_and_input_immutability(synthetic_tables: AnalysisTabl
         assert output[f"{rate}_ci_lower"].le(output[rate]).all()
         assert output[f"{rate}_ci_upper"].ge(output[rate]).all()
     for function in FUNCTIONS:
-        frame = function(synthetic_tables)
+        frame = _run(function, synthetic_tables)
         assert frame.index.is_unique
         assert not set(frame.index.names) & set(frame.columns)
     pd.testing.assert_frame_equal(before, synthetic_tables.team_matches)
@@ -150,20 +163,20 @@ def test_value_regression_missing_and_constant_inputs(synthetic_tables: Analysis
     assert result.expected_ppm.isna().all()
     assert result.over_under.isna().all()
     seasons["prev_season_value_share"] = pd.NA
-    summary = stats.value_summary(replace(synthetic_tables, team_seasons=seasons))
+    summary = stats.value_summary(replace(synthetic_tables, team_seasons=seasons), n_bootstrap=50)
     assert summary.loc["prev_season_value_share", "n"] == 0
 
 
 def test_promoted_benchmark_and_consistency(synthetic_tables: AnalysisTables) -> None:
     promoted = stats.promoted_value_check(synthetic_tables)
     assert promoted.index.tolist() == [(9, 2), (11, 2)]
-    assert promoted["diff"].eq(0).all() and promoted.ratio.eq(1).all()
-    assert stats.promoted_value_summary(synthetic_tables).loc["promoted", "fraction_below"] == 0
-    consistent = stats.team_consistency(synthetic_tables)
+    assert promoted["diff"].lt(0).all() and promoted.ratio.lt(1).all()
+    assert stats.promoted_value_summary(synthetic_tables).loc["promoted", "fraction_below"] == 1
+    consistent = stats.team_consistency(synthetic_tables, n_bootstrap=50)
     assert consistent.loc[2, "promotions"] == 2 and consistent.loc[2, "is_yoyo"]
-    assert stats.team_consistency(synthetic_tables, [8, 9]).std_ppm.isna().all()
-    assert len(stats.team_style_profile(synthetic_tables)) == 2
-    assert stats.team_style_profile(synthetic_tables, [8, 9]).empty
+    assert stats.team_consistency(synthetic_tables, [8, 9], n_bootstrap=50).std_ppm.isna().all()
+    assert len(stats.team_style_profile(synthetic_tables, n_bootstrap=50)) == 2
+    assert stats.team_style_profile(synthetic_tables, [8, 9], n_bootstrap=50).empty
 
 
 def test_wilson_edge_cases() -> None:
@@ -174,11 +187,70 @@ def test_wilson_edge_cases() -> None:
         stats.rate_interval(11, 10)
 
 
+def test_promoted_reference_is_previous_season_and_excludes_current_entrants(
+    synthetic_tables: AnalysisTables,
+) -> None:
+    rows = [
+        (8, 1, 0.1, pd.NA),
+        (8, 2, 0.2, pd.NA),
+        (8, 3, 0.3, pd.NA),
+        (8, 4, 0.4, pd.NA),
+        (9, 1, 0.2, False),
+        (9, 2, 0.3, False),
+        (9, 5, 0.5, True),
+    ]
+    seasons = pd.DataFrame(
+        rows, columns=["season_id", "team_id", "value_share_of_league", "promoted_in"]
+    )
+    seasons["team_name"] = "Fixture"
+    seasons["promoted_in"] = seasons.promoted_in.astype("boolean")
+    seasons = seasons.set_index(["season_id", "team_id"], drop=True)
+    tables = replace(synthetic_tables, team_seasons=seasons)
+    check = stats.promoted_value_check(tables, [9]).loc[(9, 5)]
+    assert check.imputed_share == pytest.approx(0.15)
+    assert check.same_season_share_excl_promoted == pytest.approx(0.2)
+    assert check["diff"] == pytest.approx(0.35)
+    assert (8, 5) not in seasons.index  # Entrant is absent from the previous league reference.
+    seasons.loc[(9, 5), "value_share_of_league"] = 0.9
+    changed = stats.promoted_value_check(tables, [9]).loc[(9, 5)]
+    assert changed.imputed_share == check.imputed_share
+    assert changed.same_season_share_excl_promoted == check.same_season_share_excl_promoted
+    seasons.loc[(9, 1), "value_share_of_league"] = 0.4
+    assert (
+        stats.promoted_value_check(tables, [9]).loc[(9, 5), "imputed_share"] == check.imputed_share
+    )
+
+
+@pytest.mark.parametrize("function", list(BOOTSTRAP_FUNCTIONS))
+def test_bootstrap_count_is_configurable(function: Any, synthetic_tables: AnalysisTables) -> None:
+    small = function(synthetic_tables, n_bootstrap=50)
+    repeated = function(synthetic_tables, n_bootstrap=50)
+    pd.testing.assert_frame_equal(small, repeated)
+    with pytest.raises(ValueError, match="n_bootstrap"):
+        function(synthetic_tables, n_bootstrap=0)
+
+
 @pytest.fixture(scope="module")
 def real_tables() -> AnalysisTables:
     if not Path("data/clean/squad_values.parquet").exists():
         pytest.skip("Local clean data are deliberately not committed")
-    return load_analysis_tables(Repository(), seasons=DEVELOPMENT_SEASONS)
+    repo = Repository()
+    original = repo.read_filtered
+    calls = []
+
+    def filtered(name: str, filters: list[tuple[str, str, Any]]) -> pd.DataFrame:
+        calls.append((name, filters))
+        for column, _, values in filters:
+            if column == "season_id":
+                assert all(7 <= season <= 25 for season in values)
+        return original(name, filters)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(repo, "read_filtered", filtered)
+        patch.setattr(repo, "read", lambda _: pytest.fail("Unfiltered read"))
+        tables = load_analysis_tables(repo, seasons=DEVELOPMENT_SEASONS)
+    assert calls
+    return tables
 
 
 def test_real_counts_and_positions(real_tables: AnalysisTables) -> None:
@@ -202,7 +274,9 @@ def test_real_counts_and_positions(real_tables: AnalysisTables) -> None:
         .lt(1e-12)
         .all()
     )
-    assert set(stats.position_profile(real_tables).index.get_level_values("era")) == {
+    assert set(
+        stats.position_profile(real_tables, n_bootstrap=50).index.get_level_values("era")
+    ) == {
         "12_teams",
         "16_teams",
         "14_teams",
@@ -213,6 +287,12 @@ def test_real_counts_and_positions(real_tables: AnalysisTables) -> None:
         assert (season - 1, team) in frame.index
     promoted = stats.promoted_value_check(real_tables)
     assert frame.loc[promoted.index].promoted_in.eq(True).all()
+    promoted_summary = stats.promoted_value_summary(real_tables).loc["promoted"]
+    assert promoted_summary["n"] == 36
+    assert promoted_summary.fraction_below == pytest.approx(26 / 36)
+    assert promoted_summary.median_diff == pytest.approx(-0.0039, abs=0.0001)
+    for function in BOOTSTRAP_FUNCTIONS:
+        assert not function(real_tables, n_bootstrap=50).empty
 
 
 def test_heldout_rows_cannot_change_results(synthetic_tables: AnalysisTables) -> None:
@@ -226,7 +306,9 @@ def test_heldout_rows_cannot_change_results(synthetic_tables: AnalysisTables) ->
         synthetic_tables, team_seasons=pd.concat([synthetic_tables.team_seasons, heldout])
     )
     for function in FUNCTIONS:
-        pd.testing.assert_frame_equal(function(synthetic_tables), function(contaminated))
+        pd.testing.assert_frame_equal(
+            _run(function, synthetic_tables), _run(function, contaminated)
+        )
 
 
 def test_chart_contracts(synthetic_tables: AnalysisTables) -> None:
@@ -239,11 +321,11 @@ def test_chart_contracts(synthetic_tables: AnalysisTables) -> None:
         ("attack_defense", source, None),
         ("home_away", source, None),
         ("win_style", source, None),
-        ("open_style", stats.team_style_profile(synthetic_tables), None),
-        ("persistence", pairs, stats.persistence_summary(synthetic_tables)),
-        ("value", values, stats.value_summary(synthetic_tables)),
+        ("open_style", stats.team_style_profile(synthetic_tables, n_bootstrap=50), None),
+        ("persistence", pairs, stats.persistence_summary(synthetic_tables, n_bootstrap=50)),
+        ("value", values, stats.value_summary(synthetic_tables, n_bootstrap=50)),
         ("promoted", stats.promoted_value_check(synthetic_tables), None),
-        ("consistency", stats.team_consistency(synthetic_tables), None),
+        ("consistency", stats.team_consistency(synthetic_tables, n_bootstrap=50), None),
     ]
     for kind, frame, summary in cases:
         figure = chapter_a_chart(kind, frame, summary)
@@ -260,24 +342,10 @@ def test_previous_value_residuals_and_era_separation(synthetic_tables: AnalysisT
     seasons = synthetic_tables.team_seasons.copy()
     seasons.loc[(10, 2), "value_share_of_league"] = pd.NA
     summary = stats.promoted_value_summary(replace(synthetic_tables, team_seasons=seasons))
-    assert summary.loc["promoted", "n"] == 2  # Missing non-promoted value does not drop a club.
+    assert summary.loc["promoted", "n"] == 1  # Missing t-1 reference leaves its benchmark unknown.
+    assert summary.loc["promoted", "n_missing"] == 1
 
 
-def test_loading_filters_never_include_holdouts(monkeypatch: pytest.MonkeyPatch) -> None:
-    if not Path("data/clean/squad_values.parquet").exists():
-        pytest.skip("Local clean data are deliberately not committed")
-    repo = Repository()
-    original = repo.read_filtered
-    calls = []
-
-    def filtered(name: str, filters: list[tuple[str, str, Any]]) -> pd.DataFrame:
-        calls.append((name, filters))
-        for column, _, values in filters:
-            if column == "season_id":
-                assert all(7 <= season <= 25 for season in values)
-        return original(name, filters)
-
-    monkeypatch.setattr(repo, "read_filtered", filtered)
-    monkeypatch.setattr(repo, "read", lambda _: pytest.fail("Unfiltered read"))
-    tables = load_analysis_tables(repo, seasons=DEVELOPMENT_SEASONS)
-    assert calls and tables.match_table.season_id.max() == 25
+def test_loading_filters_never_include_holdouts(real_tables: AnalysisTables) -> None:
+    # The module fixture validates every read; reuse its guarded load rather than loading twice.
+    assert real_tables.match_table.season_id.max() == 25
