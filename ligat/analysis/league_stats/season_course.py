@@ -9,6 +9,7 @@ import pandas as pd  # type: ignore[import-untyped]
 from ligat.analysis.prepare import DEVELOPMENT_SEASONS, AnalysisTables
 
 from .core import (
+    BOOTSTRAP_SEED,
     MEAN_BOOTSTRAP_DRAWS,
     _bootstrap_count,
     _goals_interval,
@@ -386,7 +387,8 @@ def playoff_form(
     seasons: Iterable[int] = DEVELOPMENT_SEASONS,
 ) -> pd.DataFrame:
     """Compare sporting points rates before/after splitting, without historical point halving."""
-    games = _subset(tables.team_matches, _selection(seasons)).reset_index()
+    selected = _selection(seasons)
+    games = _subset(tables.team_matches, selected).reset_index()
     games["period"] = np.where(games.stage.eq("regular"), "regular", "playoff")
     grouped = games.groupby(["season_id", "team_id", "period"], observed=True).agg(
         ppm=("points_earned", "mean"), n=("game_id", "size")
@@ -396,11 +398,62 @@ def playoff_form(
     frame = frame.reindex(columns=["ppm_regular", "ppm_playoff", "n_regular", "n_playoff"])
     frame = frame.loc[frame.n_playoff.notna()].copy()
     frame = frame.join(
-        _subset(tables.team_seasons, _selection(seasons))[["team_name", "final_stage"]],
+        _subset(tables.team_seasons, selected)[["team_name", "final_stage"]],
         validate="one_to_one",
     )
     frame["ppm_change"] = frame.ppm_playoff - frame.ppm_regular
     return frame.sort_index()
+
+
+def playoff_form_summary(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+) -> pd.DataFrame:
+    """Summarize team-season changes; resample whole seasons for the mean's 95% CI.
+
+    Teams keep equal weight in the mean; all teams in a sampled season travel together.
+    With fewer than two seasons uncertainty is unavailable, rather than falsely zero.
+    """
+    _bootstrap_count(n_bootstrap)
+    form = playoff_form(tables, seasons).reset_index()
+    rows = []
+    for stage, group in form.groupby("final_stage", observed=True):
+        blocks = group.groupby("season_id").ppm_change.agg(["sum", "count"])
+        low, high = float("nan"), float("nan")
+        if len(blocks) >= 2:
+            data = blocks.to_numpy(dtype=float)
+            rng = np.random.default_rng(BOOTSTRAP_SEED)
+            sampled = data[rng.integers(len(data), size=(n_bootstrap, len(data)))].sum(axis=1)
+            low, high = np.quantile(sampled[:, 0] / sampled[:, 1], [0.025, 0.975])
+        rows.append(
+            dict(
+                final_stage=stage,
+                n=len(group),
+                n_seasons=len(blocks),
+                mean_ppm_change=group.ppm_change.mean(),
+                median_ppm_change=group.ppm_change.median(),
+                mean_ppm_change_ci_lower=float(low),
+                mean_ppm_change_ci_upper=float(high),
+            )
+        )
+    return (
+        pd.DataFrame(
+            rows,
+            columns=[
+                "final_stage",
+                "n",
+                "n_seasons",
+                "mean_ppm_change",
+                "median_ppm_change",
+                "mean_ppm_change_ci_lower",
+                "mean_ppm_change_ci_upper",
+            ],
+        )
+        .set_index("final_stage", drop=True)
+        .sort_index()
+    )
 
 
 def _pregame_rates(tables: AnalysisTables, selected: list[int]) -> pd.DataFrame:

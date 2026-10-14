@@ -376,6 +376,7 @@ season_summary הקיימת משמשת ישירות לתצוגת מגמות שע
 | split_summary | קבוצת פלייאוף; group | n קבוצות־עונות, move_mean/median/min/max ו-improved/unchanged/declined. leader_at_split_won_title_rate לפי קרדיט חלקי, leader_n כל העונות, leader_credit_sum סכום הקרדיטים (leader_won_count כינוי לאותו סכום), leader_tied_seasons. leader_at_split_won_title_excl_ties ו-n לרגישות. n_seasons/n_halved_seasons להקשר; השדות העונתיים חוזרים בכל קבוצת תצוגה |
 | stage_comparison | שלב; stage | n_matches, n_seasons, goals_per_match עם רווח bootstrap של בלוקי עונה; draw/zero_zero/one_one/btts/home_win/away_win/big_margin_rate עם Wilson. one_one=תוצאה 1:1, btts=שער לשני הצדדים, big_margin=הפרש מוחלט ≥3. כל משחק מלא נכלל פעם אחת בלבד |
 | playoff_form | קבוצה×עונה עם פלייאוף; season_id, team_id | ppm_regular ו-ppm_playoff (כל הפלייאוף של הקבוצה), n_regular/n_playoff, ppm_change=פלייאוף−סדיר, team_name ו-final_stage. אין חציית נקודות או השלמה. קבוצה ללא פלייאוף אינה שורה בתצוגה; שינוי יריבות הוא הסתייגות להשוואת הקצב |
+| playoff_form_summary | קבוצת פלייאוף; final_stage | n קבוצות־עונות, n_seasons, mean_ppm_change, median_ppm_change ורווח 95% mean_ppm_change_ci_lower/upper. דגימת בלוקים של עונות שלמות שומרת את הקבוצות יחד; הממוצע משוקלל לפי מספר קבוצות־העונות, לא ממוצע עונות שווה. בפחות משתי עונות הרווח חסר. קשר תיאורי, לא סיבה |
 | final_rounds_check | שלב×תקופה; stage, period | last/rest לפי שלושת מספרי המחזור האחרונים (last_n=3) בכל עונה ובאותו stage. n, שיעורי תוצאות ו-goals_per_match עם אותם רווחים; upset_count, upset_n ו-upset_rate עם Wilson. אין קבוצת rest באמצעי: כל 12 משחקיו בשלושת המחזורים האחרונים. תקופה שאין בה משחקים אינה מופיעה |
 | season_points_race | עונה×k×קבוצה; season_id, k, team_id | standings(stage=all) יחד עם team_name ו-regular_games. נקודות כל העונה ללא חצייה/עונשים. גרף לעונה אחת, עם קו פיצול ב-regular_games המרבי; games_short מוחרג מציור הקווים כדי לא להציג משחקים מדומים לאחר השלמת 33/36 משחקים |
 
@@ -394,7 +395,7 @@ season_summary הקיימת משמשת ישירות לתצוגת מגמות שע
 כל פונקציה ציבורית של C מקבלת seasons=DEVELOPMENT_SEASONS ודוחה עונה
 אחרת, רשימה ריקה וכפילות. פונקציות המשתמשות ב-bootstrap מקבלות
 n_bootstrap=2000 (50 בטסטים): table_settling, settling_sensitivity,
-split_summary, stage_comparison, final_rounds_check. לרווחי ממוצע קרדיט
+split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לרווחי ממוצע קרדיט
 עם ערכים חלקיים משתמשים ב-bootstrap של עונות; כשהקרדיטים כולם 0/1
 משתמשים ב-Wilson. ci_method מפרט את השיטה (bootstrap_seasons/wilson),
 ו-unavailable כשאין עונות בפורמט. פחות משתי עונות נותנות רווח bootstrap

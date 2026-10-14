@@ -179,10 +179,15 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 line=dict(color=DRAW_COLOR, dash="dash"),
             )
         )
+        means = (
+            summary.mean_ppm_change
+            if summary is not None
+            else data.groupby("final_stage", observed=True).ppm_change.mean()
+        )
         fig.update_layout(
             title=(
-                f"{int(data.ppm_change.gt(0).sum())} מתוך {len(data)} קבוצות־עונות "
-                "שיפרו את קצב הנקודות בפלייאוף"
+                f"קצב הפלייאוף: עליון {means.loc['upper']:+.2f}, "
+                f"תחתון {means.loc['lower']:+.2f} נקודות למשחק מול הסדיר"
             )
         )
     elif kind == "last_rounds":
@@ -215,14 +220,17 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                     row=i // 2 + 1,
                     col=i % 2 + 1,
                 )
-        last = frame.loc[("upper", "last")]
-        title = f"בסוף העליון {last.goals_per_match:.2f} שערים; אין קבוצת שאר בתצוגה זו"
-        if ("upper", "rest") in frame.index:
-            rest = frame.loc[("upper", "rest")]
-            title = (
-                f"בסוף העליון {last.goals_per_match:.2f} שערים מול "
-                f"{rest.goals_per_match:.2f} בשאר; רמז למחקר מוטיבציה"
-            )
+        comparisons = [
+            f"{STAGE_NAMES[stage]} {frame.loc[(stage, 'last'), 'draw_rate']:.0%} "
+            f"מול {frame.loc[(stage, 'rest'), 'draw_rate']:.0%}"
+            for stage in ("regular", "upper", "lower")
+            if (stage, "last") in frame.index and (stage, "rest") in frame.index
+        ]
+        title = (
+            "פחות תיקו בסוף: " + "; ".join(comparisons)
+            if comparisons
+            else "3 המחזורים האחרונים: אין תקופת שאר להשוואה"
+        )
         fig.update_layout(
             title=title,
             barmode="group",

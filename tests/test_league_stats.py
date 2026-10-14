@@ -29,6 +29,7 @@ C_FUNCTIONS = [
     stats.split_summary,
     stats.stage_comparison,
     stats.playoff_form,
+    stats.playoff_form_summary,
     stats.final_rounds_check,
     stats.season_points_race,
 ]
@@ -50,6 +51,7 @@ def _run_c(
         stats.settling_sensitivity,
         stats.split_summary,
         stats.stage_comparison,
+        stats.playoff_form_summary,
         stats.final_rounds_check,
     ):
         options["n_bootstrap"] = 50
@@ -276,6 +278,13 @@ def test_course_real_invariants(real_tables: AnalysisTables) -> None:
             .between(lower_start, len(group))
             .all()
         )
+    form_summary = stats.playoff_form_summary(real_tables, n_bootstrap=50)
+    assert form_summary.n.to_dict() == {"lower": 116, "middle": 8, "upper": 92}
+    assert form_summary.n_seasons.to_dict() == {"lower": 15, "middle": 2, "upper": 15}
+    for stage, expected_change in {"upper": -0.41, "lower": 0.35, "middle": 0.15}.items():
+        assert form_summary.loc[stage, "mean_ppm_change"] == pytest.approx(
+            expected_change, abs=0.01
+        )
     stages = stats.stage_comparison(real_tables, n_bootstrap=50)
     assert stages.n_matches.sum() == 4315 and stages.loc["middle", "n_matches"] == 12
     assert set(
@@ -296,6 +305,7 @@ def test_course_real_invariants(real_tables: AnalysisTables) -> None:
         stats.settling_sensitivity,
         stats.split_summary,
         stats.stage_comparison,
+        stats.playoff_form_summary,
         stats.final_rounds_check,
     ],
 )
@@ -324,12 +334,13 @@ def test_course_chart_contracts(course_tables: AnalysisTables) -> None:
         ("leaders", settling, None),
         ("movement", movement, summary),
         ("stages", stages, None),
-        ("form", form, None),
+        ("form", form, stats.playoff_form_summary(course_tables, n_bootstrap=50)),
         ("last_rounds", final, None),
         ("race", race, None),
     ]:
         fig = chapter_c_chart(kind, frame, extra)
         assert fig.data and any(c.isdigit() for c in fig.layout.title.text)
+        assert "?" not in fig.layout.title.text
         assert fig.to_json()
 
 
@@ -1055,3 +1066,44 @@ def test_previous_value_residuals_and_era_separation(synthetic_tables: AnalysisT
 def test_loading_filters_never_include_holdouts(real_tables: AnalysisTables) -> None:
     # The module fixture validates every read; reuse its guarded load rather than loading twice.
     assert real_tables.match_table.season_id.max() == 25
+
+
+def test_playoff_form_summary(course_tables: AnalysisTables) -> None:
+    summary = stats.playoff_form_summary(course_tables, iter([8, 11]), n_bootstrap=50)
+    assert summary.n.to_dict() == {"lower": 2, "upper": 2}
+    assert summary.n_seasons.eq(1).all()
+    assert summary.loc["upper", "mean_ppm_change"] == pytest.approx(0)
+    assert summary.loc["lower", "mean_ppm_change"] == pytest.approx(2 / 3)
+    assert summary.loc["lower", "median_ppm_change"] == pytest.approx(2 / 3)
+    assert summary.mean_ppm_change_ci_lower.isna().all()
+    # Duplicate the entire season: identical blocks give an exact CI, despite team variation.
+    teams = course_tables.team_matches.reset_index()
+    teams = teams.loc[teams.season_id.eq(11)].copy()
+    teams["season_id"] = 12
+    teams["game_id"] += 1000
+    labels = course_tables.team_seasons.xs(11, level="season_id").reset_index()
+    labels["season_id"] = 12
+    doubled = replace(
+        course_tables,
+        team_matches=pd.concat(
+            [
+                course_tables.team_matches,
+                teams.set_index(["team_id", "game_id"], drop=True),
+            ]
+        ),
+        team_seasons=pd.concat(
+            [
+                course_tables.team_seasons,
+                labels.set_index(["season_id", "team_id"], drop=True),
+            ]
+        ),
+    )
+    result = stats.playoff_form_summary(doubled, [11, 12], n_bootstrap=50)
+    assert result.n.eq(4).all() and result.n_seasons.eq(2).all()
+    for stage in ("upper", "lower"):
+        assert result.loc[stage, "mean_ppm_change_ci_lower"] == pytest.approx(
+            result.loc[stage, "mean_ppm_change"]
+        )
+        assert result.loc[stage, "mean_ppm_change_ci_upper"] == pytest.approx(
+            result.loc[stage, "mean_ppm_change"]
+        )

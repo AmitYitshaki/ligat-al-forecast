@@ -34,6 +34,7 @@ from .core import (
 from .season_course import (
     final_rounds_check,
     playoff_form,
+    playoff_form_summary,
     season_points_race,
     settling_sensitivity,
     split_movement,
@@ -75,6 +76,7 @@ __all__ = [
     "value_vs_performance",
     "final_rounds_check",
     "playoff_form",
+    "playoff_form_summary",
     "season_points_race",
     "settling_sensitivity",
     "split_movement",
