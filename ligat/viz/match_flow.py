@@ -178,10 +178,11 @@ def chapter_d_chart(kind: str, frame: pd.DataFrame) -> Any:
             hover_data=["team_name", "n", "minutes_level", "minutes_trailing"],
             labels=dict(minutes_leading="דקות יתרון בממוצע", ppm="נקודות למשחק"),
         )
+        most = data.loc[data.minutes_leading.idxmax()]
+        least = data.loc[data.minutes_leading.idxmin()]
         fig.update_layout(
-            title=f"{len(data)} קבוצות־עונות: "
-            f"זמן היתרון נע בין {data.minutes_leading.min():.1f} "
-            f"ל־{data.minutes_leading.max():.1f} דקות; תיאור בדיעבד"
+            title=f"בקצה ההובלה {most.minutes_leading:.1f} דקות ו־{most.ppm:.2f} נקודות; "
+            f"בקצה השני {least.minutes_leading:.1f} דקות ו־{least.ppm:.2f}; קשר בדיעבד"
         )
     elif kind == "resilience":
         fig = px.scatter(

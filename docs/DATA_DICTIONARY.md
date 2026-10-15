@@ -488,3 +488,74 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
   goal_timing נשארת כטבלת עזר. D8 מציג שיעורי נקודות עם רווחים בשני הצירים.
 - המתאם הכולל בית/חוץ מערב הבדלי חוזק עם התנהגות בתוך המשחק. תלות מותנית
   תיבדק במחברת 06 רק לאחר ש-goals יקבע λ לכל צד; המתאם הגולמי אינו בדיקה כזאת.
+
+
+## מחברת 02, פרק E: הקשר תיאורי
+
+הטבלאות הבאות נוצרות בזיכרון ב־`ligat.analysis.league_stats.context`; אינן נשמרות
+ב־`data/clean` ואינן פיצ'רים. עונות 8–25 בלבד, ו־ValueError לבחירה מחוץ לטווח.
+השוואת מאמנים מוגבלת לעונות 12–25 בגלל הכיסוי החלקי בשנים הראשונות.
+נקודות תמיד 3/1/0 על המגרש. מיקום רשמי קודם משמש להשוואה תיאורית בלבד.
+כל האינדקסים נוצרים עם `drop=True`.
+
+| פונקציה | אינדקס | תוכן ומשמעות |
+| --- | --- | --- |
+| referee_stats | referee | כל השופטים המזוהים, כולל מתחת ל־30 משחקים: n_matches, שיעורי home_win/draw/away_win/zero_zero עם count ו־Wilson; goals_per_match, home_ppm ורווחי עונות; red_cards/penalty_goals_count, matches, per_match ורווחי עונות; home_red_share ו־home_penalty_goal_share עם n אירועים ו־Wilson. בגרפים רק n_matches≥min_matches (ברירת מחדל 30) |
+| referee_home_bias | event, side | event=red/penalty, side=home/away; n_matches, n_events, per_match, ci_lower/upper מדגימת עונות. אדומים כוללים צהוב שני וגם כרטיסים בלי דקה; שערי פנדל הם רק שערים שהובקעו |
+| coach_change_effect | team_id, spell_number | season_id, first_date, coach_name, is_left_censored=False, is_flicker=False; window, before_game_ids/after_game_ids, n_before/n_after, ppm_before/after, diff; n_controls, control_team_ids, control_diff, effect=diff−control_diff |
+| coach_summary | cohort | all_eligible/matched; n_changes, n_seasons; mean_diff/control_diff/effect עם ci_lower/upper לכל ממוצע. בקבוצה הכללית חוסרי בקרה אינם נכללים בממוצעי הבקרה והאפקט; להשוואת שלושת הממוצעים משתמשים בשורת matched בלבד |
+| venue_effects | is_home_venue | False=שאול, True=ביתי; רק צמדי קבוצה־עונה שבהם הופיעו שתי האפשרויות. n, home_ppm, home_win_rate ועוד שיעורי תוצאה; Wilson לשיעורים ו־bootstrap עונות לממוצעי נקודות ושערים |
+| venue_summary | venue | אצטדיונים עם n_matches≥min_matches; n, home_win_rate, goals_per_match, רווחי סמך וגבולות funnel. המארחות וחוזקן משתנים בין האצטדיונים |
+| derby_and_big_games | game_type | city_derby/shared_venue_other/big_game/other; n, goals_per_match, draw/home_win/away_win/zero_zero_rate ורווחי סמך, pairs=זוגות מזהי הקבוצות שנצפו |
+| upset_rates | metric, gap_bin, weaker_side | metric=value_ratio/rank_gap; n, פירוק home/draw/away עם Wilson, ובכוח ידוע גם weak_win/strong_win_rate עם Wilson. עולות מול ותיקות מקבלות promoted_win/veteran_win_rate. עמודות שלא ניתן לפרש נשארות NA |
+
+### גבולות funnel ואי־ודאות
+
+- `funnel_limits_binomial(rate_league, n)` מחזירה lower95/upper95/lower998/upper998,
+  אינדקס n. אלה כמויות מדויקות של Binomial(n,p), מחולקות ב־n. מתאימה לניצחון בית,
+  שבו כל משחק הוא כן/לא. `funnel_limits` נשאר alias לאותה פונקציה.
+- `funnel_limits_poisson(rate_league, n)` משתמשת בכמויות המדויקות של
+  Poisson(rate_league×n), מחולקות ב־n, לספירות אדומים, שערי פנדל ושערים למשחק.
+  כמה אירועים באותו משחק אינם הופכים אותו לאירוע בינומי יחיד. n חייב להיות מספר
+  שלם חיובי והשיעור תקין; אין קירוב נורמלי.
+- בטבלאות השופטים והאצטדיונים נשמרים לכל מדד גם ארבעת הגבולות וגרסאות
+  `_expanded`. ב־attrs.funnel_models נשמרים rate, distribution, phi,
+  p_overdispersion, widened, overdispersion_clear, n_entities ו־min_matches.
+- לספירות: φ=Σ(O−E)²/E/(k−1), עבור קבוצות עם n_matches≥30 וחשיפה חיובית;
+  E=שיעור הליגה×חשיפה. אם φ>1 מוצגים גם גבולות שרוחבם מהממוצע הוכפל ב־√φ,
+  עם חסימה באפס. `overdispersion_clear` דורש גם p<0.05 במבחן χ² בקירוב.
+  ההרחבה מוצגת בזהירות גם בלי מובהקות, לצד הגבולות הרגילים; אין תיקון להשוואות מרובות.
+- מכנה שערי הפנדל מוציא את 864982 (goals_available=False); אין המצאת אפס אירועים.
+  attrs מתעדים משחקים בלי שופט, כיסוי שערים ואצטדיון לא ידוע.
+- רווחי ממוצעים דוגמים עונות שלמות, n_bootstrap=2000 כברירת מחדל, זריעה קבועה
+  כמו בפונקציות הקיימות; בטסטים משתמשים ב־50. פחות משתי עונות נותן רווח חסר.
+  Wilson הוא רווח שולי תיאורי, לא רווח עם תיקון לתלות בין משחקים.
+
+### קבוצות השוואה, קטגוריות וחוסרים
+
+- שינוי מאמן: קדנציה נקייה שהתחילה באמצע עונה; בדיוק window משחקים לפני ואחרי
+  באותה עונה, ואחרי ההחלפה עדיין באותה קדנציה עם מאמן ידוע. attrs מתעדים
+  n_clean_mid_season, סיבות סינון ו־window. חציון אורך הקדנציה בסיכום הוא של כל
+  הקדנציות הנקיות בטווח, לא רק ההחלפות שנשארו; changes_by_season סופר זכאיות לחלון.
+- בקרות: קבוצה אחרת באותה עונה ובאותו match_number, קצב קודם במרחק עד 0.3,
+  ללא שינוי מאמן נצפה בכל עשרת המשחקים וללא משחק בלי זיהוי מאמן. control_diff הוא
+  ממוצע השינויים בבקרות המתאימות. בלי בקרה: control_diff/effect=NA, ולא אפס.
+  מאמן אינו מוקצה באקראי; גם ההפרש המתוקנן אינו הוכחה להשפעה סיבתית.
+- דרבי: רשימת ערים ושמות קטנה ומתועדת ב־CITY_CLUBS (תל אביב, חיפה, ירושלים,
+  פתח תקווה). מזהים נפתרים מה־name_he/aliases של config/teams.yaml המועבר כפרמטר.
+  אצטדיון בית משותף באותה עונה אינו בהכרח אותה עיר. ארבע הגדולות הן ארבע
+  הראשונות ב־teams_overview לפי ppm בעונות הנבחרות. הקדימות הזרה היא עירוני,
+  משותף אחר, גדולה מול גדולה, אחר; attrs כוללים city_pairs/shared_pairs/big_teams
+  ומספר המשחקים העירוניים שהם גם בין הגדולות.
+- פער שווי: יחס הגדול לקטן של prev_season_value_share, ללא השלמה, בחמישונים
+  הנקבעים מכל המשחקים בעלי שני ערכים חיוביים ולא שווים. value_ratio_edges ב־attrs.
+  פער מיקום קודם: 1–3, 4–7, 8+ מקומות. weaker_side מציין home_weaker/away_weaker;
+  בכל מקרה סכום n בכל metric הוא מספר המשחקים, אין לחבר את שני ה־metric למדגם אחד.
+- equal_strength: שוויון מלא במדד; unknown_both: לשתיהן אין t−1; בשניהם רק בית/תיקו/חוץ.
+  veteran_vs_promoted: רק לאחת t−1, והשנייה עולה מזוהה; פירוק לוותיקה/עולה בבית ובחוץ,
+  בלי להגדיר את העולה אוטומטית כחלשה. missing_source: חסר ערך גם כשלא מדובר בעולה.
+  בקטגוריות אלה weak_win/strong_win נשארים NA. אין מילוי חוסרים ואין שכבת prematch.
+
+בכל ההשוואות מציגים n ורווחים; לא מסיקים מ־n<30, ולא מדרגים שופט או אצטדיון כטוב/רע.
+זהות הקבוצות, בחירת השופט ולוח המשחקים עלולים להסביר את הקשרים. חפיפת רווחים
+אינה הוכחת שוויון; קשר אינו סיבה.
