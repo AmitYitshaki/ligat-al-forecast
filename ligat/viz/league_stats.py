@@ -8,6 +8,7 @@ import pandas as pd  # type: ignore[import-untyped]
 import plotly.express as px  # type: ignore[import-untyped]
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 
+from ligat.viz.notebook02 import COLUMN_NAMES, VALUE_NAMES
 from ligat.viz.presentation import rtl_figure
 
 HOME_COLOR = "#2563eb"
@@ -28,7 +29,7 @@ def _finish(figure: Any) -> Any:
     )
     if "coloraxis" in figure.layout.to_plotly_json():
         figure.update_layout(legend=dict(orientation="h", y=-0.18, x=1, xanchor="right"))
-    return rtl_figure(figure)
+    return rtl_figure(figure, labels={**COLUMN_NAMES, **VALUE_NAMES})
 
 
 def _diagonal(figure: Any, frame: pd.DataFrame, x: str, y: str) -> None:

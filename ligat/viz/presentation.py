@@ -18,29 +18,53 @@ LTR_ISLAND = re.compile(
 )
 
 
-def rtl_text(text: str) -> str:
+def rtl_text(text: str, *, force: bool = False) -> str:
     """Embed Hebrew as RTL, protecting numbers/symbols as LTR; preserve Plotly HTML tags.
 
     Direction controls affect display only. Repeated finalization is idempotent;
-    English-only labels, Plotly hover placeholders and HTML tags are left intact.
+    English-only labels stay intact unless force requests a dynamic Hebrew hover.
+    HTML tags and Plotly placeholder syntax are preserved.
     """
-    if not HEBREW.search(text) or "\u202b" in text:
+    if (not force and not HEBREW.search(text)) or "\u202b" in text:
         return text
-    pieces = re.split(r"(<[^>]+>|%\{[^}]+\})", text)
+    pieces = re.split(r"(<[^>]+>)", text)
     for i, part in enumerate(pieces):
-        if not part or part.startswith(("<", "%{")):
+        if not part or part.startswith("<"):
             continue
-        numeric = LTR_ISLAND.sub(lambda m: "\u202a" + m.group() + "\u202c", part)
+        # Keep placeholders inside the RTL sentence. Formatted numeric placeholders
+        # (including a literal percent suffix) form one LTR island; text values inherit RTL.
+        tokens = re.compile(r"%\{[^}]+\}%?|" + LTR_ISLAND.pattern)
+
+        def protect(match: re.Match[str]) -> str:
+            value = match.group()
+            if value.startswith("%{") and ":" not in value:
+                return value
+            return "\u202a" + value + "\u202c"
+
+        numeric = tokens.sub(protect, part)
         pieces[i] = "\u200f\u202b" + numeric + "\u202c\u200f"
     return "".join(pieces)
 
 
-def rtl_figure(figure: Any) -> Any:
+def rtl_figure(figure: Any, *, labels: Mapping[str, str] | None = None) -> Any:
     """Apply one text policy to Plotly titles, axes, annotations, legends and hover labels.
 
     Category values remain untouched: explicit tick labels provide RTL presentation
     without changing the data coordinates, category matching or hover event values.
     """
+
+    def hover_label(template: str) -> str:
+        # Translate literal labels only; never replace Plotly variable names.
+        pieces = re.split(r"(%\{[^}]+\}|<[^>]+>)", template)
+        for i, part in enumerate(pieces):
+            if not part.startswith(("%{", "<")):
+                pieces[i] = re.sub(
+                    r"[A-Za-z_][A-Za-z_0-9]*",
+                    lambda match: (labels or {}).get(match.group(), match.group()),
+                    part,
+                )
+        return rtl_text("".join(pieces), force=True)
+
     for key in figure.layout:
         axis = figure.layout[key]
         if key.startswith("coloraxis") and axis.colorbar.title.text:
@@ -60,9 +84,9 @@ def rtl_figure(figure: Any) -> Any:
                     continue
                 coordinates = getattr(trace, coordinate, None)
                 for value in () if coordinates is None else coordinates:
-                    if isinstance(value, str) and HEBREW.search(value) and value not in values:
+                    if isinstance(value, str) and value not in values:
                         values.append(value)
-            if values:
+            if any(HEBREW.search(value) for value in values):
                 axis.tickmode = "array"
                 axis.tickvals = values
                 axis.ticktext = [rtl_text(t) for t in values]
@@ -78,7 +102,7 @@ def rtl_figure(figure: Any) -> Any:
         if getattr(trace, "hovertemplate", None):
             value = trace.hovertemplate
             trace.hovertemplate = (
-                rtl_text(value) if isinstance(value, str) else [rtl_text(v) for v in value]
+                hover_label(value) if isinstance(value, str) else [hover_label(v) for v in value]
             )
         for field in ("text", "hovertext"):
             value = getattr(trace, field, None)

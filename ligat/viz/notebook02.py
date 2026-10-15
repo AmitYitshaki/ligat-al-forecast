@@ -1,6 +1,16 @@
 """Presentation vocabulary for notebook 02; no analytical calculations."""
 
-COLUMN_NAMES = {
+COLUMN_NAMES: dict[str, str] = {
+    "big_win_rate_ci_lower": "גבול תחתון לניצחון גדול",
+    "big_win_rate_ci_upper": "גבול עליון לניצחון גדול",
+    "narrow_win_rate_ci_lower": "גבול תחתון לניצחון צר",
+    "narrow_win_rate_ci_upper": "גבול עליון לניצחון צר",
+    "big_win_rate_n": "משחקים למדידת ניצחון גדול",
+    "classification": "סיווג",
+    "label": "עונת קבוצה",
+    "mean_ppm_ci_lower": "גבול תחתון לנקודות למשחק",
+    "mean_ppm_ci_upper": "גבול עליון לנקודות למשחק",
+    "n_seasons_at_position": "עונות במיקום",
     "n": "n תצפיות",
     "n_matches": "n משחקים",
     "matches_played": "משחקים",
@@ -269,7 +279,7 @@ COLUMN_NAMES = {
 }
 
 # Only proportions are percentages. Counts per game, ppm, correlations and phi are not.
-PERCENT_COLUMNS = {c for c in COLUMN_NAMES if c.endswith(("_rate", "_share"))} | {
+PERCENT_COLUMNS: set[str] = {c for c in COLUMN_NAMES if c.endswith(("_rate", "_share"))} | {
     "rate",
     "observed",
     "expected",
@@ -285,7 +295,7 @@ PERCENT_COLUMNS = {c for c in COLUMN_NAMES if c.endswith(("_rate", "_share"))} |
     "mean_home_win_rate",
 }
 
-VALUE_NAMES = {
+VALUE_NAMES: dict[str, str] = {
     "home": "בית",
     "away": "חוץ",
     "red": "אדום",
@@ -362,40 +372,32 @@ VALUE_NAMES = {
     "prev_value": "שווי קודם",
     "current_value": "שווי נוכחי",
     "squad_size": "גודל סגל",
+    "is_home:True": "בית",
+    "is_home:False": "חוץ",
+    "is_home_venue:True": "ביתי",
+    "is_home_venue:False": "שאול",
+    "is_postponed:True": "נדחה",
+    "is_postponed:False": "ללא דחייה",
+    "scored_first:True": "כבשה ראשונה",
+    "scored_first:False": "ספגה ראשונה",
+    "prev_season_value_share": "נתח שווי קודם",
+    "value_share_of_league": "נתח שווי באותה עונה",
+    "Monday": "שני",
+    "Tuesday": "שלישי",
+    "Wednesday": "רביעי",
+    "Thursday": "חמישי",
+    "Friday": "שישי",
+    "Saturday": "שבת",
+    "Sunday": "ראשון",
+    "before_18": "לפני 18:00",
+    "18_to_20": "18:00–19:59",
+    "20_plus": "20:00 ואילך",
+    "bottom_relegated": "האחרונה ירדה",
+    "leader_won_title": "המובילה זכתה",
+    "45+ (first-half stoppage)": "תוספת זמן מחצית ראשונה",
+    "Q1": "חמישון 1",
+    "Q2": "חמישון 2",
+    "Q3": "חמישון 3",
+    "Q4": "חמישון 4",
+    "Q5": "חמישון 5",
 }
-VALUE_NAMES.update(
-    {
-        "is_home:True": "בית",
-        "is_home:False": "חוץ",
-        "is_home_venue:True": "ביתי",
-        "is_home_venue:False": "שאול",
-        "is_postponed:True": "נדחה",
-        "is_postponed:False": "ללא דחייה",
-        "scored_first:True": "כבשה ראשונה",
-        "scored_first:False": "ספגה ראשונה",
-    }
-)
-VALUE_NAMES.update(
-    {
-        "prev_season_value_share": "נתח שווי קודם",
-        "value_share_of_league": "נתח שווי באותה עונה",
-        "Monday": "שני",
-        "Tuesday": "שלישי",
-        "Wednesday": "רביעי",
-        "Thursday": "חמישי",
-        "Friday": "שישי",
-        "Saturday": "שבת",
-        "Sunday": "ראשון",
-        "before_18": "לפני 18:00",
-        "18_to_20": "18:00–19:59",
-        "20_plus": "20:00 ואילך",
-        "bottom_relegated": "האחרונה ירדה",
-        "leader_won_title": "המובילה זכתה",
-        "45+ (first-half stoppage)": "תוספת זמן מחצית ראשונה",
-        "Q1": "חמישון 1",
-        "Q2": "חמישון 2",
-        "Q3": "חמישון 3",
-        "Q4": "חמישון 4",
-        "Q5": "חמישון 5",
-    }
-)

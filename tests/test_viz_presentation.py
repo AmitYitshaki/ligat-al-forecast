@@ -23,11 +23,20 @@ def test_rtl_numeric_islands_and_figure_coordinates() -> None:
     assert rtl_text(protected) == protected
     assert rtl_text("95% CI") == "95% CI"
     assert rtl_text("בית %{y:.1f}%<br>n=%{customdata[0]}").count("%{") == 2
-    figure = go.Figure(go.Bar(x=["בית", "חוץ"], y=[0.15, 0.4], name="ניצחון 15%"))
+    dynamic = rtl_text("%{x}: %{y:.1f}%", force=True)
+    assert "\u202b%{x}:" in dynamic and "\u202a%{y:.1f}%\u202c" in dynamic
+    figure = go.Figure(
+        go.Bar(
+            x=["בית", "English"],
+            y=[0.15, 0.4],
+            name="ניצחון 15%",
+            hovertemplate="team_name=%{x}: %{y:.1f}%",
+        )
+    )
     figure.update_layout(title=text, xaxis_title="תוצאה (%)", legend_title="סוג 1")
     figure.add_annotation(text="φ=1.26 אדומים", x="בית", y=0.15)
     before_x, before_y = tuple(figure.data[0].x), tuple(figure.data[0].y)
-    rtl_figure(figure)
+    rtl_figure(figure, labels=COLUMN_NAMES)
     assert tuple(figure.data[0].x) == before_x and tuple(figure.data[0].y) == before_y
     assert tuple(figure.layout.xaxis.tickvals) == before_x
     for label in [
@@ -35,10 +44,14 @@ def test_rtl_numeric_islands_and_figure_coordinates() -> None:
         figure.layout.xaxis.title.text,
         figure.layout.legend.title.text,
         figure.data[0].name,
+        figure.data[0].hovertemplate,
         figure.layout.annotations[0].text,
-        *figure.layout.xaxis.ticktext,
+        figure.layout.xaxis.ticktext[0],
     ]:
         assert "\u202b" in label
+    assert figure.layout.xaxis.ticktext[1] == "English"
+    assert "team_name" not in figure.data[0].hovertemplate
+    assert "%{x}" in figure.data[0].hovertemplate
     once = figure.to_json()
     assert rtl_figure(figure).to_json() == once
 
@@ -72,8 +85,7 @@ def test_table_percent_interval_na_escaping_and_input_integrity() -> None:
     with pytest.raises(ValueError, match="Missing Hebrew"):
         display_table(pd.DataFrame({"untranslated": [1]}), COLUMN_NAMES)
 
-
-def test_table_schema_aliases_and_percentage_points() -> None:
+    # Existing analytical schemas expose several naming conventions for the same CI.
     frame = pd.DataFrame(
         {
             "n": [36],
@@ -101,6 +113,9 @@ def test_table_schema_aliases_and_percentage_points() -> None:
 def test_notebook02_presentation_structure() -> None:
     notebook = nbformat.read(Path("notebooks/explore/02_league_stats.ipynb"), as_version=4)
     for i, cell in enumerate(notebook.cells):
+        if cell.cell_type == "code":
+            assert i > 0 and notebook.cells[i - 1].cell_type == "markdown"
+            continue
         if cell.cell_type != "markdown":
             continue
         if i + 1 < len(notebook.cells) and notebook.cells[i + 1].cell_type == "code":
