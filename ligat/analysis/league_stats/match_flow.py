@@ -82,6 +82,22 @@ def _mean_ci(frame: pd.DataFrame, column: str, n_bootstrap: int) -> tuple[float,
     return _goals_interval(data, n_bootstrap)
 
 
+def _ratio_ci(
+    blocks: pd.DataFrame, numerator: str, denominator: str, n_bootstrap: int, scale: float = 1
+) -> tuple[float, float]:
+    """Resample whole season totals; ratios retain their actual exposure weights."""
+    if len(blocks) < 2:
+        return float("nan"), float("nan")
+    data = blocks[[numerator, denominator]].fillna(0).to_numpy(dtype=float)
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    sampled = data[rng.integers(len(data), size=(n_bootstrap, len(data)))].sum(axis=1)
+    valid = sampled[:, 1] > 0
+    if not valid.any():
+        return float("nan"), float("nan")
+    low, high = np.quantile(scale * sampled[valid, 0] / sampled[valid, 1], [0.025, 0.975])
+    return float(low), float(high)
+
+
 def _rates(frame: pd.DataFrame, n_bootstrap: int) -> dict[str, Any]:
     row: dict[str, Any] = {"n": len(frame)}
     for outcome in RESULTS:
@@ -437,10 +453,15 @@ def timeline_team_summary(
 
 
 def timeline_resilience(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS, *, min_seasons: int = 5
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    min_seasons: int = 5,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
 ) -> pd.DataFrame:
-    """Exact comeback/lost-point totals for established clubs; more matches means more exposure."""
+    """Comeback/lost points per exposed game, with season-block ratio intervals and raw totals."""
     selected = _selection(seasons)
+    _bootstrap_count(n_bootstrap)
     if min_seasons < 1:
         raise ValueError("min_seasons must be positive")
     seasons_frame = timeline_team_summary(tables, selected)
@@ -448,18 +469,25 @@ def timeline_resilience(
     for team, group in seasons_frame.reset_index().groupby("team_id"):
         if len(group) < min_seasons:
             continue
-        rows.append(
-            dict(
-                team_id=team,
-                team_name=group.sort_values("season_id").team_name.iloc[-1],
-                n_seasons=len(group),
-                n=int(group.n.sum()),
-                n_led=int(group.n_led.sum()),
-                n_trailed=int(group.n_trailed.sum()),
-                points_dropped_from_lead=group.points_dropped_from_lead.sum(min_count=1),
-                points_won_from_behind=group.points_won_from_behind.sum(min_count=1),
-            )
+        row = dict(
+            team_id=team,
+            team_name=group.sort_values("season_id").team_name.iloc[-1],
+            n_seasons=len(group),
+            n=int(group.n.sum()),
+            n_led=int(group.n_led.sum()),
+            n_trailed=int(group.n_trailed.sum()),
+            points_dropped_from_lead=group.points_dropped_from_lead.sum(min_count=1),
+            points_won_from_behind=group.points_won_from_behind.sum(min_count=1),
         )
+        for metric, numerator, denominator in (
+            ("points_won_per_trailed_game", "points_won_from_behind", "n_trailed"),
+            ("points_dropped_per_led_game", "points_dropped_from_lead", "n_led"),
+        ):
+            row[metric] = row[numerator] / row[denominator] if row[denominator] else float("nan")
+            row[f"{metric}_ci_lower"], row[f"{metric}_ci_upper"] = _ratio_ci(
+                group, numerator, denominator, n_bootstrap
+            )
+        rows.append(row)
     result = pd.DataFrame(
         rows,
         columns=[
@@ -471,6 +499,12 @@ def timeline_resilience(
             "n_trailed",
             "points_dropped_from_lead",
             "points_won_from_behind",
+            "points_won_per_trailed_game",
+            "points_won_per_trailed_game_ci_lower",
+            "points_won_per_trailed_game_ci_upper",
+            "points_dropped_per_led_game",
+            "points_dropped_per_led_game_ci_lower",
+            "points_dropped_per_led_game_ci_upper",
         ],
     ).set_index("team_id", drop=True)
     result.attrs = seasons_frame.attrs.copy()
@@ -575,6 +609,62 @@ def first_goal_minute_distribution(
         pd.DataFrame(rows).set_index("minute_bucket", drop=True),
         _subset(tables.match_table, selected),
     )
+
+
+def scoring_rate_by_state(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+) -> pd.DataFrame:
+    """Goals per 90 exposed minutes, split by venue/state; strengths and game state are mixed.
+
+    Use goal_events.score_before; ambiguous same-minute batches stay unknown and are
+    explicitly reported, never assigned a scoring state. Exposure follows game_timelines.
+    Zero exposure gives NA (also if a zero-duration state contains a goal).
+    """
+    selected = _selection(seasons)
+    _bootstrap_count(n_bootstrap)
+    timelines = game_timelines(tables, selected)
+    _, events = _eligible(tables, selected)
+    matches = _subset(tables.match_table, selected)
+    events = events.join(matches[["home_team_id"]], on="game_id", validate="many_to_one")
+    events["is_home"] = events.team_id.eq(events.home_team_id)
+    unknown = events.loc[events.score_before.isna()]
+    known = events.loc[events.score_before.notna()]
+    rows = []
+    for home in (True, False):
+        exposure = timelines.loc[timelines.is_home.eq(home)]
+        for state in STATES:
+            minutes = exposure.groupby("season_id")[f"minutes_{state}"].sum().rename("minutes")
+            goals = known.loc[known.is_home.eq(home) & known.score_before.eq(state)]
+            counts = goals.groupby("season_id").size().rename("n_goals")
+            blocks = minutes.to_frame().join(counts).fillna(0)
+            total_minutes, n_goals = float(blocks.minutes.sum()), int(blocks.n_goals.sum())
+            low, high = _ratio_ci(blocks, "n_goals", "minutes", n_bootstrap, scale=90)
+            rows.append(
+                dict(
+                    is_home=home,
+                    state=state,
+                    n_goals=n_goals,
+                    minutes=total_minutes,
+                    n_matches=len(exposure),
+                    n_seasons=len(blocks),
+                    goals_per_90=90 * n_goals / total_minutes if total_minutes else float("nan"),
+                    goals_per_90_ci_lower=low,
+                    goals_per_90_ci_upper=high,
+                )
+            )
+    frame = pd.DataFrame(rows).set_index(["is_home", "state"], drop=True)
+    frame.attrs = timelines.attrs.copy()
+    frame.attrs.update(
+        n_missing_score_before=len(unknown),
+        missing_score_before_by_venue={
+            "home": int(unknown.is_home.sum()),
+            "away": int((~unknown.is_home).sum()),
+        },
+    )
+    return frame
 
 
 def goal_timing(

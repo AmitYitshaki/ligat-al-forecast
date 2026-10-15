@@ -147,32 +147,27 @@ def chapter_d_chart(kind: str, frame: pd.DataFrame) -> Any:
         fig.update_layout(title=title, barmode="group", yaxis_title="% משחקים בקבוצה")
     elif kind == "timing":
         fig = go.Figure()
-        for state, name, color in (
-            ("leading", "כבר מובילה", HOME_COLOR),
-            ("level", "בשוויון", DRAW_COLOR),
-            ("trailing", "בפיגור", AWAY_COLOR),
-        ):
-            group = frame.xs(state, level="score_before")
+        for home, label, color in ((True, "בית", HOME_COLOR), (False, "חוץ", AWAY_COLOR)):
+            group = frame.xs(home, level="is_home").reindex(["leading", "level", "trailing"])
             fig.add_bar(
-                x=group.index,
-                y=group.rate * 100,
-                name=name,
+                x=["מובילה", "בשוויון", "מפגרת"],
+                y=group.goals_per_90,
+                name=label,
                 marker_color=color,
-                error_y=dict(
-                    type="data",
-                    symmetric=False,
-                    array=(group.ci_upper - group.rate) * 100,
-                    arrayminus=(group.rate - group.ci_lower) * 100,
-                ),
-                customdata=group.n,
-                hovertemplate="%{x}: %{y:.1f}%<br>n=%{customdata}",
+                error_y=_errors(group, "goals_per_90"),
+                customdata=np.column_stack([group.n_goals, group.minutes, group.n_matches]),
+                hovertemplate="%{x}: %{y:.2f} שערים ל־90<br>שערים=%{customdata[0]}"
+                "<br>דקות=%{customdata[1]}<br>משחקים=%{customdata[2]}<extra>%{fullData.name}</extra>",
             )
-        n = int(frame["count"].sum())
-        first = frame.xs("0-15", level="minute_bucket").loc["level", "rate"]
+        home = frame.xs(True, level="is_home")
+        away = frame.xs(False, level="is_home")
         fig.update_layout(
-            title=f"מתוך {n:,} שערים בציר הזמן, {first:.1%} משערי רבע השעה הראשון הובקעו בשוויון",
+            title=f"קצב בפיגור מול שוויון: בית {home.loc['trailing', 'goals_per_90']:.2f} "
+            f"מול {home.loc['level', 'goals_per_90']:.2f}; "
+            f"חוץ {away.loc['trailing', 'goals_per_90']:.2f} "
+            f"מול {away.loc['level', 'goals_per_90']:.2f} שערים ל־90",
             barmode="group",
-            yaxis_title="% מהשערים בדלי",
+            yaxis_title="שערים ל־90 דקות חשיפה",
         )
     elif kind == "time_in_state":
         fig = px.scatter(
@@ -191,21 +186,25 @@ def chapter_d_chart(kind: str, frame: pd.DataFrame) -> Any:
     elif kind == "resilience":
         fig = px.scatter(
             data,
-            x="points_dropped_from_lead",
-            y="points_won_from_behind",
+            x="points_dropped_per_led_game",
+            y="points_won_per_trailed_game",
             text="team_name",
             size="n",
-            hover_data=["n_seasons", "n_led", "n_trailed"],
+            hover_data=["n", "n_seasons", "n_led", "n_trailed"],
             labels=dict(
-                points_dropped_from_lead="נקודות שאבדו מיתרון",
-                points_won_from_behind="נקודות שהושגו מפיגור",
+                points_dropped_per_led_game="נקודות שאבדו לכל משחק עם יתרון",
+                points_won_per_trailed_game="נקודות שהושגו לכל משחק עם פיגור",
             ),
         )
-        fig.update_traces(textposition="top center")
+        fig.update_traces(
+            textposition="top center",
+            error_x=_errors(data, "points_dropped_per_led_game"),
+            error_y=_errors(data, "points_won_per_trailed_game"),
+        )
+        leader = data.loc[data.points_won_per_trailed_game.idxmax()]
         fig.update_layout(
-            title=f"{len(data)} מועדונים עם 5 עונות לפחות: "
-            f"{int(data.points_won_from_behind.sum()):,} נקודות הושגו מפיגור; "
-            "סך מצטבר תלוי חשיפה"
+            title=f"{leader.team_name}: {leader.points_won_per_trailed_game:.2f} נקודות "
+            f"למשחק עם פיגור, {leader.points_dropped_per_led_game:.2f} אבדו למשחק עם יתרון",
         )
     elif kind == "late_goals":
         data = data.sort_values("late_goal_share")

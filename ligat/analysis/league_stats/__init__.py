@@ -45,6 +45,7 @@ from .match_flow import (
     poisson_reference,
     red_card_stats,
     scoreline_distribution,
+    scoring_rate_by_state,
     team_late_goals,
     timeline_exclusions,
     timeline_resilience,
@@ -68,6 +69,7 @@ from .season_course import (
 __all__ = [
     "timeline_exclusions",
     "scoreline_distribution",
+    "scoring_rate_by_state",
     "top_scorelines",
     "poisson_reference",
     "observed_vs_poisson",

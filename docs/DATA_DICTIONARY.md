@@ -427,11 +427,12 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
 | timeline_exclusions | reason | n_matches לפי סיבות זרות: ht_conflict; no_goals; unreliable_scorers_864982. הסיבה המפורשת של 864982 קודמת ל-no_goals, כדי לא לספור פעמיים |
 | game_timelines | game_id, team_id | season_id, is_home, minutes_leading/level/trailing (סכום 90), led_at_any_point, trailed_at_any_point, points_earned, points_dropped_from_lead, points_won_from_behind, equalized_within_10, late_goal_for/against (ספירת שערים), first_half_stoppage_goals |
 | timeline_team_summary | season_id, team_id | team_name, n משחקים, ppm, ממוצעי דקות בשלושת המצבים; סך נקודות שאבדו מיתרון והושגו מפיגור; n_led/n_trailed; equalized_within_10_n הוא מספר המשחקים עם ספיגה שהשאירה בפיגור, ושיעור הצלחה עם רווח Wilson. סכומים וממוצעים של העונה הם תיאור מדויק, ללא רווח תחזית |
-| timeline_resilience | team_id | מועדונים עם min_seasons=5 לפחות; השם האחרון, n משחקים, n_seasons, n_led/n_trailed, סך נקודות שאבדו מיתרון והושגו מפיגור. יותר חשיפה יכולה להגדיל את שני הסכומים; אין כאן דירוג חוסן מתוקנן |
+| timeline_resilience | team_id | מועדונים עם min_seasons=5 לפחות; השם האחרון, n משחקים, n_seasons, n_led/n_trailed, סך נקודות שאבדו מיתרון והושגו מפיגור; points_won_per_trailed_game=השגה/n_trailed, points_dropped_per_led_game=איבוד/n_led, עם ci_lower/upper מדגימת עונות לכל יחס. אפס משחקי חשיפה נותן NA. נרמול לחשיפה אינו תקנון לחוזק או הוכחת סיבתיות |
 | halftime_transitions | is_home, ht_state | n שורות קבוצה×משחק במצב leading/level/trailing; win/draw/loss_n/rate ו-ci_lower/upper; ppm ורווח bootstrap עונות. attrs.n_excluded_rows מדווח גם חוסר ht_state וגם החרגות ציר זמן |
 | zero_zero_at_60 | outcome | zero_zero/home_win/away_win/scoring_draw; n משחקים ללא שער עד דקה 60 כולל, count, rate ורווח Wilson. scoring_draw משלים את החלוקה (67 משחקים אמיתיים) |
 | first_goal_effect | is_home, scored_first | n, שיעורי W/D/L ורווחי Wilson, ppm ורווח bootstrap. 0:0 וזהות ראשונה עמומה (שני צדדים באותה דקה ראשונה) מוחרגים; attrs.n_zero_zero_or_ambiguous_rows מציין את מספר השורות |
 | first_goal_minute_distribution | minute_bucket | n משחקים תקינים, count משחקים עם שער ראשון בדלי, rate ורווח Wilson; no_goal מציין 0:0. השיעורים כולל no_goal מסתכמים ל־1 |
+| scoring_rate_by_state | is_home, state | state=leading/level/trailing; n_goals עם score_before ידוע, minutes חשיפה מ-game_timelines, n_matches, n_seasons, goals_per_90=90×שערים/דקות, goals_per_90_ci_lower/upper מ-bootstrap של בלוקי עונות. בית וחוץ נפרדים; אפס חשיפה נותן NA |
 | goal_timing | minute_bucket, score_before | מצב המבקיעה leading/level/trailing לפני השער בסדר half/minute/goal_number; n כל השערים בדלי, count במצב, rate ורווח Wilson. זה חלק מהשערים, לא קצב לדקת חשיפה |
 | team_late_goals | team_id | מועדונים עם min_seasons=5; השם האחרון, n_seasons, n_matches, n_goals; second_half_goal_share וחלק שערי מחצית שנייה מדקה 76 (late_goal_share), ספירת שערים ורווחי Wilson. מכנה שני המדדים הוא כל שערי הקבוצה התקינים |
 | penalty_owngoal_stats | season_id, team_id | n משחקים עם מבקיעים זמינים, n_goals לזכות; penalty/own_goal_for/against_n ו-per_match; penalty_goal_share ורווח Wilson. שער עצמי לטובת הקבוצה הנהנית, לא קבוצת השחקן שהבקיע עצמי. סתירות מחצית אינן מוחרגות |
@@ -465,3 +466,25 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
 - ממוצעי ppm ב-halftime_transitions/first_goal_effect/red_card_stats ופיזור השערים מקבלים
   n_bootstrap=2000; בטסטים 50. רווחים דורשים שתי עונות לפחות. מדגם n<30 לא מצדיק מסקנה;
   השוואות מרובות ורווחי שערים תלויים אינן מתוקנות אוטומטית. קשר, לא סיבה, במיוחד באדומים.
+
+### הבהרות QA לפעימה D: קצב לפי חשיפה וחוסן
+
+- scoring_rate_by_state משתמשת ב-score_before של goal_events. באצוות שערים
+  באותה דקה שבהן המצב אינו ידוע, השערים אינם משויכים למצב בכוח. בדאטה:
+  18 שערים כאלה (8 בית, 10 חוץ). attrs.n_missing_score_before ו-
+  missing_score_before_by_venue מדווחים אותם. דקות החשיפה אינן נמחקות.
+  10,576 שערים משויכים ו־18 חסרים משלימים 10,594 שערים בציר הזמן התקין.
+- החשיפה נלקחת מאותו game_timelines בדיוק, עם אותן 14 החרגות; לכל צד
+  387,090 דקות (4,301×90). לכל מצב מצורפות כל עונות הבחירה שיש בהן משחקים,
+  גם אם באותה עונה אין שערים או אין חשיפה במצב המסוים.
+- רווחי היחסים דוגמים בלוקי עונות שלמים ומחשבים מחדש סך מונה / סך מכנה
+  בכל דגימה, ולא ממוצע לא־משוקלל של שיעורי עונות. n_bootstrap=2000,
+  זרע 20261014, ו־50 בטסטים. בפחות משתי עונות אין רווח; מכנה אפס
+  נותן NA. דגימות bootstrap עם מכנה אפס אינן נכנסות לרווח.
+- timeline_resilience שומרת את הסכומים ואת n_led/n_trailed לצד השיעורים.
+  השיעור הראשון מתוך משחקי פיגור בלבד, והשני מתוך משחקי יתרון בלבד.
+  כל משחק יכול להופיע בשני המכנים, בהתאם למהלך המשחק. min_seasons=5 נשמר.
+- D6 מציג קצב הבקעה לפי בית/חוץ ומצב, לא את התפלגות השערים בתוך דלי דקה;
+  goal_timing נשארת כטבלת עזר. D8 מציג שיעורי נקודות עם רווחים בשני הצירים.
+- המתאם הכולל בית/חוץ מערב הבדלי חוזק עם התנהגות בתוך המשחק. תלות מותנית
+  תיבדק במחברת 06 רק לאחר ש-goals יקבע λ לכל צד; המתאם הגולמי אינו בדיקה כזאת.
