@@ -1,5 +1,6 @@
 """Descriptive invariants on synthetic seasons and optional local clean data."""
 
+import re
 from dataclasses import replace
 from typing import Any
 
@@ -718,7 +719,8 @@ def test_chapter_b_titles_are_computed_from_changed_data(history_tables: Analysi
     title = chapter_b_chart(
         "balance", stats.competitive_balance(history_tables), champions
     ).layout.title.text.replace("<br>", " ")
-    assert "3 מועדונים" in title and "6 אליפויות" in title and "ב־5" in title
+    clean_title = re.sub(r"[\u200e\u200f\u202a-\u202e]", "", title)
+    assert "3 מועדונים" in clean_title and "6 אליפויות" in clean_title and "ב־5" in clean_title
     calendar = stats.calendar_effects(history_tables, n_bootstrap=50)
     calendar.loc[("kickoff_hour", "20_plus"), "goals_per_match"] = 2.7
     calendar.loc[("kickoff_hour", "18_to_20"), "goals_per_match"] = 2.2
