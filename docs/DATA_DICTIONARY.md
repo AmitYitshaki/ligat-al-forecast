@@ -409,3 +409,82 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
 מסננים תוצאות משחק מלא. תזוזה ממיקום ספורטיבי למיקום רשמי כוללת גם
 השפעת חציית נקודות ועונשים; אין לשייך את כל התזוזה לשינוי בכוח הקבוצה.
 מחקר מוטיבציה מלא לפי טבלה as_of נדחה למחברת 04, VISION §7 שאלה 6א.
+
+## מחברת 02 — פעימה D: המשחק והשערים
+
+תצוגות תיאוריות בזיכרון ב־`ligat.analysis.league_stats.match_flow`, ללא כתיבה ל-clean.
+כל הפונקציות מקבלות `seasons=DEVELOPMENT_SEASONS` ומסרבות לעונות מחוץ ל־8–25,
+לרשימה ריקה או כפולה. אינדקסים נוצרים עם `drop=True`.
+
+| פונקציה / טבלה | אינדקס | עמודות ומשמעות |
+| --- | --- | --- |
+| scoreline_distribution | home_goals; עמודות away_goals | מפת שיעורים 9×9 מתוך כל המשחקים. attrs: n_matches, n_beyond, counts, ci_lower/upper לכל תא (Wilson). אין נרמול מחדש אחרי חיתוך |
+| top_scorelines | home_goals, away_goals | 10 התוצאות השכיחות בפועל; n הוא מספר הופעות, rate ו-ci_lower/upper מתוך כל המשחקים |
+| poisson_reference | home_goals; עמודות away_goals | מכפלת Poisson עצמאיים עם ממוצעי שערי הבית והחוץ בפיתוח; attrs: lambda_home/away, tail_mass, n_matches. הזנב נשמר מחוץ למפה; אין אימון או תחזית |
+| observed_vs_poisson | scoreline | 0:0, 1:0, 0:1, 1:1, 2:2, all_draws; n משחקים, count, observed ורווח Wilson, expected, ratio=נצפה/צפוי. all_draws כולל זנב תיקו עד דיוק נומרי, ולא רק אלכסון 9×9 |
+| goal_count_dispersion | metric: home_goals/away_goals/total_goals | n משחקים, n_seasons, mean, variance מדגמית (ddof=1), dispersion=variance/mean, home_away_correlation פירסון. לכל מדד ci_lower/upper מ-bootstrap של בלוקי עונות תוך שמירת צמדי תוצאות. יחס עם ממוצע אפס או מתאם בשונות אפס חסר |
+| draw_types | season_id | n כל משחקי העונה; zero_zero/one_one/two_two_plus: n, rate ורווחי Wilson. כל השיעורים מתוך המשחקים, לא מתוך התיקו |
+| timeline_exclusions | reason | n_matches לפי סיבות זרות: ht_conflict; no_goals; unreliable_scorers_864982. הסיבה המפורשת של 864982 קודמת ל-no_goals, כדי לא לספור פעמיים |
+| game_timelines | game_id, team_id | season_id, is_home, minutes_leading/level/trailing (סכום 90), led_at_any_point, trailed_at_any_point, points_earned, points_dropped_from_lead, points_won_from_behind, equalized_within_10, late_goal_for/against (ספירת שערים), first_half_stoppage_goals |
+| timeline_team_summary | season_id, team_id | team_name, n משחקים, ppm, ממוצעי דקות בשלושת המצבים; סך נקודות שאבדו מיתרון והושגו מפיגור; n_led/n_trailed; equalized_within_10_n הוא מספר המשחקים עם ספיגה שהשאירה בפיגור, ושיעור הצלחה עם רווח Wilson. סכומים וממוצעים של העונה הם תיאור מדויק, ללא רווח תחזית |
+| timeline_resilience | team_id | מועדונים עם min_seasons=5 לפחות; השם האחרון, n משחקים, n_seasons, n_led/n_trailed, סך נקודות שאבדו מיתרון והושגו מפיגור; points_won_per_trailed_game=השגה/n_trailed, points_dropped_per_led_game=איבוד/n_led, עם ci_lower/upper מדגימת עונות לכל יחס. אפס משחקי חשיפה נותן NA. נרמול לחשיפה אינו תקנון לחוזק או הוכחת סיבתיות |
+| halftime_transitions | is_home, ht_state | n שורות קבוצה×משחק במצב leading/level/trailing; win/draw/loss_n/rate ו-ci_lower/upper; ppm ורווח bootstrap עונות. attrs.n_excluded_rows מדווח גם חוסר ht_state וגם החרגות ציר זמן |
+| zero_zero_at_60 | outcome | zero_zero/home_win/away_win/scoring_draw; n משחקים ללא שער עד דקה 60 כולל, count, rate ורווח Wilson. scoring_draw משלים את החלוקה (67 משחקים אמיתיים) |
+| first_goal_effect | is_home, scored_first | n, שיעורי W/D/L ורווחי Wilson, ppm ורווח bootstrap. 0:0 וזהות ראשונה עמומה (שני צדדים באותה דקה ראשונה) מוחרגים; attrs.n_zero_zero_or_ambiguous_rows מציין את מספר השורות |
+| first_goal_minute_distribution | minute_bucket | n משחקים תקינים, count משחקים עם שער ראשון בדלי, rate ורווח Wilson; no_goal מציין 0:0. השיעורים כולל no_goal מסתכמים ל־1 |
+| scoring_rate_by_state | is_home, state | state=leading/level/trailing; n_goals עם score_before ידוע, minutes חשיפה מ-game_timelines, n_matches, n_seasons, goals_per_90=90×שערים/דקות, goals_per_90_ci_lower/upper מ-bootstrap של בלוקי עונות. בית וחוץ נפרדים; אפס חשיפה נותן NA |
+| goal_timing | minute_bucket, score_before | מצב המבקיעה leading/level/trailing לפני השער בסדר half/minute/goal_number; n כל השערים בדלי, count במצב, rate ורווח Wilson. זה חלק מהשערים, לא קצב לדקת חשיפה |
+| team_late_goals | team_id | מועדונים עם min_seasons=5; השם האחרון, n_seasons, n_matches, n_goals; second_half_goal_share וחלק שערי מחצית שנייה מדקה 76 (late_goal_share), ספירת שערים ורווחי Wilson. מכנה שני המדדים הוא כל שערי הקבוצה התקינים |
+| penalty_owngoal_stats | season_id, team_id | n משחקים עם מבקיעים זמינים, n_goals לזכות; penalty/own_goal_for/against_n ו-per_match; penalty_goal_share ורווח Wilson. שער עצמי לטובת הקבוצה הנהנית, לא קבוצת השחקן שהבקיע עצמי. סתירות מחצית אינן מוחרגות |
+| penalty_owngoal_by_season | season_id | n משחקים, n_goals; penalty/own_goal_n, per_match, goal_share ורווח Wilson. כל שער נספר פעם אחת בסיכום הליגה. per_match יכול לעלות על 1 ולכן אינו שיעור בינומי |
+| red_card_stats | part, group, season_id | טבלה ארוכה: cards עם group=אדום לקבוצה:אדום ליריבה (0/1; 1 פירושו ≥1); first_card_minute עם up_to_60/after_60; second_yellow לפי עונה. בשני החלקים הראשונים n שורות קבוצה×משחק, W/D/L ורווחי Wilson, ppm ורווח עונות; בשלישי n הוא אדומים, second_yellow_n/share ורווח Wilson. season_id=0 מסמן סיכום כל עונות הבחירה, לא עונה אמיתית; עמודות לא רלוונטיות לחלק נשארות חסרות |
+
+### כללי ציר הזמן והנקודות
+
+- מוחרגים 13 משחקי ht_conflict ומשחק 864982 ללא מבקיעים אמינים: 14 מתוך 4,315.
+  נשארים 4,301 משחקים ו־8,602 שורות. שאר תוצאות המשחקים אינן נמחקות מניתוח התוצאות.
+- בכל תצוגת מחצית/תזמון/ציר זמן נשמרים attrs: n_total_matches,
+  n_included_matches, n_excluded_matches ו-exclusions עם סיבות זרות. סיכום ההחרגות
+  עצמו הוא timeline_exclusions. אין מחיקה שקטה של שער חסר שיוך מחצית במשחק תקין:
+  הפונקציה נכשלת, וכך גם באי־התאמה בין שערי הציר לתוצאה.
+- הסדר הוא half, minute, goal_number. תוספת הראשונה נצמדת לשעון 45 ותוספת השנייה
+  ל־90; minute המקורי אינו משתנה. משך אפס מותר. סדר שערים של שתי קבוצות באותה דקה
+  הוא מוסכמת תיאור בלבד; first_goal_effect שומר עמימות לפי זיהוי השער הראשון הקיים.
+- **הבהרת עמית:** points_dropped_from_lead=3−points_earned רק אם הייתה הובלה;
+  ערכים 0/2/3, אחרת NA. points_won_from_behind=points_earned רק אם היה פיגור;
+  ערכים 0/1/3, אחרת NA. משחק שבו הקבוצה גם הובילה וגם פיגרה מופיע בשניהם.
+- equalized_within_10: לפחות שוויון אחד בתוך 10 דקות שעון מספיגה שהשאירה בפיגור;
+  הספיגות נבחנות בתוך פרק פיגור עד לשוויון. בלי ספיגה כזו NA; מכנה השיעור הוא משחקים
+  עם חשיפה, לא מספר אירועי הספיגה. תוספת זמן מקוצרת עלולה להשפיע על המרווח.
+- שערי פנדל הם רק בעיטות שהובקעו. אין נתוני החמצות או שריקות. ספירת סוגי השערים
+  משתמשת ב־4,314 משחקים, ורק 864982 מוחרג. שערי עצמי כבר נזקפו לקבוצה הנהנית ב-goals.
+- red_card_stats מקבלת `red_cards=` כקלט מפורש שנקרא ב-Repository.read_filtered לפי
+  game_id של משחקי הבחירה. אין I/O בפונקציה ואין הרחבה של AnalysisTables או loader.
+  12 כרטיסים ללא דקה נשמרים בספירות ובחלק הצהוב השני; שורת קבוצה עם דקה חסרה לאדום
+  כלשהו מוחרגת מפירוק האדום הראשון, מפני שלא ניתן לדעת אם האדום החסר היה הראשון.
+  attrs: n_cards, n_missing_minute, n_timing_excluded_team_games.
+- ממוצעי ppm ב-halftime_transitions/first_goal_effect/red_card_stats ופיזור השערים מקבלים
+  n_bootstrap=2000; בטסטים 50. רווחים דורשים שתי עונות לפחות. מדגם n<30 לא מצדיק מסקנה;
+  השוואות מרובות ורווחי שערים תלויים אינן מתוקנות אוטומטית. קשר, לא סיבה, במיוחד באדומים.
+
+### הבהרות QA לפעימה D: קצב לפי חשיפה וחוסן
+
+- scoring_rate_by_state משתמשת ב-score_before של goal_events. באצוות שערים
+  באותה דקה שבהן המצב אינו ידוע, השערים אינם משויכים למצב בכוח. בדאטה:
+  18 שערים כאלה (8 בית, 10 חוץ). attrs.n_missing_score_before ו-
+  missing_score_before_by_venue מדווחים אותם. דקות החשיפה אינן נמחקות.
+  10,576 שערים משויכים ו־18 חסרים משלימים 10,594 שערים בציר הזמן התקין.
+- החשיפה נלקחת מאותו game_timelines בדיוק, עם אותן 14 החרגות; לכל צד
+  387,090 דקות (4,301×90). לכל מצב מצורפות כל עונות הבחירה שיש בהן משחקים,
+  גם אם באותה עונה אין שערים או אין חשיפה במצב המסוים.
+- רווחי היחסים דוגמים בלוקי עונות שלמים ומחשבים מחדש סך מונה / סך מכנה
+  בכל דגימה, ולא ממוצע לא־משוקלל של שיעורי עונות. n_bootstrap=2000,
+  זרע 20261014, ו־50 בטסטים. בפחות משתי עונות אין רווח; מכנה אפס
+  נותן NA. דגימות bootstrap עם מכנה אפס אינן נכנסות לרווח.
+- timeline_resilience שומרת את הסכומים ואת n_led/n_trailed לצד השיעורים.
+  השיעור הראשון מתוך משחקי פיגור בלבד, והשני מתוך משחקי יתרון בלבד.
+  כל משחק יכול להופיע בשני המכנים, בהתאם למהלך המשחק. min_seasons=5 נשמר.
+- D6 מציג קצב הבקעה לפי בית/חוץ ומצב, לא את התפלגות השערים בתוך דלי דקה;
+  goal_timing נשארת כטבלת עזר. D8 מציג שיעורי נקודות עם רווחים בשני הצירים.
+- המתאם הכולל בית/חוץ מערב הבדלי חוזק עם התנהגות בתוך המשחק. תלות מותנית
+  תיבדק במחברת 06 רק לאחר ש-goals יקבע λ לכל צד; המתאם הגולמי אינו בדיקה כזאת.

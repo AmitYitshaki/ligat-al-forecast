@@ -1107,3 +1107,393 @@ def test_playoff_form_summary(course_tables: AnalysisTables) -> None:
         assert result.loc[stage, "mean_ppm_change_ci_upper"] == pytest.approx(
             result.loc[stage, "mean_ppm_change"]
         )
+
+
+# Chapter D: independent synthetic match flow and optional real-data controls.
+D_FUNCTIONS = [
+    stats.scoreline_distribution,
+    stats.scoring_rate_by_state,
+    stats.top_scorelines,
+    stats.poisson_reference,
+    stats.observed_vs_poisson,
+    stats.goal_count_dispersion,
+    stats.draw_types,
+    stats.timeline_exclusions,
+    stats.game_timelines,
+    stats.timeline_team_summary,
+    stats.timeline_resilience,
+    stats.halftime_transitions,
+    stats.zero_zero_at_60,
+    stats.first_goal_effect,
+    stats.first_goal_minute_distribution,
+    stats.goal_timing,
+    stats.team_late_goals,
+    stats.penalty_owngoal_stats,
+    stats.penalty_owngoal_by_season,
+    stats.red_card_stats,
+]
+D_BOOTSTRAP = {
+    stats.goal_count_dispersion,
+    stats.scoring_rate_by_state,
+    stats.timeline_resilience,
+    stats.halftime_transitions,
+    stats.first_goal_effect,
+    stats.red_card_stats,
+}
+
+
+def _flow_cards() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            dict(game_id=801, team_id=1, minute=pd.NA, is_second_yellow=True),
+            dict(game_id=801, team_id=2, minute=65, is_second_yellow=False),
+            dict(game_id=803, team_id=1, minute=60, is_second_yellow=False),
+        ]
+    ).astype({"minute": "Int64"})
+
+
+def _run_d(
+    function: Any, tables: AnalysisTables, seasons: Any = DEVELOPMENT_SEASONS
+) -> pd.DataFrame:
+    options: dict[str, Any] = {"n_bootstrap": 50} if function in D_BOOTSTRAP else {}
+    if function == stats.red_card_stats:
+        options["red_cards"] = _flow_cards()
+    return function(tables, seasons, **options)
+
+
+@pytest.fixture
+def flow_tables() -> AnalysisTables:
+    from ligat.analysis.prepare import _minute_bucket
+
+    matches, teams, goals, labels = [], [], [], []
+    schedules = [
+        [(1, 1, 46), (2, 2, 93)],
+        [],
+        [(1, 1, 10), (2, 1, 20), (2, 1, 30)],
+        [(2, 1, 10), (1, 1, 20)],
+        [(1, 2, 60)],
+        [(2, 2, 61)],
+        [(1, 1, 4), (2, 1, 17)],
+    ]
+    for season in range(8, 13):
+        for number, events in enumerate(schedules, start=1):
+            game_id = season * 100 + number
+            conflict = number == 7
+            hg = sum(t == 1 for t, _, _ in events)
+            ag = len(events) - hg
+            ht = {t: sum(team == t and half == 1 for team, half, _ in events) for t in (1, 2)}
+            matches.append(
+                dict(
+                    game_id=game_id,
+                    season_id=season,
+                    home_team_id=1,
+                    away_team_id=2,
+                    home_goals=hg,
+                    away_goals=ag,
+                    total_goals=hg + ag,
+                    ht_conflict=conflict,
+                    goals_available=True,
+                )
+            )
+            for team, other in ((1, 2), (2, 1)):
+                diff = hg - ag if team == 1 else ag - hg
+                hdiff = ht[team] - ht[other]
+                teams.append(
+                    dict(
+                        game_id=game_id,
+                        season_id=season,
+                        team_id=team,
+                        opponent_id=other,
+                        is_home=team == 1,
+                        result="win" if diff > 0 else "loss" if diff < 0 else "draw",
+                        points_earned=3 if diff > 0 else 0 if diff < 0 else 1,
+                        ht_state=pd.NA
+                        if conflict
+                        else "leading"
+                        if hdiff > 0
+                        else "trailing"
+                        if hdiff < 0
+                        else "level",
+                        scored_first=team == events[0][0] if events else pd.NA,
+                    )
+                )
+            for k, (team, half, minute) in enumerate(events, start=1):
+                goals.append(
+                    dict(
+                        game_id=game_id,
+                        goal_number=k,
+                        team_id=team,
+                        season_id=season,
+                        half=half,
+                        minute=minute,
+                        added_time=pd.NA,
+                        score_before=(
+                            "leading"
+                            if sum(t == team for t, _, _ in events[: k - 1])
+                            > sum(t != team for t, _, _ in events[: k - 1])
+                            else "trailing"
+                            if sum(t == team for t, _, _ in events[: k - 1])
+                            < sum(t != team for t, _, _ in events[: k - 1])
+                            else "level"
+                        ),
+                        is_first_half_stoppage=half == 1 and minute > 45,
+                        minute_bucket=_minute_bucket(half, minute),
+                        is_penalty=number == 3 and k == 3,
+                        is_own_goal=number == 3 and k == 1,
+                    )
+                )
+        labels += [dict(season_id=season, team_id=t, team_name=f"Club {t}") for t in (1, 2)]
+    matches.append(
+        dict(
+            game_id=864982,
+            season_id=8,
+            home_team_id=1,
+            away_team_id=2,
+            home_goals=1,
+            away_goals=2,
+            total_goals=3,
+            ht_conflict=False,
+            goals_available=False,
+        )
+    )
+    for team in (1, 2):
+        teams.append(
+            dict(
+                game_id=864982,
+                season_id=8,
+                team_id=team,
+                opponent_id=3 - team,
+                is_home=team == 1,
+                result="loss" if team == 1 else "win",
+                points_earned=0 if team == 1 else 3,
+                ht_state=pd.NA,
+                scored_first=pd.NA,
+            )
+        )
+    empty = pd.DataFrame()
+    return AnalysisTables(
+        pd.DataFrame(matches).set_index("game_id", drop=True),
+        pd.DataFrame(teams).set_index(["team_id", "game_id"], drop=True),
+        pd.DataFrame(goals).set_index(["game_id", "goal_number"], drop=True),
+        pd.DataFrame(labels).set_index(["season_id", "team_id"], drop=True),
+        empty,
+        empty,
+    )
+
+
+@pytest.mark.parametrize("function", D_FUNCTIONS)
+@pytest.mark.parametrize("seasons", [[26], [27], [28], [8, 26], [], [8, 8]])
+def test_flow_development_scope(
+    function: Any, seasons: list[int], flow_tables: AnalysisTables
+) -> None:
+    with pytest.raises(ValueError, match="development"):
+        _run_d(function, flow_tables, seasons)
+
+
+def test_flow_timeline_invariants(flow_tables: AnalysisTables) -> None:
+    timeline = stats.game_timelines(flow_tables)
+    assert (
+        timeline[["minutes_leading", "minutes_level", "minutes_trailing"]].sum(axis=1).eq(90).all()
+    )
+    assert len(timeline) + 2 * timeline.attrs["n_excluded_matches"] == len(flow_tables.team_matches)
+    for _, group in timeline.groupby(level="game_id"):
+        assert group.minutes_leading.iloc[0] == group.minutes_trailing.iloc[1]
+    assert timeline.points_dropped_from_lead.dropna().isin([0, 2, 3]).all()
+    assert timeline.points_won_from_behind.dropna().isin([0, 1, 3]).all()
+    assert timeline.loc[(802, 1), "minutes_level"] == 90
+    assert timeline.loc[(801, 1), "minutes_leading"] == 45  # first-half 46 -> clock 45
+    assert timeline.loc[(801, 2), "late_goal_for"] == 1
+    assert timeline.loc[(801, 1), "first_half_stoppage_goals"] == 1
+    assert timeline.loc[(801, 1), "points_dropped_from_lead"] == 2
+    assert pd.isna(timeline.loc[(802, 1), "points_dropped_from_lead"])
+    assert pd.isna(timeline.loc[(802, 1), "points_won_from_behind"])
+    assert (
+        timeline.loc[(803, 1), "led_at_any_point"]
+        and timeline.loc[(803, 1), "trailed_at_any_point"]
+    )
+    assert timeline.loc[(803, 1), "points_dropped_from_lead"] == 3
+    assert timeline.loc[(803, 1), "points_won_from_behind"] == 0
+    assert timeline.loc[(804, 1), "equalized_within_10"]
+    assert not timeline.loc[(801, 2), "equalized_within_10"]
+    assert timeline.attrs["exclusions"] == {"ht_conflict": 5, "unreliable_scorers_864982": 1}
+
+
+def test_flow_distributions_and_denominators(flow_tables: AnalysisTables) -> None:
+    observed = stats.scoreline_distribution(flow_tables, max_goals=0)
+    assert observed.to_numpy().sum() == pytest.approx(1 - observed.attrs["n_beyond"] / 36)
+    poisson = stats.poisson_reference(flow_tables)
+    assert poisson.to_numpy().sum() + poisson.attrs["tail_mass"] == pytest.approx(1)
+    transitions = stats.halftime_transitions(flow_tables, n_bootstrap=50)
+    assert transitions[["win_rate", "draw_rate", "loss_rate"]].sum(axis=1).eq(1).all()
+    assert transitions.n.sum() + transitions.attrs["n_excluded_rows"] == 72
+    effect = stats.first_goal_effect(flow_tables, n_bootstrap=50)
+    assert (
+        effect.xs(True, level="scored_first").n.sum()
+        == effect.xs(False, level="scored_first").n.sum()
+    )
+    at60 = stats.zero_zero_at_60(flow_tables)
+    assert at60.n.eq(10).all()  # 0:0 and minute-61 opener; minute-60 opener excluded
+    assert at60["count"].sum() == 10
+    timing = stats.goal_timing(flow_tables)
+    assert timing["count"].sum() == 45  # 9 eligible goals per synthetic season
+    penalties = stats.penalty_owngoal_stats(flow_tables)
+    assert penalties.penalty_for_n.sum() == penalties.penalty_against_n.sum() == 5
+    assert penalties.own_goal_for_n.sum() == penalties.own_goal_against_n.sum() == 5
+    assert penalties.loc[(8, 1), "own_goal_for_n"] == 1  # own goal credited to beneficiary
+    cards = stats.red_card_stats(flow_tables, red_cards=_flow_cards(), n_bootstrap=50)
+    assert cards.xs("cards", level="part").n.sum() == 72
+    assert cards.attrs["n_missing_minute"] == 1
+    assert cards.xs("first_card_minute", level="part").n.sum() == 2
+    assert cards.xs("second_yellow", level="part").second_yellow_n.sum() == 1
+
+
+@pytest.mark.parametrize("function", list(D_BOOTSTRAP))
+def test_flow_bootstrap_deterministic(function: Any, flow_tables: AnalysisTables) -> None:
+    pd.testing.assert_frame_equal(_run_d(function, flow_tables), _run_d(function, flow_tables))
+    options = {"red_cards": _flow_cards()} if function == stats.red_card_stats else {}
+    with pytest.raises(ValueError, match="n_bootstrap"):
+        function(flow_tables, n_bootstrap=0, **options)
+
+
+def test_flow_pure_inputs_and_indexes(flow_tables: AnalysisTables) -> None:
+    from dataclasses import fields
+
+    originals = {f.name: getattr(flow_tables, f.name).copy(deep=True) for f in fields(flow_tables)}
+    for function in D_FUNCTIONS:
+        frame = _run_d(function, flow_tables)
+        assert frame.index.is_unique
+        assert not set(frame.index.names) & set(frame.columns)
+    for name, original in originals.items():
+        pd.testing.assert_frame_equal(getattr(flow_tables, name), original)
+
+
+def test_flow_real_controls(real_tables: AnalysisTables) -> None:
+    rate = stats.scoring_rate_by_state(real_tables, n_bootstrap=50)
+    assert rate.minutes.sum() == 4301 * 180
+    for home, expected in [(True, [1.62, 1.19, 1.29]), (False, [1.35, 1.03, 1.17])]:
+        assert rate.xs(home, level="is_home").loc[
+            ["leading", "level", "trailing"], "goals_per_90"
+        ].tolist() == pytest.approx(expected, abs=0.01)
+    resilience = stats.timeline_resilience(real_tables, n_bootstrap=50)
+    for team, expected in {
+        2171: (0.80, 0.44),
+        1061: (0.79, 0.40),
+        1005: (0.77, 0.41),
+        2176: (0.53, 0.72),
+    }.items():
+        assert resilience.loc[
+            team, ["points_won_per_trailed_game", "points_dropped_per_led_game"]
+        ].tolist() == pytest.approx(expected, abs=0.01)
+    observed = stats.scoreline_distribution(real_tables)
+    assert observed.attrs["n_matches"] == 4315
+    assert observed.to_numpy().sum() == pytest.approx(1 - observed.attrs["n_beyond"] / 4315)
+    timeline = stats.game_timelines(real_tables)
+    assert len(timeline) + 2 * timeline.attrs["n_excluded_matches"] == 8630
+    assert (
+        timeline[["minutes_leading", "minutes_level", "minutes_trailing"]].sum(axis=1).eq(90).all()
+    )
+    transitions = stats.halftime_transitions(real_tables, n_bootstrap=50)
+    assert transitions.n.sum() + transitions.attrs["n_excluded_rows"] == 8630
+    effect = stats.first_goal_effect(real_tables, n_bootstrap=50)
+    assert (
+        effect.xs(True, level="scored_first").n.sum()
+        == effect.xs(False, level="scored_first").n.sum()
+    )
+    cards = Repository().read_filtered(
+        "red_cards", [("game_id", "in", real_tables.match_table.index.tolist())]
+    )
+    summary = stats.red_card_stats(real_tables, red_cards=cards, n_bootstrap=50)
+    assert summary.xs("cards", level="part").n.sum() == 8630
+
+
+def test_flow_charts_and_dispersion(flow_tables: AnalysisTables) -> None:
+    from ligat.viz.match_flow import chapter_d_chart
+
+    cases = {
+        "scorelines": stats.scoreline_distribution,
+        "poisson": stats.observed_vs_poisson,
+        "dispersion": stats.goal_count_dispersion,
+        "halftime": stats.halftime_transitions,
+        "first_goal": stats.first_goal_effect,
+        "timing": stats.scoring_rate_by_state,
+        "time_in_state": stats.timeline_team_summary,
+        "resilience": stats.timeline_resilience,
+        "late_goals": stats.team_late_goals,
+        "penalties": stats.penalty_owngoal_by_season,
+        "red_cards": stats.red_card_stats,
+    }
+    for kind, fn in cases.items():
+        fig = chapter_d_chart(kind, _run_d(fn, flow_tables))
+        assert fig.data and any(c.isdigit() for c in fig.layout.title.text)
+        assert "?" not in fig.layout.title.text
+        assert fig.to_json()
+    dispersion = stats.goal_count_dispersion(flow_tables, n_bootstrap=50)
+    source = flow_tables.match_table
+    assert dispersion.loc["home_goals", "variance"] == pytest.approx(source.home_goals.var())
+    assert dispersion.loc["away_goals", "mean"] == pytest.approx(source.away_goals.mean())
+    assert dispersion.loc["total_goals", "dispersion"] == pytest.approx(
+        source.total_goals.var() / source.total_goals.mean()
+    )
+    assert dispersion.iloc[0].home_away_correlation == pytest.approx(
+        source.home_goals.corr(source.away_goals)
+    )
+
+
+def test_flow_same_minute_zero_duration(flow_tables: AnalysisTables) -> None:
+    events = flow_tables.goal_events.copy()
+    events.loc[(804, 2), "minute"] = 10
+    result = stats.game_timelines(replace(flow_tables, goal_events=events))
+    assert result.loc[(804, 1), "minutes_trailing"] == 0
+    assert result.loc[(804, 1), "trailed_at_any_point"]
+    assert result.loc[(804, 1), "equalized_within_10"]
+    assert result.loc[(804, 1), "points_won_from_behind"] == 1
+
+
+def test_scoring_rate_exposure_and_unknown_states(flow_tables: AnalysisTables) -> None:
+    matches = flow_tables.match_table.loc[[803]]
+    teams = flow_tables.team_matches.loc[
+        flow_tables.team_matches.index.get_level_values("game_id") == 803
+    ]
+    tables = replace(flow_tables, match_table=matches, team_matches=teams)
+    frame = stats.scoring_rate_by_state(tables, [8], n_bootstrap=50)
+    assert frame.loc[(True, "leading"), "minutes"] == 10
+    assert frame.loc[(True, "level"), "minutes"] == 20
+    assert frame.loc[(True, "trailing"), "minutes"] == 60
+    assert frame.loc[(True, "level"), "goals_per_90"] == 4.5
+    assert frame.loc[(False, "trailing"), "goals_per_90"] == 9
+    assert frame.loc[(False, "level"), "goals_per_90"] == 4.5
+    assert frame.n_goals.sum() == 3
+    assert frame.minutes.sum() == 180
+    assert frame.goals_per_90_ci_lower.isna().all()  # Only one season.
+    events = tables.goal_events.copy()
+    events.loc[(803, 2), "score_before"] = pd.NA
+    unknown = stats.scoring_rate_by_state(replace(tables, goal_events=events), [8], n_bootstrap=50)
+    assert unknown.attrs["n_missing_score_before"] == 1
+    assert unknown.attrs["missing_score_before_by_venue"] == {"home": 0, "away": 1}
+    assert unknown.n_goals.sum() == 2 and unknown.minutes.sum() == 180
+    zero = replace(
+        tables,
+        match_table=flow_tables.match_table.loc[[802]],
+        team_matches=flow_tables.team_matches.loc[
+            flow_tables.team_matches.index.get_level_values("game_id") == 802
+        ],
+    )
+    result = stats.scoring_rate_by_state(zero, [8], n_bootstrap=50)
+    assert pd.isna(result.loc[(True, "leading"), "goals_per_90"])
+    assert result.loc[(True, "level"), "goals_per_90"] == 0
+
+
+def test_resilience_rates_use_exposed_games(flow_tables: AnalysisTables) -> None:
+    frame = stats.timeline_resilience(flow_tables, n_bootstrap=50)
+    for team in (1, 2):
+        row = frame.loc[team]
+        assert row.points_won_per_trailed_game == pytest.approx(
+            row.points_won_from_behind / row.n_trailed
+        )
+        assert row.points_dropped_per_led_game == pytest.approx(
+            row.points_dropped_from_lead / row.n_led
+        )
+        # Identical season blocks: within-season team/game variation must not widen the CI.
+        for metric in ("points_won_per_trailed_game", "points_dropped_per_led_game"):
+            assert row[f"{metric}_ci_lower"] == pytest.approx(row[metric])
+            assert row[f"{metric}_ci_upper"] == pytest.approx(row[metric])
