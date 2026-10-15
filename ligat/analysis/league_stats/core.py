@@ -1,4 +1,4 @@
-"""Development-only descriptive season statistics; never features or trained forecasts."""
+"""Shared helpers and chapters A/B; never features or trained forecasts."""
 
 from collections.abc import Iterable, Mapping
 from typing import Any
