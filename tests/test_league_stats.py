@@ -1,7 +1,7 @@
 """Descriptive invariants on synthetic seasons and optional local clean data."""
 
+import re
 from dataclasses import replace
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -13,7 +13,6 @@ from ligat.analysis.prepare import (
     DEVELOPMENT_SEASONS,
     AnalysisTables,
     build_team_seasons,
-    load_analysis_tables,
     load_playoff_upper_sizes,
 )
 from ligat.data.repository import Repository
@@ -242,9 +241,9 @@ def test_course_indices_input_immutability_and_holdouts(
         pd.testing.assert_frame_equal(old, new)
 
 
-def test_course_real_invariants(real_tables: AnalysisTables) -> None:
+def test_course_real_invariants(real_tables: AnalysisTables, real_standings: pd.DataFrame) -> None:
     sizes = load_playoff_upper_sizes()
-    standings = stats.standings_by_match_number(real_tables)
+    standings = real_standings.copy(deep=True)
     last = standings.reset_index().groupby("season_id").k.transform("max")
     totals = standings.reset_index().loc[lambda g: g.k.eq(last)].set_index(["season_id", "team_id"])
     expected = (
@@ -711,8 +710,10 @@ def test_chapter_b_titles_are_computed_from_changed_data(history_tables: Analysi
     periods["n_seasons"] = [2, 2]
     periods["mean_ppm_gap"] = [0.5, 0.1]
     periods["mean_home_win_rate"] = [0.45, 0.35]
-    title = chapter_b_chart("home", home, periods).layout.title.text.replace("<br>", " ")
-    assert "+0.50" in title and "+0.10" in title and "45%" in title and "35%" in title
+    figure = chapter_b_chart("home", home, periods)
+    title = figure.layout.title.text.replace("<br>", " ")
+    assert "0.50" in title and "0.10" in title and "+" not in title
+    assert list(figure.data[0].y) == pytest.approx(home.ppm_gap.tolist())
     champions = pd.DataFrame(
         {"team_name": ["TA", "Haifa", "Other"], "titles": [2, 3, 1]},
         index=pd.Index([1061, 1005, 99], name="team_id"),
@@ -720,7 +721,8 @@ def test_chapter_b_titles_are_computed_from_changed_data(history_tables: Analysi
     title = chapter_b_chart(
         "balance", stats.competitive_balance(history_tables), champions
     ).layout.title.text.replace("<br>", " ")
-    assert "3 מועדונים" in title and "6 אליפויות" in title and "ב־5" in title
+    clean_title = re.sub(r"[\u200e\u200f\u202a-\u202e]", "", title)
+    assert "3 מועדונים" in clean_title and "6 אליפויות" in clean_title and "ב־5" in clean_title
     calendar = stats.calendar_effects(history_tables, n_bootstrap=50)
     calendar.loc[("kickoff_hour", "20_plus"), "goals_per_match"] = 2.7
     calendar.loc[("kickoff_hour", "18_to_20"), "goals_per_match"] = 2.2
@@ -945,29 +947,6 @@ def test_bootstrap_count_is_configurable(function: Any, synthetic_tables: Analys
     pd.testing.assert_frame_equal(small, repeated)
     with pytest.raises(ValueError, match="n_bootstrap"):
         function(synthetic_tables, n_bootstrap=0)
-
-
-@pytest.fixture(scope="module")
-def real_tables() -> AnalysisTables:
-    if not Path("data/clean/squad_values.parquet").exists():
-        pytest.skip("Local clean data are deliberately not committed")
-    repo = Repository()
-    original = repo.read_filtered
-    calls = []
-
-    def filtered(name: str, filters: list[tuple[str, str, Any]]) -> pd.DataFrame:
-        calls.append((name, filters))
-        for column, _, values in filters:
-            if column == "season_id":
-                assert all(7 <= season <= 25 for season in values)
-        return original(name, filters)
-
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(repo, "read_filtered", filtered)
-        patch.setattr(repo, "read", lambda _: pytest.fail("Unfiltered read"))
-        tables = load_analysis_tables(repo, seasons=DEVELOPMENT_SEASONS)
-    assert calls
-    return tables
 
 
 def test_real_counts_and_positions(real_tables: AnalysisTables) -> None:
@@ -1319,10 +1298,10 @@ def test_flow_timeline_invariants(flow_tables: AnalysisTables) -> None:
 
 
 def test_flow_distributions_and_denominators(flow_tables: AnalysisTables) -> None:
-    observed = stats.scoreline_distribution(flow_tables, max_goals=0)
-    assert observed.to_numpy().sum() == pytest.approx(1 - observed.attrs["n_beyond"] / 36)
+    observed = stats.scoreline_distribution(flow_tables, tail_start=1)
+    assert observed.to_numpy().sum() == pytest.approx(1)
     poisson = stats.poisson_reference(flow_tables)
-    assert poisson.to_numpy().sum() + poisson.attrs["tail_mass"] == pytest.approx(1)
+    assert poisson.to_numpy().sum() == pytest.approx(1)
     transitions = stats.halftime_transitions(flow_tables, n_bootstrap=50)
     assert transitions[["win_rate", "draw_rate", "loss_rate"]].sum(axis=1).eq(1).all()
     assert transitions.n.sum() + transitions.attrs["n_excluded_rows"] == 72
@@ -1367,7 +1346,7 @@ def test_flow_pure_inputs_and_indexes(flow_tables: AnalysisTables) -> None:
         pd.testing.assert_frame_equal(getattr(flow_tables, name), original)
 
 
-def test_flow_real_controls(real_tables: AnalysisTables) -> None:
+def test_flow_real_controls(real_tables: AnalysisTables, real_timelines: pd.DataFrame) -> None:
     rate = stats.scoring_rate_by_state(real_tables, n_bootstrap=50)
     assert rate.minutes.sum() == 4301 * 180
     for home, expected in [(True, [1.62, 1.19, 1.29]), (False, [1.35, 1.03, 1.17])]:
@@ -1386,8 +1365,8 @@ def test_flow_real_controls(real_tables: AnalysisTables) -> None:
         ].tolist() == pytest.approx(expected, abs=0.01)
     observed = stats.scoreline_distribution(real_tables)
     assert observed.attrs["n_matches"] == 4315
-    assert observed.to_numpy().sum() == pytest.approx(1 - observed.attrs["n_beyond"] / 4315)
-    timeline = stats.game_timelines(real_tables)
+    assert observed.to_numpy().sum() == pytest.approx(1)
+    timeline = real_timelines.copy(deep=True)
     assert len(timeline) + 2 * timeline.attrs["n_excluded_matches"] == 8630
     assert (
         timeline[["minutes_leading", "minutes_level", "minutes_trailing"]].sum(axis=1).eq(90).all()
@@ -1497,3 +1476,109 @@ def test_resilience_rates_use_exposed_games(flow_tables: AnalysisTables) -> None
         for metric in ("points_won_per_trailed_game", "points_dropped_per_led_game"):
             assert row[f"{metric}_ci_lower"] == pytest.approx(row[metric])
             assert row[f"{metric}_ci_upper"] == pytest.approx(row[metric])
+
+
+# Chapter E: previous-season strength and unknown categories.
+@pytest.fixture
+def context_tables() -> AnalysisTables:
+    matches, labels = [], []
+    for season in (12, 13):
+        for number in range(1, 13):
+            for pair, (a, b) in enumerate(((1, 2), (3, 4), (5, 6))):
+                game_id = season * 100 + pair * 20 + number
+                a_wins = (
+                    number in (5, 6, 7, 8) if a == 1 else number in (5, 6, 7) if a == 3 else True
+                )
+                home, away = (a, b) if number % 2 else (b, a)
+                winner = a if a_wins else b
+                hg, ag = int(winner == home), int(winner == away)
+                matches.append(
+                    dict(
+                        game_id=game_id,
+                        season_id=season,
+                        home_team_id=home,
+                        away_team_id=away,
+                        home_goals=hg,
+                        away_goals=ag,
+                        total_goals=hg + ag,
+                    )
+                )
+        for team in range(1, 7):
+            labels.append(
+                dict(
+                    season_id=season,
+                    team_id=team,
+                    team_name=f"Club {team}",
+                    final_position=team,
+                    prev_season_value_share=pd.NA if season == 12 or team == 6 else team / 21,
+                    promoted_in=season == 13 and team == 6,
+                )
+            )
+    return AnalysisTables(
+        pd.DataFrame(matches).set_index("game_id"),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        pd.DataFrame(labels).set_index(["season_id", "team_id"]),
+        pd.DataFrame(),
+        pd.DataFrame(),
+    )
+
+
+@pytest.mark.parametrize("seasons", [[26], [27], [28], [8, 26], [], [8, 8]])
+def test_context_development_scope(seasons: Any, context_tables: AnalysisTables) -> None:
+    with pytest.raises(ValueError, match="development"):
+        stats.upset_rates(context_tables, seasons, n_bootstrap=50)
+
+
+def test_context_disjoint_groups_and_unknowns(context_tables: AnalysisTables) -> None:
+    upset = stats.upset_rates(context_tables, n_bootstrap=50)
+    assert upset.groupby(level="metric").n.sum().eq(72).all()
+    assert upset[["home_win_rate", "draw_rate", "away_win_rate"]].sum(axis=1).eq(1).all()
+    unknown = upset.index.get_level_values("weaker_side").isin(
+        ["unknown", "home_promoted", "away_promoted"]
+    )
+    assert upset.loc[unknown, ["weak_win_rate", "strong_win_rate"]].isna().all().all()
+    promoted = upset.xs("veteran_vs_promoted", level="gap_bin")
+    assert promoted[["veteran_win_rate", "draw_rate", "promoted_win_rate"]].sum(axis=1).eq(1).all()
+    equal_seasons = context_tables.team_seasons.copy()
+    equal_seasons.loc[(13, 2), "prev_season_value_share"] = equal_seasons.loc[
+        (13, 1), "prev_season_value_share"
+    ]
+    equal = stats.upset_rates(
+        replace(context_tables, team_seasons=equal_seasons), [13], n_bootstrap=50
+    ).xs("equal_strength", level="gap_bin")
+    assert equal.n.sum() == 12
+    assert equal[["weak_win_rate", "strong_win_rate"]].isna().all().all()
+    assert equal[["home_win_rate", "draw_rate", "away_win_rate"]].sum(axis=1).eq(1).all()
+
+
+def test_context_purity_and_bootstrap(context_tables: AnalysisTables) -> None:
+    from dataclasses import fields
+
+    originals = {
+        f.name: getattr(context_tables, f.name).copy(deep=True) for f in fields(context_tables)
+    }
+    output = stats.upset_rates(context_tables, n_bootstrap=50)
+    assert output.index.is_unique
+    assert not set(output.index.names) & set(output.columns)
+    pd.testing.assert_frame_equal(output, stats.upset_rates(context_tables, n_bootstrap=50))
+    for name, original in originals.items():
+        pd.testing.assert_frame_equal(original, getattr(context_tables, name))
+
+
+def test_context_real_upsets(real_tables: AnalysisTables) -> None:
+    upset = stats.upset_rates(real_tables, n_bootstrap=50)
+    assert upset.groupby(level="metric").n.sum().eq(4315).all()
+    unknown = upset.index.get_level_values("weaker_side").isin(
+        ["unknown", "home_promoted", "away_promoted"]
+    )
+    assert upset.loc[unknown, ["weak_win_rate", "strong_win_rate"]].isna().all().all()
+
+
+def test_context_chart_contracts(context_tables: AnalysisTables) -> None:
+    from ligat.viz.context import upset_chart
+
+    figure = upset_chart(stats.upset_rates(context_tables, n_bootstrap=50))
+    assert figure.data and any(c.isdigit() for c in figure.layout.title.text)
+    assert "?" not in figure.layout.title.text
+    assert figure.to_json()

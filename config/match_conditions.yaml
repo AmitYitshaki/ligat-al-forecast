@@ -1,0 +1,23 @@
+# Retrospective EDA classification only. Local dates include both endpoints.
+# Dates and clubs are management-approved corrections to the Gemini research.
+# Homepage links identify source organizations; they are not verified article citations.
+timezone: Asia/Jerusalem
+crowd_periods:
+  - {condition: GHOST, start: 2020-03-11, end: 2020-03-13, source: "Ministry of Health / IPFL; management-approved review", url: "https://www.football.co.il/", confidence: medium}
+  - {condition: GHOST, start: 2020-05-30, end: 2020-07-20, source: "IPFL; management-approved review", url: "https://www.football.co.il/", confidence: medium}
+  - {condition: GHOST, start: 2020-08-29, end: 2021-03-12, source: "Ministry of Health / IPFL; includes second lockdown", url: "https://www.football.co.il/", confidence: medium}
+  - {condition: GHOST, start: 2023-11-25, end: 2023-12-16, source: "Home Front Command / IPFL; management-approved review", url: "https://www.football.co.il/", confidence: medium}
+  - {condition: LIMITED, start: 2021-03-13, end: 2021-05-05, source: "Ministry of Health / Green Pass; management-approved review", url: "https://www.gov.il/he/departments/ministry_of_health", confidence: medium}
+  - {condition: LIMITED, start: 2023-12-17, end: 2024-01-31, source: "Home Front Command / IPFL; management-approved review", url: "https://www.football.co.il/", confidence: medium}
+relocations:
+  - {team_id: 1061, seasons: [18, 19, 20], original_venue: בלומפילד, source: "Clean home venues + management-approved review; Maccabi TA", confidence: high}
+  - {team_id: 2176, seasons: [18, 20], original_venue: בלומפילד, source: "Clean home venues + management-approved review; Hapoel TA", confidence: high}
+  - {team_id: 4669, seasons: [18, 19, 20], original_venue: בלומפילד, source: "Clean home venues + management-approved review; Bnei Yehuda", confidence: high}
+  - {team_id: 1064, seasons: [12], original_venue: 'פ"ת אצטדיון', source: "Clean venue spelling + management-approved review; Maccabi PT", confidence: high}
+  - {team_id: 2173, seasons: [12], original_venue: 'פ"ת אצטדיון', source: "Clean venue spelling + management-approved review; Hapoel PT", confidence: high}
+  - {team_id: 1064, seasons: [13], original_venue: פתח תקוה אצטדיון שלמה ביטוח, source: "Clean venue spelling + management-approved review; Maccabi PT", confidence: high}
+  - {team_id: 2173, seasons: [13], original_venue: פתח תקוה אצטדיון שלמה ביטוח, source: "Clean venue spelling + management-approved review; Hapoel PT", confidence: high}
+  - {team_id: 1068, seasons: [14], original_venue: נתניה אצטדיון מרים, source: "Clean venue spelling + management-approved review; Netanya", confidence: high}
+  - {team_id: 2171, seasons: [21, 22], start: 2020-06-01, end: 2021-01-24, original_venue: 'באר שבע אצטדיון טוטו ע"ש טרנר', source: "Clean home venues + management-approved review; Beer Sheva", confidence: high}
+shared_rule: both_clubs_modal_home_venue_in_same_season
+disciplinary_ghost_matches: not_collected

@@ -2,6 +2,10 @@
 
 from ligat.analysis.prepare import DEVELOPMENT_SEASONS, AnalysisTables
 
+from .context import (
+    t1_strength_comparison,
+    upset_rates,
+)
 from .core import (
     BOOTSTRAP_SEED,
     MEAN_BOOTSTRAP_DRAWS,
@@ -53,10 +57,14 @@ from .match_flow import (
     top_scorelines,
     zero_zero_at_60,
 )
+from .poisson_check import poisson_crossfit_comparison, poisson_crossfit_predictions
 from .season_course import (
+    draw_rates_by_distance,
     final_rounds_check,
+    playoff_deviations,
     playoff_form,
     playoff_form_summary,
+    playoff_persistence,
     season_points_race,
     settling_sensitivity,
     split_movement,
@@ -67,6 +75,13 @@ from .season_course import (
 )
 
 __all__ = [
+    "poisson_crossfit_comparison",
+    "poisson_crossfit_predictions",
+    "draw_rates_by_distance",
+    "playoff_deviations",
+    "playoff_persistence",
+    "upset_rates",
+    "t1_strength_comparison",
     "timeline_exclusions",
     "scoreline_distribution",
     "scoring_rate_by_state",

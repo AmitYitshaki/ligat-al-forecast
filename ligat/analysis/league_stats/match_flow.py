@@ -117,25 +117,32 @@ def _rates(frame: pd.DataFrame, n_bootstrap: int) -> dict[str, Any]:
 
 
 def scoreline_distribution(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS, max_goals: int = 8
+    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS, tail_start: int = 5
 ) -> pd.DataFrame:
-    """Observed exact-score mass; tails remain outside the grid, never renormalized away."""
+    """Score buckets 0..4 and 5+ (decision S12), retaining every observation.
+
+    The final bucket pools ALL goals >= tail_start; no truncation or renormalization.
+    A configurable positive threshold supports diagnostics with the same tail contract.
+    """
     games = _matches(tables, seasons)
-    if max_goals < 0:
-        raise ValueError("max_goals must be nonnegative")
-    index = pd.Index(range(max_goals + 1), name="home_goals")
-    columns = pd.Index(range(max_goals + 1), name="away_goals")
-    counts = pd.crosstab(games.home_goals, games.away_goals).reindex(
-        index=index, columns=columns, fill_value=0
-    )
+    if tail_start < 1:
+        raise ValueError("tail_start must be positive")
+    labels = [*map(str, range(tail_start)), f"{tail_start}+"]
+    index = pd.Index(range(tail_start + 1), name="home_goals")
+    columns = pd.Index(range(tail_start + 1), name="away_goals")
+    counts = pd.crosstab(
+        games.home_goals.clip(upper=tail_start), games.away_goals.clip(upper=tail_start)
+    ).reindex(index=index, columns=columns, fill_value=0)
     frame = counts / len(games)
-    n_beyond = int((games.home_goals.gt(max_goals) | games.away_goals.gt(max_goals)).sum())
+    n_tail = int((games.home_goals.ge(tail_start) | games.away_goals.ge(tail_start)).sum())
     intervals = np.array(
         [rate_interval(int(n), len(games))[1:] for n in counts.to_numpy().ravel()]
-    ).reshape(max_goals + 1, max_goals + 1, 2)
+    ).reshape(tail_start + 1, tail_start + 1, 2)
+    frame.index = pd.Index(labels, name="home_goals")
+    frame.columns = pd.Index(labels, name="away_goals")
     frame.attrs.update(
         n_matches=len(games),
-        n_beyond=n_beyond,
+        n_tail=n_tail,
         counts=counts.to_numpy().tolist(),
         ci_lower=intervals[:, :, 0].tolist(),
         ci_upper=intervals[:, :, 1].tolist(),
@@ -160,23 +167,30 @@ def top_scorelines(
 
 
 def poisson_reference(
-    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS, max_goals: int = 8
+    tables: AnalysisTables, seasons: Iterable[int] = DEVELOPMENT_SEASONS, tail_start: int = 5
 ) -> pd.DataFrame:
-    """Independent league-average Poisson description; strength heterogeneity is ignored."""
+    """League-average independent Poisson, with a complete 5+ tail (decision S12).
+
+    Each marginal ends in 1-P(0..tail_start-1); the outer product sums to one
+    without renormalization. This descriptive baseline ignores team strength.
+    """
     games = _matches(tables, seasons)
-    if max_goals < 0:
-        raise ValueError("max_goals must be nonnegative")
+    if tail_start < 1:
+        raise ValueError("tail_start must be positive")
     home, away = float(games.home_goals.mean()), float(games.away_goals.mean())
-    mass = np.outer(
-        poisson.pmf(np.arange(max_goals + 1), home), poisson.pmf(np.arange(max_goals + 1), away)
-    )
+    hp, ap = poisson.pmf(np.arange(tail_start), home), poisson.pmf(np.arange(tail_start), away)
+    mass = np.outer(np.r_[hp, 1 - hp.sum()], np.r_[ap, 1 - ap.sum()])
+    labels = [*map(str, range(tail_start)), f"{tail_start}+"]
     frame = pd.DataFrame(
         mass,
-        index=pd.Index(range(max_goals + 1), name="home_goals"),
-        columns=pd.Index(range(max_goals + 1), name="away_goals"),
+        index=pd.Index(labels, name="home_goals"),
+        columns=pd.Index(labels, name="away_goals"),
     )
     frame.attrs.update(
-        lambda_home=home, lambda_away=away, tail_mass=float(1 - mass.sum()), n_matches=len(games)
+        lambda_home=home,
+        lambda_away=away,
+        tail_mass=float(1 - mass[:-1, :-1].sum()),
+        n_matches=len(games),
     )
     return frame
 
@@ -213,7 +227,7 @@ def observed_vs_poisson(
             ).sum()
         )
         observed, lo, hi = rate_interval(count, len(games))
-        expected = draws if hg < 0 else float(reference.loc[hg, ag])
+        expected = draws if hg < 0 else float(reference.loc[str(hg), str(ag)])
         rows.append(
             dict(
                 scoreline=label,

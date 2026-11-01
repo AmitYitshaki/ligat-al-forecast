@@ -183,6 +183,7 @@ def threshold_ranges(
                 n=len(points),
                 points_min=points.min(),
                 points_median=points.median(),
+                points_std=points.std(),
                 points_max=points.max(),
                 ppm_mean=frame[f"{objective}_ppm"].mean(),
                 games_min=frame[f"{objective}_games"].min(),
@@ -339,10 +340,13 @@ def calendar_effects(
     seasons: Iterable[int] = DEVELOPMENT_SEASONS,
     *,
     n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+    min_bootstrap_seasons: int = 2,
 ) -> pd.DataFrame:
     """Describe calendar groups in Israel local time; preserve missing dates as unknown groups."""
     games = _subset(tables.match_table, _selection(seasons))
     _bootstrap_count(n_bootstrap)
+    if min_bootstrap_seasons < 2:
+        raise ValueError("Season bootstrap requires at least two seasons")
     dates = pd.to_datetime(games.date, utc=True).dt.tz_convert("Asia/Jerusalem")
     games["weekday"] = dates.dt.dayofweek.map({5: "Saturday", 6: "Sunday", 0: "Monday"}).fillna(
         "other"
@@ -364,9 +368,12 @@ def calendar_effects(
                 **_match_rates(group),
                 n_seasons=group.season_id.nunique(),
             )
-            row["goals_per_match_ci_lower"], row["goals_per_match_ci_upper"] = _goals_interval(
-                group, n_bootstrap
+            low, high = (
+                _goals_interval(group, n_bootstrap)
+                if row["n_seasons"] >= min_bootstrap_seasons
+                else (float("nan"), float("nan"))
             )
+            row["goals_per_match_ci_lower"], row["goals_per_match_ci_upper"] = low, high
             rows.append(row)
     return pd.DataFrame(rows).set_index(["dimension", "level"], drop=True).sort_index()
 
