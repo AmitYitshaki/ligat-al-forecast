@@ -268,9 +268,9 @@ ci_lower, ci_upper. השיעורים ורווחי Wilson של 95% הם תיאו�
 
 ## EDA-02, פעימה A — סטטיסטיקות ליגה תיאוריות
 
-התצוגות הבאות מחושבות בזיכרון ב-`ligat/analysis/league_stats.py`; אינן
-פיצ'רים ואינן נכתבות ל-data/clean. כל פונקציה מקבלת `seasons` וברירת המחדל
-היא development (8–25); בקשת עונה אחרת, רשימה ריקה או כפילות נכשלת.
+התצוגות הבסיסיות הבאות מחושבות בזיכרון ב-`ligat/analysis/league_stats/core.py`; אינן
+פיצ'רים ואינן נכתבות ל-data/clean. בפונקציות אלה `seasons` הוא development
+(8–25) כברירת מחדל; בקשת עונה אחרת, רשימה ריקה או כפילות נכשלת.
 נקודות הן 3 לניצחון ו-1 לתיקו מכל matches, ללא עונשים וללא חציית נקודות.
 המיקום, שלב הסיום ודגלי הירידה מקורם בתוויות הרשמיות ב-team_seasons,
 והם הקשר תיאורי בלבד. 11 המשחקים הטכניים אינם ב-matches.
@@ -309,6 +309,32 @@ ci_lower, ci_upper. השיעורים ורווחי Wilson של 95% הם תיאו�
 הם תיאוריים בדיעבד; זו בדיקת סבירות לכלל prematch ולא השלמה או שינוי בכלל.
 בפעימה A אין ניתוחי מחצית או דקות שערים, ולכן ht_conflict ו-goals_available
 אינם מסננים תוצאות משחק מלא. אין שינוי בסכמות או בקונפיגורציית היורדות.
+
+### כללי — שיעורים וגבולות הסינון
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `rate_interval` (`core.py`) | ללא; שלשה | קלט `count`, `n`, עם ‎0≤count≤n. מחזירה `(rate, ci_lower, ci_upper)` של 95% Wilson. כאשר n=0 שלושת הערכים NaN; ערכים שליליים או count>n גורמים ל־ValueError. אין פרמטר seed או bootstrap. |
+
+הפונקציה הכללית אינה מקבלת עונות ואינה מסננת נתונים: האחריות על המכנה ועל development היא של הקורא. Wilson הוא רווח שולי לשיעור בינומי; אינו מתקן תלות, בחירת מדגם או ריבוי השוואות. בתיעוד להלן `attrs` מפורטים כאשר הפונקציה קובעת אותם במפורש. טבלאות העזר המקבלות `frame` אינן מקבלות אוטומטית את חוזה הסינון של פונקציות המקבלות `AnalysisTables`.
+
+### A — בדיקות הסקירה (`chapter_a.py`)
+
+בפונקציות המקבלות `tables`, ברירת המחדל היא `ERA14_SEASONS` (14–25), פרט ל־`promoted_rule_comparison` שברירת המחדל שלה היא כל development. `seasons` נבדק כבחירה לא ריקה, ללא כפילות ומתוך 8–25; הבחירה אינה מורחבת אוטומטית לכל עונות עידן 14. יוצאי הדופן המפורשים של היסטוריית t−1/t−2/t−3 מתוארים להלן.
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `correlation_evidence` | `relationship` | קלט `frame`, ורשימת `pairs` של `(name,x,y)`; `method="pearson"` או `"spearman"`; `comparisons=None` פירושו גודל הרשימה, או משפחה מפורשת שגודלה לפחות מספר הזוגות. פלט `n` לזוגות מלאים, `correlation`, `p_value`, `comparisons`, `p_bonferroni`. מתאם ו־p חסרים בפחות משלוש שורות מלאות או באחד המשתנים הקבועים. |
+| `adjacent_pairs` | `season_id, team_id` של עונת t | קלט `frame` באינדקס עונה×קבוצה ו־`columns`. מחזירה inner join עם אותה קבוצה ב־t−1, כאשר עמודות העבר מקבלות `_prev`; יתר עמודות t נשמרות. אין גישור על שנת היעדרות, ואין הוספת עונות שלא נמסרו. שני הצדדים חייבים להיות חד־ערכיים לעונה×קבוצה. |
+| `era_persistence` | זוג: `pairs` בעונה×קבוצה; סיכום ב־`relationship=ppm/position` | קלט `tables`, `seasons`, `n_bootstrap=1000`. בזוגות נשמרים מדדי הקבוצה, ונוצרים `ppm_prev`, `ppm_t`, `position_prev`, `position_t`, `ppm_change`, `season` כמזהה מספרי. בסיכום `n`, `n_seasons`, `pearson`, `spearman`, `slope`, `intercept`, גבולות `<metric>_ci_lower/upper` למתאמים ולשיפוע, `residual_sd`, `mean_prev`, `mean_t`. שתי העונות חייבות להיות בבחירה. |
+| `loso_predictions` | אינדקס השורות המלאות מתוך הקלט | קלט `frame` עם `season_id` באינדקס, עמודת `points_per_match` ורשימת `predictors` לא ריקה וללא כפילויות. דורשת לפחות שתי עונות מלאות מתוך development. OLS עם חותך על כל העונות למעט עונת המטרה; פלט `observed`, `predicted`, `n_train`, `error=observed−predicted`. שורות עם חסרים במטרה או במנבאים מושמטות לפני קביעת הקיפולים. |
+| `predictor_comparison` | זוג: סיכום ב־`scope,predictor`; זוגות ב־`season_id,team_id` | קלט `tables`, `seasons`. סיכום `n`, `r_squared` בתוך המדגם ו־`loso_rmse`. `adjacent`: שווי קודם רגיל/לוג, נקודות קודמות, הפרש שערים קודם ושילוביו עם שווי; `history_common`: הפרש קודם ושילוביו עם שווי ו־`history_gd`. טבלת הזוגות מוסיפה `gd_lag2`, `gd_lag3`, `history_gd` ו־`log_prev_value`. ההיסטוריה היא ממוצע זמינים מ־t−2/t−3, מתוך development גם אם מחוץ לבחירת עידן 14; t ו־t−1 עצמם בתוך הבחירה. חסר שווי קודם מוצא, ולוג דורש ערך חיובי; n מדווח לכל מפרט. |
+| `home_advantage_diagnostics` | Series של מדדים | קלט `tables`, `seasons`. `n` קבוצות־עונות, `n_pairs` זוגות עונות סמוכות, `mean_gap` ממוצע פער נקודות למשחק בית–חוץ, `persistence` המתאם בין עונות, `observed_sd` הפיזור בין קבוצות־עונות, `luck_sd` ממוצע סטיות התקן מאומדן המזל. `top3_gap`, `places4_8_gap`, `places9_11_gap` הם פערי ביתיות לפי מיקום רשמי; `club_mean_sd` פיזור ממוצעי מועדונים עם לפחות שש עונות, ו־`club_luck_sd` קירוב המזל לאותם ממוצעים לפי מספר עונותיהם. אומדן מזל משתמש בשונות נקודות מאוגמת ובמספר משחקי הבית והחוץ בפועל. |
+| `style_diagnostics` | זוג: Series; טבלה ב־`metric` | קלט `tables`, `seasons`. Series: `attack_defence_corr` לאחר מרכוז עונתי, `gd_next_corr`, `ppm_next_corr`, `big_top3`, `big_bottom3`, `narrow_luck_corr`, `gd_next_r2`, `gd_narrow_next_r2`, `league_ppm`. הטבלה מציגה `league_mean`, `persistence`, `observed_sd`, `luck_sd`, `r_squared` עבור נקודות, הפרש שערים, ניצחונות, חלק ניצחונות גדולים, ניצחונות צרים, BTTS, over_2_5 ושאריות שני האחרונים אחרי OLS על שערי זכות וחובה. `luck_sd` הוא קירוב בינומי עם 36 משחקים קבועים, ורק למדדים ששמם מסתיים ב־`rate`; היתר NaN. |
+| `promoted_rule_comparison` | זוג: פירוט ב־`season_id,team_id,rule`; סיכום ב־`period,rule` | קלט `tables`, `seasons=8–25`. עולות מעונות אחרי 8; שתי חלופות `median/q30` של נתחי השווי בחצי התחתון של t−1, מתוך ערכים זמינים. עונת הייחוס t−1 מותרת גם מחוץ לבחירה, אך רק בתוך development. פירוט `team_name`, `season`, `value_share_of_league`, `imputed_share`, `diff`, `ratio`. סיכום `n`, `fraction_below`, `median_diff_pp`, `mae_pp`, `ci_lower/upper` של Wilson לשיעור שמתחת לכלל; תקופות `all`, 9–17, 18–25, בחיתוך עם העונות שנבחרו. הפרשים ו־MAE בנקודות אחוז. |
+| `promoted_performance` | `promoted_in` | קלט `tables`, `seasons=14–25`. השוואת עולה/ותיקה לפי `n` קבוצות־עונות, ממוצע `points_per_match`, ממוצע `goal_difference_per_match`, `std_ppm`, `relegations`, `best_final_position`. ביצועי הנקודות ספורטיביים; הירידה והמיקום רשמיים. אין דרישה ל־t−1 בתוך עידן 14, כי ההשוואה היא של עונה בודדת. |
+
+`correlation_evidence` ו־`adjacent_pairs` אינם בודקים או מסננים עונות בעצמם; יש למסור frame שכבר סונן. מבחני המתאם מניחים שורות עצמאיות, אף שבפועל יש תלות בין קבוצות ועונות. ב־`era_persistence` הרווחים מדגימת עונות מטרה שלמות, זרע קבוע 20261014, בלי פרמטר seed; שיפוע אינו אחוז דיוק, והמיקומים הם רשמיים. `loso_predictions` מחזיקה עונה שלמה בחוץ אך מאמנת גם על עונות מאוחרות ממנה: זו **EDA בדיעבד, לא walk-forward ולא OOF כרונולוגי**. גם R², התאמות סגנון ובחירת קבוצות לפי מיקום הם תיאוריים בתוך המדגם; אין לפרש שאריות כזיהוי סיבתי של יכולת או מזל. בהשוואת כלל העולות אין נרמול לפי גודל הליגה ואין שינוי בכלל הייצור או בנתוני המקור; שווי t בפירוט הוא יעד בדיקה בדיעבד בלבד.
 
 ## EDA-02, פעימה B — הליגה לאורך השנים
 
@@ -358,6 +384,37 @@ season_summary הקיימת משמשת ישירות לתצוגת מגמות שע
 תוצאות מלאות אינם מסננים ht_conflict או goals_available; אין כאן ניתוח
 תזמון שערים או מחצית. אין שינוי ב-data/clean או בקונפיגורציית הירידה.
 
+### B — אי־ודאות ובדיקות הסקירה (`history_review.py`)
+
+כל שש הפונקציות מקבלות `tables`, `seasons=DEVELOPMENT_SEASONS` (8–25), עם אימות הבחירה המתואר לעיל. אין בהן פרמטר seed או n_bootstrap: השיטות המפורטות כאן אנליטיות. עידן 14 מסונן במפורש רק היכן שמצוין.
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `threshold_diagnostics` | `objective` | נדרש `upper_sizes` מפורש. מתוך `season_thresholds` משאירה רק `era=14_teams`. עבור `champion/upper_line/safety/relegated_max`: `n` עונות זמינות, `mean`, `std` מדגמית של נקודות למשחק, `slope` לשנה ו־`p` של מגמה ליניארית לפי מזהה העונה; המגמה חסרה כשאין יותר משתי עונות. |
+| `home_season_uncertainty` | `season_id` | טבלת `home_advantage_by_season` בתוספת `ppm_gap_se`, `ppm_gap_ci_lower/upper`: שגיאת תקן של ‎+3/0/−3 לכל משחק ורווח נורמלי 95% לפער הביתיות. זו אי־ודאות דגימת משחקים בתוך עונה, בהנחת עצמאות. |
+| `era_uncertainty` | `era` | סיכום שיעורי משחק עם Wilson, `n_matches`, `n_seasons`, `goals_per_match`, ממוצעי `std_ppm` ו־`title_margin_ppm`. `goals_per_match_ci_lower/upper` הם רווח t לפי משחקים; `std_ppm_ci_lower/upper` הם רווח t לפי מספר העונות לפיזור הממוצע, עם קצה תחתון לא שלילי ו־NaN בפחות משתי עונות. השערים משוקללים במשחקים; מדדי העונות שווי משקל. |
+| `seasonal_trend_tests` | `era,metric` | מתוך `season_summary`: `all` ו־`14_teams`, כל אחד עם draw_rate, zero_zero_rate, penalties_per_match, red_cards_per_match. פלט `n_seasons`, `slope`, `p`, `p_bonferroni=min(1,8p)`; חסרים מושמטים לכל מדד, ופחות משלוש עונות נותנות מגמה חסרה. |
+| `balance_decomposition` | `season_id` | `competitive_balance` בתוספת `luck_std`, `latent_std`, `luck_fraction`, `n_teams`. שונות המזל היא ממוצע בין קבוצות של שונות נקודות למשחק המאוגמת מכל שורות קבוצה×משחק בעונה, חלקי מספר משחקי הקבוצה; `latent_std=sqrt(max(0,std_ppm²−luck_variance))`, ו־`luck_fraction=luck_variance/std_ppm²`. |
+| `champion_previous_rank` | `season_id` | עבור האלופה הרשמית בכל עונת מטרה: `team_name`, `previous_rank` לפי **נקודות למשחק ספורטיביות** ב־t−1, `previous_available`, `best_previous`, `top3_previous`, `n_teams` בעונת המטרה. t−1 נלקחת רק מ־development, גם מעידן ליגה גדול יותר או מחוץ לבחירה; ללא עונת עבר כלל אין שורת מטרה, ובהיעדר הקבוצה בעבר הדירוג חסר. שוויון בעבר מקבל את הדירוג המינימלי (`method="min"`). |
+
+ספי האליפות והירידה וזהות האלופה הם רשמיים, אך הנקודות על המגרש; ענישה יכולה לשנות מי הקבוצה שנבחרה ואף את סימן פער האלופה–סגנית. רווחי `era_uncertainty` שונים מרווחי bootstrap העונות ב־`era_comparison` ואינם תחליף להם. מגמות בזמן הן OLS תיאורי; שמונת מבחני המגמה מקבלים משפחה אחת של Bonferroni, אך אין מכך ראיה סיבתית או אישור לפיצ׳ר. פירוק המזל מניח שונות נקודות משותפת ומשחקים עצמאיים, ללא נטרול יריבות, לוח או בחירת קבוצות; השונות שנותרת אינה מדידה סיבתית של יכולת.
+
+### B — תנאי משחק ו־Elo של EDA (`conditions.py`)
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `load_match_conditions` | ללא; dict | קלט `path: Path` לקובץ YAML (במחברת `config/match_conditions.yaml`), ללא נתיב ברירת מחדל. מחזירה את התצורה, וממירה start/end לתאריך מקומי. בודקת timezone=Asia/Jerusalem, מקור ורמת אמון בכל רשומה, עונות development כאשר נמסרות, טווחי תאריכים בתוך 1.7.2006–30.6.2024, סוג GHOST/LIMITED ותקופות קהל ללא חפיפה. |
+| `classify_conditions` | אינדקס המשחקים שנבחרו | קלט `matches`, `config`, `seasons=8–25`; נדרשים תאריך ואצטדיון ידועים. מחזירה עותק מסונן של המשחקים עם `condition`. אצטדיון בית אופייני נקבע כשכיח בכל עונה×מארחת; בשוויון נבחר הראשון לפי `mode()`. ההיררכיה המעשית: GHOST/LIMITED לפי תאריך מקומי גוברים על SHARED, שגובר על RELOCATED, ואז OTHER/NORMAL. |
+| `prematch_elo` | אינדקס המשחקים שנבחרו, בסדר הקלט | קלט `matches`, `seasons=8–25`, תאריכי פתיחה תקינים. מחזירה את עמודות המשחק עם `elo_home`, `elo_away`, `elo_gap` **לפני העדכון**. K=20; יתרון בית 50 בחישוב ציפיית העדכון בלבד, לא בתוספת לפלט elo_gap; סולם הציפייה 400. מועדון שנראה לראשונה מתחיל ב־1450; מועדון שכבר נראה נסוג שליש לכיוון 1500 במשחקו הראשון בעונה חדשה. מכפיל הפרש מוחלט GD: ‏1 ל־0/1, ‏1.5 ל־2, ‏(11+GD)/8 ל־3 ומעלה. תוצאות 1/0.5/0, ועדכוני משחקים באותו מועד מוחלים רק אחרי שנקראו כל דירוגי המצב הקודם של אותה אצווה. אין פרמטרי כיול בחתימה. |
+| `elo_residuals` | אינדקס המשחקים שנבחרו | קלט `matches`, `seasons=8–25`. מפעילה prematch_elo ומוסיפה `points_gap=3×sign(home_goals−away_goals)` ו־`residual`, לאחר OLS של הפער על חותך, x ו־x³, כאשר x=elo_gap/100. הרגרסיה מותאמת לכל המדגם שנבחר; אין fit/predict כרונולוגי או החזרת מקדמים. |
+| `stratified_effect` | ללא; dict | קלט `groups`: זוג מערכי שאריות `(condition,NORMAL)` לכל **עונה אחת**, לפחות שני משחקים בכל צד בכל שכבה. `n_permutations=10000`, `n_bootstrap=5000`, `seed=20261028`. פלט `effect`, `p`, `ci_lower`, `ci_upper`: הפרש ממוצעים בתוך עונות, עם משקל קבוע לפי מספר משחקי התנאי בכל עונה. p דו־צדדי עם plus-one מתמורות בתוך עונה; רווח 95% BCa מדגימה נפרדת של שני הצדדים בכל עונה. |
+| `condition_comparison` | זוג: סיכום ב־`condition`; משחקים באינדקס המקורי המסונן | קלט `matches`, `config`, `seasons=8–25`, `n_permutations=10000`, `n_bootstrap=5000`. מסווגת ומנטרלת Elo. שש שורות NORMAL/GHOST/LIMITED/SHARED/RELOCATED/OTHER: `n`, `raw_gap`; בארבע ההשוואות ל־NORMAL גם `n_seasons`, `normal_n`, `overlap_n`, `effect`, `p`, `ci_lower/upper`, `p_bonferroni`, `p_bh` כשיש שכבות השוואה. משפחת התיקון נשארת בגודל ארבע גם אם מבחן חסר. זרע קבוע 20261028 דרך stratified_effect, ללא פרמטר seed נפרד. הטבלה השנייה כוללת condition, דירוגי Elo, פער ושאריות. |
+| `home_period_comparison` | RangeIndex | קלט `matches`, `seasons=8–25`, `normal_only=False`; אם True נדרשת עמודת condition וסינון NORMAL. מחזירה שתי תקופות 11–16 ו־17–25: `start_season`, `end_season`, `n_seasons`, `mean_gap`, `se`, `std`. הממוצע שווה משקל לעונות, לאחר ממוצע ‎+3/0/−3 במשחקי כל עונה. |
+
+**Elo של EDA בפרק B בלבד. אינו Elo הייצור של M0. הפרמטרים הם ערכי ספרות שלא כוילו (ה-ס15). אתחול העולות (1450 / דירוג ישן) פתוח למחברת 03.** מועדון שחוזר לאחר היעדרות משתמש בדירוג שנשמר לו, עם נסיגה אחת במשחק הראשון בעונת חזרתו; אין נסיגה חוזרת לכל שנת היעדרות. הקלט מסונן לעונות שנמסרו, ולכן אין היסטוריית Elo אוטומטית לפני תחילת הבחירה.
+
+סיווג האצטדיון השכיח משתמש בעונה שלמה, והגדרות התנאים הן **בדיעבד** למחקר בלבד. SHARED נבדק ובוטל כמועמד; סיווגו הקיים אינו פיצ׳ר prematch. התאמת השאריות נעשית בתוך המדגם; מבחן התנאים אינו אומדן סיבתי של קהל או אצטדיון. האומדן, התמורות וה־BCa מתייחסים לאותו הפרש משוקלל בתוך עונות; `raw_gap` הוא תיאור גולמי של התנאי, ואינו אפקט מתוקנן. SciPy מחשבת את תאוצת BCa בעזרת jackknife נפרד לכל מדגם ושכבה, עם התאמת גודל המדגם; העונות עצמן וההתאמה ל־Elo נחשבות קבועות. אין כאן bootstrap של עונות או אי־ודאות מלאה של מודל ה־Elo. חיתוך תקופות הביתיות ב־2015/2016 נבחר בדיעבד.
+
 ## EDA-02, פעימה C — מהלך העונה והטבלה
 
 מודול league_stats פוצל לחבילה לפי פרקים, עם אותו API ציבורי:
@@ -392,7 +449,7 @@ season_summary הקיימת משמשת ישירות לתצוגת מגמות שע
 הנמוך הוא upset. תיקו עם ppm שונה הוא אי־הפתעה; ppm שווה/חסר מוחרג.
 זהו סינון תיאורי פשוט, לא זיהוי של קבוצה חסרת עניין מתמטית.
 
-כל פונקציה ציבורית של C מקבלת seasons=DEVELOPMENT_SEASONS ודוחה עונה
+כל פונקציה ציבורית של season_course מקבלת seasons=DEVELOPMENT_SEASONS ודוחה עונה
 אחרת, רשימה ריקה וכפילות. פונקציות המשתמשות ב-bootstrap מקבלות
 n_bootstrap=2000 (50 בטסטים): table_settling, settling_sensitivity,
 split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לרווחי ממוצע קרדיט
@@ -410,6 +467,43 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
 השפעת חציית נקודות ועונשים; אין לשייך את כל התזוזה לשינוי בכוח הקבוצה.
 מחקר מוטיבציה מלא לפי טבלה as_of נדחה למחברת 04, VISION §7 שאלה 6א.
 
+### C — סטיות בפלייאוף ותיקו לפי מרחק (`season_course.py`)
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `playoff_deviations` | `season_id,team_id` | קלט `tables`, `seasons=8–25`. כל עמודות `playoff_form`, בתוספת `regular_deviation` ו־`playoff_deviation`: נקודות למשחק בסדיר/פלייאוף פחות ממוצע **אותן קבוצות** בעונה ובקבוצת הפלייאוף שלהן. גם האמצעי נשמר כשהוא קיים. |
+| `playoff_persistence` | `final_stage` | קלט `tables`, `seasons=8–25`, `n_bootstrap=2000` חיובי. רגרסיה של סטיית הפלייאוף על סטיית הסדיר: `n`, `n_seasons`, `pearson`, `spearman`, `slope`, `intercept`, ו־`<metric>_ci_lower/upper` למתאמים ולשיפוע. bootstrap של עונות שלמות עם זרע קבוע 20261014; ללא פרמטר seed. |
+| `draw_rates_by_distance` | `stage,distance_bin` | קלט `tables`, `seasons=8–25`. distance הוא מספר המחזור האחרון שנצפה בעונה×שלב פחות מחזור המשחק. דליים מסודרים 0–2, 3–5, 6–8, 9–11, 12–14, 15+; פלט `n`, `draw_count`, `n_seasons`, `draw_rate`, `draw_rate_ci_lower/upper` של Wilson. שורות רק לדליים שנצפו; distance_bin הוא categorical מסודר. |
+
+מרכוז הפלייאוף משווה כוח יחסי בתוך הקבוצה שנבחרה אליו, אך אינו מבטל את הבחירה בדיעבד, את הקיצור בתחתון או את שינוי היריבות. רווחי קשר חסרים כשאין מספיק עונות/שונות לפי החוזה של חישוב הקשרים; מדגם האמצעי קטן במיוחד. מרחק מסוף שלב כאן הוא **מחזורים ממוספרים לפי הסיום שנצפה**, לא ימים או מספר משחקים שנותרו לקבוצה בזמן אמת. לשימוש ב־M0 צריך לחשבו מלוח שהיה ידוע ב־as_of, ולא להעתיק את התצוגה הזאת.
+
+### C — בדיקות הסקירה (`course_review.py`)
+
+ברירת המחדל של פונקציות המקבלות `tables` היא `seasons=ERA14_SEASONS` (14–25); אפשר למסור בחירת development אחרת, בכפוף להגבלות המבניות המתוארות בכל רשומה. כל בחירה נבדקת כלא ריקה, ללא כפילות ומתוך 8–25. דירוגי הסדיר ספורטיביים, ואילו מיקום הסיום, זהות האלופה והירידה הם תוויות רשמיות; זה אינו שחזור טבלה לפי תאריך as_of.
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `playoff_noise_diagnostics` | `final_stage=upper/lower` | קלט `tables`, `seasons`. פלט `regular_sd` — ממוצע סטיות תקן עונתיות של סטיות הסדיר בתוך קבוצת הפלייאוף; `noise_sd` — שורש ממוצע שונות נקודות הסדיר המאוגמת בעונה חלקי n_regular לכל קבוצה; `n` קבוצות־עונות. אין רווח או bootstrap ואין תיקון לבחירה לפלייאוף. |
+| `random_mean_movement` | ללא; float | קלט `n` שלם חיובי (לא bool). מחזירה `(n²−1)/(3n)`, ממוצע תזוזה מוחלטת תחת סדר אקראי אחיד של n קבוצות. אין נתוני משחקים, סינון עונות או seed: זה חישוב סגור. |
+| `position_credits` | RangeIndex, שורות מורחבות | קלט frame שטוח עם `season_id`, `k`, ושורת קבוצה אחת בכל צילום; `rank="rank"` הוא שם עמודת דירוג ממוצע. בודקת שמזהי העונות ב־development. מחזירה את כל העמודות בתוספת `position`, `weight`: קבוצת שוויון בגודל m מקבלת 1/m לכל אחד מכל m המקומות שהיא תופסת. אין הסתפקות ב־floor/ceil; תחילת רצועה לא שלמה גורמת ל־ValueError. |
+| `rank_snapshots` | RangeIndex; `season_id,k,team_id` כעמודות | קלט `tables`, `seasons`. צילומי `standings_by_match_number` בסדיר, כולל נקודות, שערים, משחקים ודירוג, עם `team_name`, `final_position`, `final_stage`, `relegated` מ־team_seasons. כולל games_short; k הוא מספר משחקים של כל קבוצה, לא תאריך משותף. |
+| `rank_heatmap` | זוג: מטריצה `position × final_position`; פירוט ב־RangeIndex | קלט `tables`, `seasons`, `k=10`, `at_split=False`. דורשת 14 קבוצות בכל עונה ושנקודת הבדיקה קיימת בכולן; at_split=True בוחר k מרבי נצפה בכל עונה. מטריצת **ספירות משוקללות 14×14**, ללא נרמול להסתברויות; השוויונות מורחבים באמצעות position_credits. הפירוט כולל את השורות והמשקלים שבנו אותה. |
+| `region_persistence` | `region,k` | קלט `tables`, `seasons`; דורשת 14 קבוצות. אזורים top=1–3, upper_line=4–6, middle_table=7–10, bottom=11–14; k≤26. פלט `n` כסכום משקלי המקומות, `retained`, `movement`, `n_seasons`, `same_region_rate=retained/n`, `mean_movement=movement/n`. שיוך לאזור מתפצל בשוויון; התזוזה נמדדת מהדירוג הממוצע המקורי אל המיקום הרשמי. |
+| `settling_review` | `era,k` | קלט `tables`, `seasons`, ו־`upper_sizes` מפורש. מחזירה את מלוא סכמת `table_settling` הקיימת, עם `min_bootstrap_seasons=5`, n_bootstrap=2000 וזרע פנימי 20261014. אין פרמטרי resampling בחתימה הזאת; רווחים המבוססים על bootstrap עונות אינם מוצגים בפחות מחמש עונות. |
+| `leader_benchmarks` | `benchmark,k` | קלט `tables`, `seasons`. k=10/20, benchmark=leader/bottom; `n_seasons`, `success` כסכום קרדיטים עונתיים בשוויון, `rate`, `chance_rate` קבוע 1/14 לאלופה או 2/14 ליורדת. משקל שווה לעונה, אין רווחי סמך. קווי המקרה מיועדים ל־14 קבוצות ואינם מותאמים אוטומטית לבחירה בגודל ליגה אחר. |
+| `split_diagnostics` | זוג: סיכום ב־`group`; עובדות ב־`benchmark` | קלט `tables`, `seasons`, `upper_sizes` מפורש. סיכום upper/lower: `n`, `unchanged_rate`, `mean_movement`, `random_movement` לפי גודל כל פלייאוף, `spearman_mean` בין דירוג הפיצול לסיום. עובדות: leader_title, last_two_relegated, places_11_12_relegated, עם `success`, `n`, `rate` מקרדיטי שוויון בסוף הסדיר. הגבולות 13–14 ו־11–12 מיועדים לעידן 14. |
+| `regular_strength_expectation` | אינדקס המשחקים | קלט `tables`, `seasons`. כל עמודות המשחקים שנבחרו עם `home_gf`, `home_ga`, `away_gf`, `away_ga` מממוצעי הסדיר המלא לכל קבוצה, ו־`expected_goals=(home_gf×away_ga+away_gf×home_ga)/league_mean`. league_mean הוא ממוצע שערי זכות בשורות קבוצה×משחק בסדיר; חייב להיות חיובי. הצפי מתייחס לסך שערי המשחק, ללא רכיב ביתיות נפרד. |
+| `stage_strength_comparison` | זוג: `stage`; `stage,contrast` | קלט `tables`, `seasons`. טבלת regular/regular_late/upper/lower: `n_matches`, `n_seasons`, `goals_per_match`, שיעורי תוצאות עם Wilson, `expected_goals`, `btts_rate` עם Wilson; regular_late הוא מחזורים 20–26 בסדיר. `goals_per_match_ci_lower/upper` מדגימת ממוצעי עונות כשיש לפחות חמש עונות, 2000 דגימות וזרע 20261014. טבלת effects: `mean`, `se`, `positive`, `n_seasons`, עם excess_strength=נצפה−צפוי או minus_regular לכל פלייאוף, ו־minus_early=מחזורים 20–26 פחות עד 19. |
+| `draw_strata` | `season_id,stage` | קלט `tables`, `seasons`. לכל שכבת **עונה×שלב** regular/upper/lower: תאי 2×2, ‏a=תיקו בשלושת המחזורים האחרונים, b=יתר התוצאות שם, c=תיקו בשאר, d=יתר התוצאות בשאר. סוף השלב הוא המחזור המרבי שנצפה; שכבה בלי משחקי last או rest אינה נכללת. האמצעי מוחרג. |
+| `mantel_haenszel` | ללא; dict | קלט `cells` עם עמודות a,b,c,d ואינדקס season_id,stage; בודקת שעונות האינדקס ב־development. `odds_ratio`, `ci_lower/upper` של יחס הסיכויים המאוגם, `p` למבחן יחס סיכויים 1 ללא תיקון רציפות, `p_bonferroni_12=min(1,12p)`, `last_n`, `rest_n`, `last_draw_rate`, `rest_draw_rate`, `n_strata`. הכיוון הוא סיכוי לתיקו בסוף שלב מול שאר השלב, בריבוד עונה×שלב. |
+| `combined_draw_test` | `stage=all/regular/upper/lower` | קלט `tables`, `seasons`. בונה draw_strata ומפעילה mantel_haenszel על כל השכבות יחד ובנפרד לכל שלב זמין. עמודות זהות למילון של המבחן. attrs: `same_direction_seasons` — מספר עונות שבהן השיעור המאוגם בסוף נמוך מבשאר, ו־`n_seasons`; אלה תיאורים לפי עונה, לא מבחן נוסף. |
+
+בקבוצת שוויון מלאה המשקל הכולל הוא יחידה לקבוצה ויחידה למקום בכל עונה. מפות החום מתארות מעבר מדירוג ספורטיבי למיקום רשמי; ענישה ושוברי שוויון רשמיים יכולים להשפיע על הפער. גבולות האזורים והעובדות על סוף הסדיר הוגדרו לעידן 14. אקראיות מלאה של סדר הקבוצות היא קו השוואה מתמטי, לא מודל כדורגל.
+
+צפי הכוח של הסדיר משתמש **בסדיר המלא**, לרבות משחקים מאוחרים מהמשחק הנבדק; בסדיר עצמו ההתאמה בתוך המדגם. הוא מיועד לנטרול תיאורי של יריבות במחברת 02, ואינו פיצ׳ר prematch או תחזית M2. בטבלת השלבים, מרכז goals_per_match משוקלל במשחקים, בעוד שרווח ה־bootstrap מחושב מממוצעי עונות שווי משקל; אין לבלבל בין שני בסיסי המשקל כשמספר המשחקים שונה בין עונות. ההפרשים ב־effects מחושבים ברמת עונה; se הוא שגיאת תקן בין עונות ולא סטיית תקן של משחק בודד.
+
+**מבחן Mantel–Haenszel נבחר אחרי שראינו את הנתונים.** גם combined_draw_test וגם התצוגה של mantel_haenszel הם בדיקה תיאורית בדיעבד, ללא bootstrap או seed. הריבוד בעונה×שלב אינו מוכיח שהסיבה היא מוטיבציה ואינו מתקן אוטומטית את חיפוש המבחן. השדה p_bonferroni_12 הוא פלט של משפחה בגודל 12 בקוד, ואינו הופך את המבחן למאשר שנקבע מראש. ברירת המחדל היא עידן 14; השוואת כל הפיתוח דורשת seasons מפורש, והיא מדגם שונה.
+
 ## מחברת 02 — פעימה D: המשחק והשערים
 
 תצוגות תיאוריות בזיכרון ב־`ligat.analysis.league_stats.match_flow`, ללא כתיבה ל-clean.
@@ -418,10 +512,10 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
 
 | פונקציה / טבלה | אינדקס | עמודות ומשמעות |
 | --- | --- | --- |
-| scoreline_distribution | home_goals; עמודות away_goals | מפת שיעורים 9×9 מתוך כל המשחקים. attrs: n_matches, n_beyond, counts, ci_lower/upper לכל תא (Wilson). אין נרמול מחדש אחרי חיתוך |
+| scoreline_distribution | home_goals; עמודות away_goals | קלט tables ו־seasons=8–25; tail_start=5 כברירת מחדל וחייב להיות חיובי. מטריצת שיעורים **6×6** עם תוויות 0,1,2,3,4,"5+". כל השערים מ־5 ומעלה מאוגדים בתא הזנב; כל המשחקים נשמרים, ללא חיתוך וללא נרמול מחדש. attrs: n_matches, n_tail (משחקים שבהם לפחות צד אחד בזנב), counts, ci_lower/upper לכל תא בשיטת Wilson. שינוי tail_start משנה את גודל המטריצה ל־tail_start+1 בכל ציר |
 | top_scorelines | home_goals, away_goals | 10 התוצאות השכיחות בפועל; n הוא מספר הופעות, rate ו-ci_lower/upper מתוך כל המשחקים |
-| poisson_reference | home_goals; עמודות away_goals | מכפלת Poisson עצמאיים עם ממוצעי שערי הבית והחוץ בפיתוח; attrs: lambda_home/away, tail_mass, n_matches. הזנב נשמר מחוץ למפה; אין אימון או תחזית |
-| observed_vs_poisson | scoreline | 0:0, 1:0, 0:1, 1:1, 2:2, all_draws; n משחקים, count, observed ורווח Wilson, expected, ratio=נצפה/צפוי. all_draws כולל זנב תיקו עד דיוק נומרי, ולא רק אלכסון 9×9 |
+| poisson_reference | home_goals; עמודות away_goals | קלט tables, seasons=8–25, tail_start=5 חיובי. מכפלת Poisson עצמאיים עם ממוצעי שערי הבית והחוץ במדגם שנבחר; מטריצת **6×6** עם "5+", כאשר כל שולי הזנב נכללים דרך ‎1−P(0..4). סכומה 1 ללא נרמול מחדש. attrs: lambda_home/away, tail_mass (המסה שמחוץ לריבוע התוצאות המדויקות 0..4, וכבר כלולה במפה), n_matches. קו בסיס תיאורי בתוך המדגם, ללא התאמה לכוח קבוצות |
+| observed_vs_poisson | scoreline | קלט tables, seasons=8–25. שורות 0:0, 1:0, 0:1, 1:1, 2:2, all_draws; n משחקים, count, observed ורווח Wilson, expected, ratio=נצפה/צפוי. תוצאות נמוכות נלקחות ממטריצת ה־6×6. **all_draws הוא שוויון שערים מדויק בכל הזנב**, עד דיוק נומרי; אינו סכום אלכסון מטריצת הקטגוריות, כי "5+:5+" כולל גם תוצאות שאינן תיקו |
 | goal_count_dispersion | metric: home_goals/away_goals/total_goals | n משחקים, n_seasons, mean, variance מדגמית (ddof=1), dispersion=variance/mean, home_away_correlation פירסון. לכל מדד ci_lower/upper מ-bootstrap של בלוקי עונות תוך שמירת צמדי תוצאות. יחס עם ממוצע אפס או מתאם בשונות אפס חסר |
 | draw_types | season_id | n כל משחקי העונה; zero_zero/one_one/two_two_plus: n, rate ורווחי Wilson. כל השיעורים מתוך המשחקים, לא מתוך התיקו |
 | timeline_exclusions | reason | n_matches לפי סיבות זרות: ht_conflict; no_goals; unreliable_scorers_864982. הסיבה המפורשת של 864982 קודמת ל-no_goals, כדי לא לספור פעמיים |
@@ -490,63 +584,66 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
   תיבדק במחברת 06 רק לאחר ש-goals יקבע λ לכל צד; המתאם הגולמי אינו בדיקה כזאת.
 
 
+### D — חצאים אקראיים להשוואת Poisson (`poisson_check.py`)
+
+שתי הפונקציות מקבלות `tables`, `seasons=DEVELOPMENT_SEASONS` (8–25), `seed=0`, `iterations=100` חיובי. הבחירה נבדקת כלא ריקה, ללא כפילות ומתוך development; נדרשים משחקים ששוחקו עם שני ציוני שערים מלאים. **זו EDA עם שני חצאים אקראיים משלימים בתוך כל עונה, לא OOF כרונולוגי, לא נתוני prematch ולא מדידת ביצועי M2.**
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `poisson_crossfit_predictions` | אינדקס המשחקים, ממוין | כל משחק מקבל fold=0/1 בהגרלה בינומית, בלי הבטחה לחצאים שווי גודל; שני החצאים בכל עונה חייבים להיות לא ריקים. בכל fold מתאימים כוח התקפה והגנה ב־100 איטרציות כברירת מחדל על החצי המשלים, עם pseudocount=0.5. הפלט: `season_id`, `home_team_id`, `away_team_id`, `home_goals`, `away_goals`, `fold`, `lambda_home`, `lambda_away`. attrs: `method`, `seed`, `iterations`, `chronological=False`. קבוצה שלא הופיעה באימון מקבלת כוח ניטרלי 1. |
+| `poisson_crossfit_comparison` | `scoreline` | אותם קלטים ופרמטרים. שורות 0:0, 1:0, 0:1, 1:1, 2:2, all_draws: `n`, `count`, `observed`, `expected` כממוצע ההסתברות הפרטנית למשחק, `observed_ci_lower/upper` של Wilson, `ratio`. attrs זהים ל־predictions. תיקו צפוי הוא Skellam ב־0 לכל λ, עם טיפול נפרד באפס; כולל את הזנב המלא. |
+
+שערי המשחק המוחזק בחוץ אינם נכנסים לאומדן ה־λ של **אותו משחק**, ושני צדי משחק תמיד באותו fold. לעומת זאת מותרות כאן תוצאות מאוחרות יותר באותה עונה, ואותו משחק יכול להשתתף באומדן למשחקי החצי האחר. הפרמטרים לא נבחרו בבקטסט כרונולוגי. אומדני כוח מחצי עונה רועשים; יחס נצפה/צפוי לתוצאה מסוימת אינו לבדו הצדקה לתיקון הסתברות שלה.
+
+### D — יציבות וכיול תהליך האפס (`score_review.py`)
+
+פונקציות המקבלות `tables` או מסגרת משחקים ו־`seasons` מסננות את הבחירה ל־8–25 ודוחות בחירה מחוץ ל־development, כפולה או ריקה. ברירת המחדל היא כל development, לא עידן 14. `summarize_poisson_null` מקבלת מדדים מסוכמים בלבד ואינה יכולה לבדוק עונות: הקורא אחראי לסינון. `R` להלן הוא שם תיאורי למספר השחזורים; שם הפרמטר בקוד הוא `replicates`.
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `poisson_baseline_comparison` | `scoreline` | קלט `tables`, `seasons=8–25`. שורות התוצאות הנמוכות ו־all_draws, עם `observed`, `global_expected`, `global_ratio`, `per_game_expected`, `per_game_ratio`. משווה קו בסיס של ממוצעי הליגה בתוך המדגם לקו בסיס עם כוח קבוצות מחצאים משלימים. חצאי ההשוואה משתמשים ב־seed=0, iterations=100, ללא פרמטרים כאלה בחתימה. |
+| `score_coverage` | `maximum=3..7` | קלט `tables`, `seasons=8–25`. `n`, `outside` (לפחות צד אחד מעל maximum), `coverage=1−outside/n` של ריבוע תוצאות מדויקות **לפני** איגום הזנב. attrs: `maximum` כשיא השערים שנצפה בצד כלשהו, `outside_scores` כמילון `(home_goals,away_goals)→count` למשחקים שבהם צד הגיע ל־5, `strong_tail_5`, `strong_tail_6` כהסתברויות שערי Poisson עם λ=3 להגיע לפחות ל־5/6. |
+| `score_stability` | זוג: סטיות ב־`season_id × category`; מגמות ב־`scoreline` | קלט `tables`, `seasons=8–25`, `permutations=5000` חיובי, `seed=20261029`. קטגוריות 1:1,1:0,0:0,0:1,2:0,2:1,1:2,0:2,2:2,other. נדרשות לפחות שתי עונות וכל הקטגוריות חייבות להופיע במדגם המאוגם. הסטיות הן שיעור עונתי פחות שיעור הליגה שנבחרה, ביחידות 0–1. attrs של טבלת הסטיות: `counts`, `chi2`, `dof`, `p_asymptotic`, `p_permutation`, `permutations`, `seed`, `seasonal_standard_error` (עוגן קבוע sqrt(0.12×0.88/240)). טבלת תשע המגמות: `slope_pp` בנקודות אחוז לעונה, `p`. |
+| `poisson_truth` | אינדקס המשחקים, ממוין | קלט `tables`, `seasons=8–25`, `iterations=100` חיובי; נדרשות תוצאות מלאות. אומדת התקפה/הגנה מכל משחקי **העונה השלמה**, באותה שיטת pseudocount=0.5. מחזירה רק `season_id`, `home_team_id`, `away_team_id`, `lambda_home`, `lambda_away`; עמודות השערים האמיתיים אינן מוחזרות. זו אמת plug-in לתהליך האפס, לא חיזוי מחוץ למדגם. |
+| `simulate_poisson_goals` | אינדקס המשחקים שנבחרו, ממוין | קלט `truth` עם מזהי העונה והקבוצות ושתי עמודות λ, `seasons=8–25`, `seed=20261029`. λ חייבים להיות סופיים ולא שליליים. מחזירה מזהים ו־`home_goals`, `away_goals` שהוגרלו כשערי Poisson עצמאיים. משתמשת **רק ב־λ** להגרלה, ואינה קוראת שערים אמיתיים גם אם הוספו לקלט. λ אינם מועתקים לפלט. |
+| `poisson_diagnostic_metrics` | Series בשם `observed`, אינדקס מדדים | קלט `predictions` הכולל מזהים, שערים ושתי עמודות λ, ו־`seasons=8–25`; λ חייבים להיות סופיים וחיוביים ממש. `dispersion_home/away=Σ(y−λ)²/Σλ`, `residual_correlation` בין `(y−λ)/sqrt(λ)` של שני הצדדים; יחסי נצפה/צפוי ל־0:0,1:0,0:1,1:1,2:2 ו־`all_draws`; `draw_balanced`, `draw_middle`, `draw_unbalanced` בשלישים שווי מספר משחקים בקירוב לפי abs(lambda_home−lambda_away). שוויון נשבר בסדר האינדקס הממוין. תיקו מחושב לפי Skellam מלא, ולא לפי קטגוריית "5+:5+". |
+| `summarize_poisson_null` | אינדקס המדדים | קלט `observed: Series`, `simulations: DataFrame` ששורותיה שחזורים ועמודותיה אותם מדדים. מחזירה `observed`, `null_mean`, `null_sd` מדגמית, `z=(observed−null_mean)/null_sd`, `p_mc`, `null_lower`, `null_upper` כאחוזונים 2.5/97.5. p דו־צדדי סופר מרחק מוחלט מממוצע הסימולציות, עם plus-one: ‏(1+מספר חריגים)/(R+1). אין bootstrap או פרמטר seed בפונקציה זו. |
+| `calibrated_poisson_check` | זוג: סיכום באינדקס מדדים; שחזורים ב־RangeIndex | קלט `tables`, `seasons=8–25`, `replicates=200` (לפחות 2), `seed=20261029`, `observed_seed=0`, `iterations=100`, `progress=None`. מחשבת מדדים אמיתיים מחצאי seed=observed_seed, בונה אמת מעונה שלמה, ומגרילה R ליגות מתוצאות Poisson; בכל שחזור מתאימה **מחדש** כוחות בשני החצאים האקראיים ומחשבת אותם מדדים. SeedSequence(seed).spawn(R) מספקת לכל שחזור זרעים נפרדים לשערים ולחלוקה לחצאים; progress(i) נקראת אחרי כל שחזור, i=1..R. סיכום כסכמת summarize_poisson_null; טבלת R השחזורים עם מדד בכל עמודה. attrs בסיכום: `replicates`, `seed`, `observed_seed`, `iterations`, `algorithm="score-review-1"`, `split`, `calibrated_draw_excess=observed(all_draws)/null_mean(all_draws)−1`. |
+
+מבחן היציבות שומר במדויק את מספר המשחקים בכל עונה ואת שכיחות הקטגוריות המאוגמת, דרך הגרלת טבלאות שכיחות מותנות; p המונטה־קרלו משתמש ב־plus-one. תשע מגמות התוצאות הן חקרניות, בלי תיקון ריבוי השוואות מאשר. נתון seasonal_standard_error הוא קנה מידה להמחשה, לא SE שחושב לכל אחת מעונות הקלט.
+
+בבדיקה המכוילת **האמת היא כוח שנאמד מעונה שלמה**. אומדן האמת והמדדים הנצפים כן קוראים שערי עבר אמיתיים; ההגרלה עצמה קוראת רק λ, וההתאמה המחודשת בכל שחזור רואה רק את השערים המדומים. כך שומרים באפס גם את הרעש שנוצר משיטת אומדן הכוח בחצאים. טווח 95% null_lower/null_upper הוא **טווח של תהליך האפס, לא רווח סמך לאפקט הנצפה**; z הוא סטייה מהאפס המכויל ולא מבחן נורמלי אוטומטי. האמת המותאמת מעונה שלמה עצמה רועשת, ולכן רעש השיטה עשוי להיות מוערך ביתר. זו EDA בדיעבד: אין לפרש חצאים אקראיים כ־OOF כרונולוגי, או לבחור תיקון ייעודי ל־1:1/2:2 לפי יחס גולמי. שימוש עתידי ב־M3 ייבדק עם λ כרונולוגי של M2.
+
+### D — מטמון הבדיקה (`ligat/analysis/score_cache.py`)
+
+| פונקציה / טבלה | אינדקס | קלט, פלט ומשמעות |
+| --- | --- | --- |
+| `cached_poisson_check` | זוג: סיכום באינדקס מדדים; שחזורים ב־RangeIndex | קלט `tables`, `cache_path: Path` מפורש, `seasons=8–25`, `replicates=200`, `seed=20261029`, `observed_seed=0`, `iterations=100`, `progress=None`. מחזירה אותו זוג טבלאות כמו calibrated_poisson_check. attrs הסיכום כוללים את attrs הכיול ובנוסף `cache_key`, `simulation_seconds` של החישוב המקורי ו־`cache_hit`. בקריאת מטמון תקין cache_hit=True; בחישוב חדש False. |
+
+מפתח SHA-256 כולל hash של עמודות season_id, home_team_id, away_team_id, home_goals, away_goals והאינדקס, ממוין לפי אינדקס, לאחר סינון development; תוכן המקור של `poisson_check.py` ושל `score_review.py`; ורשומת פרמטרים עם העונות, R, שני הזרעים, iterations, pseudocount=0.5, גרסת האלגוריתם וגרסאות NumPy/SciPy/pandas. אין במפתח גרסת Python או hash של כל קובצי הפרויקט. `progress` והנתיב עצמם אינם חלק מהמפתח.
+
+קובץ JSON שומר key, parameters, attrs, summary ו־samples בפורמט split; אין pickle. בכשל קריאה/פענוח נתמך או בשינוי המפתח מחשבים מחדש. הכתיבה לקובץ אח זמני עם הסיומת `.tmp` והחלפה אטומית; ההורה של cache_path חייב להתקיים, ואינו נוצר אוטומטית. הנתיב נבחר בידי הקורא למטמון נגזר ומוחרג מ־Git, ללא כתיבה ל־clean/raw או לתוצרי מודל ייצור. הפונקציה היא מעטפת I/O ל־EDA המכוילת; אין להפעילה כדי לייצר פיצ׳רים או ציוני M2. הסתייגויות האמת הרועשת וטווח תהליך האפס חלות גם על פלט שנקרא מהמטמון.
+
 ## מחברת 02, פרק E: הקשר תיאורי
 
 הטבלאות הבאות נוצרות בזיכרון ב־`ligat.analysis.league_stats.context`; אינן נשמרות
 ב־`data/clean` ואינן פיצ'רים. עונות 8–25 בלבד, ו־ValueError לבחירה מחוץ לטווח.
-השוואת מאמנים מוגבלת לעונות 12–25 בגלל הכיסוי החלקי בשנים הראשונות.
 נקודות תמיד 3/1/0 על המגרש. מיקום רשמי קודם משמש להשוואה תיאורית בלבד.
 כל האינדקסים נוצרים עם `drop=True`.
 
 | פונקציה | אינדקס | תוכן ומשמעות |
 | --- | --- | --- |
-| referee_stats | referee | כל השופטים המזוהים, כולל מתחת ל־30 משחקים: n_matches, שיעורי home_win/draw/away_win/zero_zero עם count ו־Wilson; goals_per_match, home_ppm ורווחי עונות; red_cards/penalty_goals_count, matches, per_match ורווחי עונות; home_red_share ו־home_penalty_goal_share עם n אירועים ו־Wilson. בגרפים רק n_matches≥min_matches (ברירת מחדל 30) |
-| referee_home_bias | event, side | event=red/penalty, side=home/away; n_matches, n_events, per_match, ci_lower/upper מדגימת עונות. אדומים כוללים צהוב שני וגם כרטיסים בלי דקה; שערי פנדל הם רק שערים שהובקעו |
-| coach_change_effect | team_id, spell_number | season_id, first_date, coach_name, is_left_censored=False, is_flicker=False; window, before_game_ids/after_game_ids, n_before/n_after, ppm_before/after, diff; n_controls, control_team_ids, control_diff, effect=diff−control_diff |
-| coach_summary | cohort | all_eligible/matched; n_changes, n_seasons; mean_diff/control_diff/effect עם ci_lower/upper לכל ממוצע. בקבוצה הכללית חוסרי בקרה אינם נכללים בממוצעי הבקרה והאפקט; להשוואת שלושת הממוצעים משתמשים בשורת matched בלבד |
-| venue_effects | is_home_venue | False=שאול, True=ביתי; רק צמדי קבוצה־עונה שבהם הופיעו שתי האפשרויות. n, home_ppm, home_win_rate ועוד שיעורי תוצאה; Wilson לשיעורים ו־bootstrap עונות לממוצעי נקודות ושערים |
-| venue_summary | venue | אצטדיונים עם n_matches≥min_matches; n, home_win_rate, goals_per_match, רווחי סמך וגבולות funnel. המארחות וחוזקן משתנים בין האצטדיונים |
-| derby_and_big_games | game_type | city_derby/shared_venue_other/big_game/other; n, goals_per_match, draw/home_win/away_win/zero_zero_rate ורווחי סמך, pairs=זוגות מזהי הקבוצות שנצפו |
 | upset_rates | metric, gap_bin, weaker_side | metric=value_ratio/rank_gap; n, פירוק home/draw/away עם Wilson, ובכוח ידוע גם weak_win/strong_win_rate עם Wilson. עולות מול ותיקות מקבלות promoted_win/veteran_win_rate. עמודות שלא ניתן לפרש נשארות NA |
+| t1_strength_comparison | model | LOSO על אותו מדגם development: baseline/value/rank_difference/rank_log/value_rank_log; n, n_seasons, log_loss, RPS. מוציא עולות, עונה 8 ושווי או מיקום חסר/לא חיובי. attrs: correlation_lv_rk, comparisons (הפרשי log loss, bootstrap עונות עם CI ומספר עונות טובות יותר), seasonal_losses, seed ו־n_bootstrap. זו EDA בדיעבד, לא walk-forward או בחירת מודל |
 
-### גבולות funnel ואי־ודאות
+### אי־ודאות
 
-- `funnel_limits_binomial(rate_league, n)` מחזירה lower95/upper95/lower998/upper998,
-  אינדקס n. אלה כמויות מדויקות של Binomial(n,p), מחולקות ב־n. מתאימה לניצחון בית,
-  שבו כל משחק הוא כן/לא. `funnel_limits` נשאר alias לאותה פונקציה.
-- `funnel_limits_poisson(rate_league, n)` משתמשת בכמויות המדויקות של
-  Poisson(rate_league×n), מחולקות ב־n, לספירות אדומים, שערי פנדל ושערים למשחק.
-  כמה אירועים באותו משחק אינם הופכים אותו לאירוע בינומי יחיד. n חייב להיות מספר
-  שלם חיובי והשיעור תקין; אין קירוב נורמלי.
-- בטבלאות השופטים והאצטדיונים נשמרים לכל מדד גם ארבעת הגבולות וגרסאות
-  `_expanded`. ב־attrs.funnel_models נשמרים rate, distribution, phi,
-  p_overdispersion, widened, overdispersion_clear, n_entities ו־min_matches.
-- לספירות: φ=Σ(O−E)²/E/(k−1), עבור קבוצות עם n_matches≥30 וחשיפה חיובית;
-  E=שיעור הליגה×חשיפה. אם φ>1 מוצגים גם גבולות שרוחבם מהממוצע הוכפל ב־√φ,
-  עם חסימה באפס. `overdispersion_clear` דורש גם p<0.05 במבחן χ² בקירוב.
-  ההרחבה מוצגת בזהירות גם בלי מובהקות, לצד הגבולות הרגילים; אין תיקון להשוואות מרובות.
-- מכנה שערי הפנדל מוציא את 864982 (goals_available=False); אין המצאת אפס אירועים.
-  attrs מתעדים משחקים בלי שופט, כיסוי שערים ואצטדיון לא ידוע.
 - רווחי ממוצעים דוגמים עונות שלמות, n_bootstrap=2000 כברירת מחדל, זריעה קבועה
   כמו בפונקציות הקיימות; בטסטים משתמשים ב־50. פחות משתי עונות נותן רווח חסר.
   Wilson הוא רווח שולי תיאורי, לא רווח עם תיקון לתלות בין משחקים.
 
 ### קבוצות השוואה, קטגוריות וחוסרים
 
-- שינוי מאמן: קדנציה נקייה שהתחילה באמצע עונה; בדיוק window משחקים לפני ואחרי
-  באותה עונה, ואחרי ההחלפה עדיין באותה קדנציה עם מאמן ידוע. attrs מתעדים
-  n_clean_mid_season, סיבות סינון ו־window. חציון אורך הקדנציה בסיכום הוא של כל
-  הקדנציות הנקיות בטווח, לא רק ההחלפות שנשארו; changes_by_season סופר זכאיות לחלון.
-- בקרות: קבוצה אחרת באותה עונה ובאותו match_number, קצב קודם במרחק עד 0.3,
-  ללא שינוי מאמן נצפה בכל עשרת המשחקים וללא משחק בלי זיהוי מאמן. control_diff הוא
-  ממוצע השינויים בבקרות המתאימות. בלי בקרה: control_diff/effect=NA, ולא אפס.
-  מאמן אינו מוקצה באקראי; גם ההפרש המתוקנן אינו הוכחה להשפעה סיבתית.
-- דרבי: רשימת ערים ושמות קטנה ומתועדת ב־CITY_CLUBS (תל אביב, חיפה, ירושלים,
-  פתח תקווה). מזהים נפתרים מה־name_he/aliases של config/teams.yaml המועבר כפרמטר.
-  אצטדיון בית משותף באותה עונה אינו בהכרח אותה עיר. ארבע הגדולות הן ארבע
-  הראשונות ב־teams_overview לפי ppm בעונות הנבחרות. הקדימות הזרה היא עירוני,
-  משותף אחר, גדולה מול גדולה, אחר; attrs כוללים city_pairs/shared_pairs/big_teams
-  ומספר המשחקים העירוניים שהם גם בין הגדולות.
 - פער שווי: יחס הגדול לקטן של prev_season_value_share, ללא השלמה, בחמישונים
   הנקבעים מכל המשחקים בעלי שני ערכים חיוביים ולא שווים. value_ratio_edges ב־attrs.
   פער מיקום קודם: 1–3, 4–7, 8+ מקומות. weaker_side מציין home_weaker/away_weaker;
@@ -556,6 +653,6 @@ split_summary, stage_comparison, playoff_form_summary, final_rounds_check. לר�
   בלי להגדיר את העולה אוטומטית כחלשה. missing_source: חסר ערך גם כשלא מדובר בעולה.
   בקטגוריות אלה weak_win/strong_win נשארים NA. אין מילוי חוסרים ואין שכבת prematch.
 
-בכל ההשוואות מציגים n ורווחים; לא מסיקים מ־n<30, ולא מדרגים שופט או אצטדיון כטוב/רע.
-זהות הקבוצות, בחירת השופט ולוח המשחקים עלולים להסביר את הקשרים. חפיפת רווחים
+בכל ההשוואות מציגים n ורווחים; לא מסיקים מ־n<30.
+זהות הקבוצות ולוח המשחקים עלולים להסביר את הקשרים. חפיפת רווחים
 אינה הוכחת שוויון; קשר אינו סיבה.
