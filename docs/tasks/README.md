@@ -15,6 +15,7 @@
 | T-008 | [תשתית ויזואליזציה](T-008-viz-framework.md) | Codex | T-001 | `ligat viz build` + גלריה |
 | T-009 | [גרפי הדאטה](T-009-data-charts.md) | Codex + Claude Code | T-007, T-008 | גרפי איכות וסקירה + דוח |
 | EDA-01 | [הכנת טבלאות ניתוח](EDA-01-prepare-tables.md) | Codex + Claude Code | שלב 1 | תצוגות נתונים מודולריות ומחברת 01 (בשלבים A, B, C) |
+| T-010 | [מחברת 03: `prematch` (M0)](T-010-prematch.md) | Codex + Claude Code | מחברת 02 (PR #19) | `rules.py`, טבלה לפי as_of, דגל "אין על מה לשחק", Elo מכויל, הקשר t−1 (פעימות A, B, C) |
 
 ## סדר עבודה
 
