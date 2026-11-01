@@ -710,8 +710,10 @@ def test_chapter_b_titles_are_computed_from_changed_data(history_tables: Analysi
     periods["n_seasons"] = [2, 2]
     periods["mean_ppm_gap"] = [0.5, 0.1]
     periods["mean_home_win_rate"] = [0.45, 0.35]
-    title = chapter_b_chart("home", home, periods).layout.title.text.replace("<br>", " ")
-    assert "+0.50" in title and "+0.10" in title and "45%" in title and "35%" in title
+    figure = chapter_b_chart("home", home, periods)
+    title = figure.layout.title.text.replace("<br>", " ")
+    assert "0.50" in title and "0.10" in title and "+" not in title
+    assert list(figure.data[0].y) == pytest.approx(home.ppm_gap.tolist())
     champions = pd.DataFrame(
         {"team_name": ["TA", "Haifa", "Other"], "titles": [2, 3, 1]},
         index=pd.Index([1061, 1005, 99], name="team_id"),
@@ -1296,10 +1298,10 @@ def test_flow_timeline_invariants(flow_tables: AnalysisTables) -> None:
 
 
 def test_flow_distributions_and_denominators(flow_tables: AnalysisTables) -> None:
-    observed = stats.scoreline_distribution(flow_tables, max_goals=0)
-    assert observed.to_numpy().sum() == pytest.approx(1 - observed.attrs["n_beyond"] / 36)
+    observed = stats.scoreline_distribution(flow_tables, tail_start=1)
+    assert observed.to_numpy().sum() == pytest.approx(1)
     poisson = stats.poisson_reference(flow_tables)
-    assert poisson.to_numpy().sum() + poisson.attrs["tail_mass"] == pytest.approx(1)
+    assert poisson.to_numpy().sum() == pytest.approx(1)
     transitions = stats.halftime_transitions(flow_tables, n_bootstrap=50)
     assert transitions[["win_rate", "draw_rate", "loss_rate"]].sum(axis=1).eq(1).all()
     assert transitions.n.sum() + transitions.attrs["n_excluded_rows"] == 72
@@ -1363,7 +1365,7 @@ def test_flow_real_controls(real_tables: AnalysisTables, real_timelines: pd.Data
         ].tolist() == pytest.approx(expected, abs=0.01)
     observed = stats.scoreline_distribution(real_tables)
     assert observed.attrs["n_matches"] == 4315
-    assert observed.to_numpy().sum() == pytest.approx(1 - observed.attrs["n_beyond"] / 4315)
+    assert observed.to_numpy().sum() == pytest.approx(1)
     timeline = real_timelines.copy(deep=True)
     assert len(timeline) + 2 * timeline.attrs["n_excluded_matches"] == 8630
     assert (
@@ -1476,240 +1478,60 @@ def test_resilience_rates_use_exposed_games(flow_tables: AnalysisTables) -> None
             assert row[f"{metric}_ci_upper"] == pytest.approx(row[metric])
 
 
-# Chapter E: context, exact funnels and matched coach controls.
-E_FUNCTIONS = [
-    stats.referee_stats,
-    stats.referee_home_bias,
-    stats.venue_effects,
-    stats.venue_summary,
-    stats.coach_change_effect,
-    stats.coach_summary,
-    stats.derby_and_big_games,
-    stats.upset_rates,
-]
-
-
-def _context_config() -> list[dict[str, Any]]:
-    from ligat.analysis.league_stats.context import CITY_CLUBS
-
-    names = [name for group in CITY_CLUBS.values() for name in group]
-    # IDs are fixture-only; production resolves config records.
-    return [dict(team_id=i + 1, name_he=name, aliases=[]) for i, name in enumerate(names)]
-
-
-def _context_cards() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            dict(game_id=1201, team_id=1, minute=55, is_second_yellow=False),
-            dict(game_id=1201, team_id=1, minute=75, is_second_yellow=True),
-            dict(game_id=1201, team_id=2, minute=pd.NA, is_second_yellow=False),
-        ]
-    )
-
-
+# Chapter E: previous-season strength and unknown categories.
 @pytest.fixture
 def context_tables() -> AnalysisTables:
-    from ligat.analysis.league_stats.context import CITY_CLUBS
-
-    names = [name for group in CITY_CLUBS.values() for name in group]
-    matches, teams, goals, labels, spells = [], [], [], [], []
+    matches, labels = [], []
     for season in (12, 13):
         for number in range(1, 13):
             for pair, (a, b) in enumerate(((1, 2), (3, 4), (5, 6))):
                 game_id = season * 100 + pair * 20 + number
-                # Team 1: +1.2 ppm after change; team 3: +0.6, the only nearby control.
                 a_wins = (
                     number in (5, 6, 7, 8) if a == 1 else number in (5, 6, 7) if a == 3 else True
                 )
                 home, away = (a, b) if number % 2 else (b, a)
                 winner = a if a_wins else b
                 hg, ag = int(winner == home), int(winner == away)
-                date = pd.Timestamp(f"{season + 1998}-08-01", tz="Asia/Jerusalem") + pd.Timedelta(
-                    days=number
-                )
-                venue = "Shared" if home in (1, 3) else f"Ground {home}"
                 matches.append(
                     dict(
                         game_id=game_id,
                         season_id=season,
-                        date=date,
                         home_team_id=home,
                         away_team_id=away,
                         home_goals=hg,
                         away_goals=ag,
                         total_goals=hg + ag,
-                        referee=f"Ref {pair}",
-                        venue=venue,
-                        is_home_venue=not (home == 1 and number == 3),
-                        goals_available=True,
                     )
                 )
-                goals.append(
-                    dict(
-                        game_id=game_id,
-                        goal_number=1,
-                        season_id=season,
-                        team_id=winner,
-                        is_penalty=number % 5 == 0,
-                    )
-                )
-                for team, _other in ((a, b), (b, a)):
-                    won = team == winner
-                    coach = 200 + team if team == 1 and number >= 6 else 100 + team
-                    teams.append(
-                        dict(
-                            team_id=team,
-                            game_id=game_id,
-                            season_id=season,
-                            date=date,
-                            match_number=number,
-                            points_earned=3 if won else 0,
-                            is_home=team == home,
-                            goals_scored=int(won),
-                            goals_conceded=int(not won),
-                            coach_id=coach,
-                            coach_name=f"Coach {coach}",
-                        )
-                    )
         for team in range(1, 7):
             labels.append(
                 dict(
                     season_id=season,
                     team_id=team,
-                    team_name=names[team - 1],
+                    team_name=f"Club {team}",
                     final_position=team,
-                    relegated=team == 6,
-                    value_share_of_league=team / 21,
                     prev_season_value_share=pd.NA if season == 12 or team == 6 else team / 21,
                     promoted_in=season == 13 and team == 6,
                 )
             )
-            starts = (1, 6) if team == 1 else (1,)
-            for offset, start in enumerate(starts):
-                first = pd.Timestamp(f"{season + 1998}-08-01", tz="Asia/Jerusalem") + pd.Timedelta(
-                    days=start
-                )
-                spells.append(
-                    dict(
-                        team_id=team,
-                        spell_number=(season - 12) * 2 + offset + 1,
-                        season_id_start=season,
-                        season_id_end=season,
-                        first_date=first,
-                        last_date=first + pd.Timedelta(days=4 if start == 1 and team == 1 else 6),
-                        coach_name=f"Coach {200 + team if start == 6 else 100 + team}",
-                        matches=5 if start == 1 and team == 1 else 7 if team == 1 else 12,
-                        is_mid_season_start=start == 6,
-                        is_left_censored=False,
-                        is_flicker=False,
-                    )
-                )
     return AnalysisTables(
-        pd.DataFrame(matches).set_index("game_id", drop=True),
-        pd.DataFrame(teams).set_index(["team_id", "game_id"], drop=True),
-        pd.DataFrame(goals).set_index(["game_id", "goal_number"], drop=True),
-        pd.DataFrame(labels).set_index(["season_id", "team_id"], drop=True),
+        pd.DataFrame(matches).set_index("game_id"),
         pd.DataFrame(),
-        pd.DataFrame(spells).set_index(["team_id", "spell_number"], drop=True),
+        pd.DataFrame(),
+        pd.DataFrame(labels).set_index(["season_id", "team_id"]),
+        pd.DataFrame(),
+        pd.DataFrame(),
     )
 
 
-def _run_e(fn: Any, tables: AnalysisTables, seasons: Any = DEVELOPMENT_SEASONS) -> pd.DataFrame:
-    options: dict[str, Any] = {"n_bootstrap": 50}
-    if fn in (stats.referee_stats, stats.referee_home_bias):
-        options["red_cards"] = _context_cards()
-    if fn in (stats.referee_stats, stats.venue_summary):
-        options["min_matches"] = 3
-    if fn == stats.derby_and_big_games:
-        options["teams_config"] = _context_config()
-    if fn in (stats.coach_change_effect, stats.coach_summary) and seasons is DEVELOPMENT_SEASONS:
-        seasons = range(12, 26)
-    return fn(tables, seasons, **options)
-
-
-@pytest.mark.parametrize("function", E_FUNCTIONS)
 @pytest.mark.parametrize("seasons", [[26], [27], [28], [8, 26], [], [8, 8]])
-def test_context_development_scope(
-    function: Any, seasons: Any, context_tables: AnalysisTables
-) -> None:
+def test_context_development_scope(seasons: Any, context_tables: AnalysisTables) -> None:
     with pytest.raises(ValueError, match="development"):
-        _run_e(function, context_tables, seasons)
-
-
-def test_exact_funnels_and_overdispersion() -> None:
-    import numpy as np
-
-    from ligat.analysis.league_stats.context import _add_funnel
-
-    rng = np.random.default_rng(20261015)
-    samples = rng.poisson(0.2 * 100, 10000)
-    frame = stats.funnel_limits_poisson(0.2, [100, 10000])
-    inside = (
-        (samples / 100 >= frame.loc[100, "lower95"]) & (samples / 100 <= frame.loc[100, "upper95"])
-    ).mean()
-    assert 0.94 < inside < 0.98
-    for fn, mean in [(stats.funnel_limits_poisson, 0.2), (stats.funnel_limits_binomial, 0.4)]:
-        limits = fn(mean, [30, 10000])
-        assert (
-            limits.loc[10000, "upper95"] - limits.loc[10000, "lower95"]
-            < limits.loc[30, "upper95"] - limits.loc[30, "lower95"]
-        )
-        assert limits.loc[10000, "lower95"] <= mean <= limits.loc[10000, "upper95"]
-        with pytest.raises(ValueError):
-            fn(mean, [0])
-    assert stats.funnel_limits is stats.funnel_limits_binomial
-    dispersed = pd.DataFrame(
-        {"n_matches": [100] * 10, "n_events": [0, 0, 0, 0, 0, 100, 100, 100, 100, 100]}
-    )
-    dispersed["per_match"] = dispersed.n_events / 100
-    _add_funnel(dispersed, "per_match", "n_events", "n_matches", 0.5, "poisson", 30)
-    model = dispersed.attrs["funnel_models"]["per_match"]
-    assert model["phi"] > 1 and model["widened"] and model["overdispersion_clear"]
-    assert (dispersed.per_match_upper95_expanded > dispersed.per_match_upper95).all()
-
-
-def test_coach_matched_synthetic_control(context_tables: AnalysisTables) -> None:
-    effect = stats.coach_change_effect(context_tables, n_bootstrap=50)
-    assert len(effect) == 2
-    assert effect.n_before.eq(5).all() and effect.n_after.eq(5).all()
-    assert effect.ppm_before.tolist() == pytest.approx([0.6, 0.6])
-    assert effect.ppm_after.tolist() == pytest.approx([1.8, 1.8])
-    assert effect.control_diff.tolist() == pytest.approx([0.6, 0.6])
-    assert effect.effect.tolist() == pytest.approx([0.6, 0.6])
-    assert effect.control_team_ids.tolist() == [(3,), (3,)]
-    assert not effect.is_left_censored.any() and not effect.is_flicker.any()
-    with pytest.raises(ValueError, match="12–25"):
-        stats.coach_change_effect(context_tables, [11])
-    spells = context_tables.coach_spells.copy()
-    spells.loc[(1, 2), "is_left_censored"] = True
-    spells.loc[(1, 4), "is_flicker"] = True
-    assert stats.coach_change_effect(
-        replace(context_tables, coach_spells=spells), n_bootstrap=50
-    ).empty
-    spells = context_tables.coach_spells.reset_index()
-    # A control coach change in the ten-game interval excludes that club.
-    extra = spells.loc[spells.team_id.eq(3) & spells.season_id_start.eq(12)].copy()
-    extra["spell_number"] = 99
-    extra["is_mid_season_start"] = True
-    extra["first_date"] += pd.Timedelta(days=5)
-    spells = pd.concat([spells, extra]).set_index(["team_id", "spell_number"], drop=True)
-    row = stats.coach_change_effect(
-        replace(context_tables, coach_spells=spells), n_bootstrap=50
-    ).loc[(1, 2)]
-    assert row.n_controls == 0 and pd.isna(row.effect)
+        stats.upset_rates(context_tables, seasons, n_bootstrap=50)
 
 
 def test_context_disjoint_groups_and_unknowns(context_tables: AnalysisTables) -> None:
-    kinds = _run_e(stats.derby_and_big_games, context_tables)
-    assert kinds.n.sum() == 72
-    allowed = {tuple(x["team_ids"]) for x in kinds.attrs["city_pairs"]}
-    assert set(kinds.loc["city_derby", "pairs"]) <= allowed
-    venue = _run_e(stats.venue_effects, context_tables)
-    assert venue.loc[False, "n"] == 2
-    refs = _run_e(stats.referee_stats, context_tables)
-    assert refs.n_matches.sum() + refs.attrs["n_missing_referee"] == 72
-    assert refs.red_cards_count.sum() == 3  # Multiple cards in one game retained.
-    upset = _run_e(stats.upset_rates, context_tables)
+    upset = stats.upset_rates(context_tables, n_bootstrap=50)
     assert upset.groupby(level="metric").n.sum().eq(72).all()
     assert upset[["home_win_rate", "draw_rate", "away_win_rate"]].sum(axis=1).eq(1).all()
     unknown = upset.index.get_level_values("weaker_side").isin(
@@ -1736,36 +1558,15 @@ def test_context_purity_and_bootstrap(context_tables: AnalysisTables) -> None:
     originals = {
         f.name: getattr(context_tables, f.name).copy(deep=True) for f in fields(context_tables)
     }
-    for fn in E_FUNCTIONS:
-        output = _run_e(fn, context_tables)
-        assert output.index.is_unique
-        assert not set(output.index.names) & set(output.columns)
-        pd.testing.assert_frame_equal(output, _run_e(fn, context_tables))
-        for name, original in originals.items():
-            pd.testing.assert_frame_equal(original, getattr(context_tables, name))
+    output = stats.upset_rates(context_tables, n_bootstrap=50)
+    assert output.index.is_unique
+    assert not set(output.index.names) & set(output.columns)
+    pd.testing.assert_frame_equal(output, stats.upset_rates(context_tables, n_bootstrap=50))
+    for name, original in originals.items():
+        pd.testing.assert_frame_equal(original, getattr(context_tables, name))
 
 
-def test_context_real_controls(real_tables: AnalysisTables) -> None:
-    from pathlib import Path
-
-    import yaml
-
-    reds = Repository().read_filtered(
-        "red_cards", [("game_id", "in", real_tables.match_table.index.tolist())]
-    )
-    refs = stats.referee_stats(real_tables, red_cards=reds, n_bootstrap=50)
-    assert refs.n_matches.sum() + refs.attrs["n_missing_referee"] == 4315
-    venue = stats.venue_effects(real_tables, n_bootstrap=50)
-    assert venue.loc[False, "n"] == venue.attrs["n_borrowed_all"] == 194
-    coaches = stats.coach_change_effect(real_tables, n_bootstrap=50)
-    assert coaches.attrs["n_clean_mid_season"] == 246
-    assert coaches.n_before.eq(5).all() and coaches.n_after.eq(5).all()
-    for (team, _), row in coaches.iterrows():
-        assert team not in row.control_team_ids
-    config = yaml.safe_load(Path("config/teams.yaml").read_text(encoding="utf-8"))["teams"]
-    kinds = stats.derby_and_big_games(real_tables, teams_config=config, n_bootstrap=50)
-    assert kinds.n.sum() == 4315
-    assert {row["team_id"] for row in kinds.attrs["big_teams"]} == {1061, 1005, 2171, 3595}
+def test_context_real_upsets(real_tables: AnalysisTables) -> None:
     upset = stats.upset_rates(real_tables, n_bootstrap=50)
     assert upset.groupby(level="metric").n.sum().eq(4315).all()
     unknown = upset.index.get_level_values("weaker_side").isin(
@@ -1775,18 +1576,9 @@ def test_context_real_controls(real_tables: AnalysisTables) -> None:
 
 
 def test_context_chart_contracts(context_tables: AnalysisTables) -> None:
-    from ligat.viz.context import chapter_e_chart
+    from ligat.viz.context import upset_chart
 
-    for kind, fn in [
-        ("referee_home", stats.referee_stats),
-        ("referee_events", stats.referee_stats),
-        ("venues", stats.venue_summary),
-        ("coaches", stats.coach_summary),
-        ("borrowed", stats.venue_effects),
-        ("game_types", stats.derby_and_big_games),
-        ("upsets", stats.upset_rates),
-    ]:
-        figure = chapter_e_chart(kind, _run_e(fn, context_tables))
-        assert figure.data and any(c.isdigit() for c in figure.layout.title.text)
-        assert "?" not in figure.layout.title.text
-        assert figure.to_json()
+    figure = upset_chart(stats.upset_rates(context_tables, n_bootstrap=50))
+    assert figure.data and any(c.isdigit() for c in figure.layout.title.text)
+    assert "?" not in figure.layout.title.text
+    assert figure.to_json()

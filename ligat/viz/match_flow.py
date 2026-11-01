@@ -9,6 +9,7 @@ import plotly.graph_objects as go  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
 from ligat.viz.league_stats import AWAY_COLOR, DRAW_COLOR, HOME_COLOR, _finish
+from ligat.viz.seasons import season_label
 
 COLORS = {"win": HOME_COLOR, "draw": DRAW_COLOR, "loss": AWAY_COLOR}
 NAMES = {"win": "ניצחון", "draw": "תיקו", "loss": "הפסד"}
@@ -31,9 +32,15 @@ def chapter_d_chart(kind: str, frame: pd.DataFrame) -> Any:
             frame.to_numpy() * 100,
             x=frame.columns,
             y=frame.index,
-            text_auto=".1f",
             color_continuous_scale="Blues",
             labels=dict(x="שערי חוץ", y="שערי בית", color="% משחקים"),
+        )
+        fig.update_traces(
+            text=[
+                [f"{v * 100:.2f}" if 0 < v < 0.001 else f"{v * 100:.1f}" if v else "" for v in row]
+                for row in frame.to_numpy()
+            ],
+            texttemplate="%{text}",
         )
         maximum = frame.stack().idxmax()
         if "ci_lower" in frame.attrs:
@@ -73,7 +80,7 @@ def chapter_d_chart(kind: str, frame: pd.DataFrame) -> Any:
         difference = float(frame.loc["all_draws", "ratio"]) - 1
         direction = "יותר" if difference >= 0 else "פחות"
         fig.update_layout(
-            title=f"יש {abs(difference):.1%} {direction} תיקו מהצפוי ב־Poisson עצמאי",
+            title=f"ממוצע גלובלי: {abs(difference):.1%} {direction} תיקו מהצפוי; ללא התאמת כוח",
             barmode="group",
             yaxis_title="% מכל המשחקים",
         )
@@ -189,7 +196,7 @@ def chapter_d_chart(kind: str, frame: pd.DataFrame) -> Any:
             data,
             x="points_dropped_per_led_game",
             y="points_won_per_trailed_game",
-            text="team_name",
+            hover_name="team_name",
             size="n",
             hover_data=["n", "n_seasons", "n_led", "n_trailed"],
             labels=dict(
@@ -241,7 +248,8 @@ def chapter_d_chart(kind: str, frame: pd.DataFrame) -> Any:
                     line_color=color,
                     error_y=_errors(data, metric, 100),
                     customdata=data.n_goals,
-                    hovertemplate="עונה %{x}: %{y:.1f}%<br>n שערים=%{customdata}",
+                    hovertext=[season_label(int(s)) for s in data.season_id],
+                    hovertemplate="עונה %{hovertext}: %{y:.1f}%<br>n שערים=%{customdata}",
                 )
             )
         share = data.penalty_n.sum() / data.n_goals.sum()

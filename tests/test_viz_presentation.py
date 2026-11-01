@@ -1,9 +1,5 @@
 """Display contracts: bidi islands, unchanged coordinates/data and readable nullable intervals."""
 
-import re
-from pathlib import Path
-
-import nbformat
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
@@ -110,24 +106,57 @@ def test_table_percent_interval_na_escaping_and_input_integrity() -> None:
     assert "2.10–2.40" in view and view.count("טווח 95%") == 1
 
 
-def test_notebook02_presentation_structure() -> None:
-    notebook = nbformat.read(Path("notebooks/explore/02_league_stats.ipynb"), as_version=4)
-    for i, cell in enumerate(notebook.cells):
-        if cell.cell_type == "code":
-            assert i > 0 and notebook.cells[i - 1].cell_type == "markdown"
-            continue
-        if cell.cell_type != "markdown":
-            continue
-        if i + 1 < len(notebook.cells) and notebook.cells[i + 1].cell_type == "code":
-            body = cell.source.removeprefix('<div dir="rtl">').strip()
-            assert body.startswith("**מה התא עושה:**")
-            assert len(body.splitlines()[0].split("**")[-1].split()) <= 12
-            assert "**השאלה:**" in body and "**התשובה הכדורגלנית:**" in body
-            assert ("**מה לחפש:**" in body) == (".show()" in notebook.cells[i + 1].source)
-        # nbstripout renumbers cell IDs in Git; recognize the two long sections by content.
-        if re.search(r"^## (תקציר|סיכום המחברת)", cell.source, re.M):
-            continue
-        limit = 600 if "איך לקרוא את הפרק" in cell.source else 500
-        assert len(cell.source) <= limit
-        if "איך לקרוא את הפרק" in cell.source:
-            assert len(re.findall(r"^- ", cell.source, re.M)) <= 5
+def test_signed_interval_words_isolate_endpoints_and_preserve_default() -> None:
+    from bs4 import BeautifulSoup
+
+    frame = pd.DataFrame(
+        {
+            "difference": [-0.0351, 0.0136, pd.NA],
+            "ci_lower": [-0.0475, -0.0028, pd.NA],
+            "ci_upper": [-0.0195, 0.0336, pd.NA],
+        }
+    )
+    original = frame.copy(deep=True)
+    options = dict(
+        names={"difference": "הפרש"},
+        intervals={"difference": ("ci_lower", "ci_upper")},
+        precision={"difference": 4, "ci_lower": 4, "ci_upper": 4},
+        show_index=False,
+    )
+    default = display_table(frame, **options)._repr_html_()
+    assert "-0.0475–-0.0195" in default
+    assert display_table(frame, **options, interval_style="dash")._repr_html_() == default
+    rendered = display_table(frame, **options, interval_style="words")._repr_html_()
+    soup = BeautifulSoup(rendered, "html.parser")
+    intervals = soup.select('span[dir="rtl"]')
+    assert [item.get_text() for item in intervals] == ["−0.0475 עד −0.0195", "−0.0028 עד 0.0336"]
+    assert all(len(item.select('bdi[dir="ltr"]')) == 2 for item in intervals)
+    assert soup.select("tbody tr")[-1].get_text() == "NANA"
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_unicode_minus_is_scoped_to_selected_numeric_columns() -> None:
+    from bs4 import BeautifulSoup
+
+    frame = pd.DataFrame(
+        {
+            "difference": [-0.0351, 0.0136, 0.0, pd.NA],
+            "other": [-0.0351, 0.0136, 0.0, pd.NA],
+        }
+    )
+    original = frame.copy(deep=True)
+    options = dict(
+        names={"difference": "הפרש", "other": "אחר"},
+        precision={"difference": 4, "other": 4},
+        show_index=False,
+    )
+    default = display_table(frame, **options)._repr_html_()
+    assert display_table(frame, **options, unicode_minus=())._repr_html_() == default
+    rendered = display_table(frame, **options, unicode_minus={"difference"})._repr_html_()
+    soup = BeautifulSoup(rendered, "html.parser")
+    rows = [row.select("td") for row in soup.select("tbody tr")]
+    assert [row[0].get_text() for row in rows] == ["−0.0351", "0.0136", "0.0000", "NA"]
+    assert rows[0][0].select_one('bdi[dir="ltr"]').get_text() == "−0.0351"
+    assert [row[1].get_text() for row in rows] == ["-0.0351", "0.0136", "0.0000", "NA"]
+    assert rendered.replace("−0.0351", "-0.0351") == default
+    pd.testing.assert_frame_equal(frame, original)

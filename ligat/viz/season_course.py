@@ -1,5 +1,6 @@
 """Seven chapter C charts from approved descriptive tables; no data loading."""
 
+import re
 from typing import Any
 
 import pandas as pd  # type: ignore[import-untyped]
@@ -9,6 +10,7 @@ from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
 from ligat.viz.league_history import ERA_NAMES, _errors
 from ligat.viz.league_stats import AWAY_COLOR, DRAW_COLOR, HOME_COLOR, _finish
+from ligat.viz.seasons import season_label
 
 STAGE_NAMES = {"regular": "סדיר", "upper": "עליון", "lower": "תחתון", "middle": "אמצעי"}
 ERA_COLORS = {"12_teams": DRAW_COLOR, "16_teams": AWAY_COLOR, "14_teams": HOME_COLOR}
@@ -109,7 +111,7 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                     boxpoints="all",
                     marker_color=color,
                     text=group.team_name,
-                    customdata=group.season_id,
+                    customdata=[season_label(int(s)) for s in group.season_id],
                     hovertemplate=(
                         "%{text}, עונה %{customdata}: תזוזה %{y}<extra>%{fullData.name}</extra>"
                     ),
@@ -147,7 +149,7 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         fig.update_layout(
             title=(
                 f"בעליון {frame.loc['upper', 'goals_per_match']:.2f} שערים מול "
-                f"{frame.loc['regular', 'goals_per_match']:.2f} בסדיר; היריבות שונות"
+                f"{frame.loc['regular', 'goals_per_match']:.2f} בסדיר; ההשוואה לפי שלב"
             ),
             showlegend=False,
         )
@@ -220,15 +222,12 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                     row=i // 2 + 1,
                     col=i % 2 + 1,
                 )
-        comparisons = [
-            f"{STAGE_NAMES[stage]} {frame.loc[(stage, 'last'), 'draw_rate']:.0%} "
-            f"מול {frame.loc[(stage, 'rest'), 'draw_rate']:.0%}"
-            for stage in ("regular", "upper", "lower")
-            if (stage, "last") in frame.index and (stage, "rest") in frame.index
-        ]
+        totals = data.groupby("period").apply(
+            lambda g: float((g.draw_rate * g.n).sum() / g.n.sum()), include_groups=False
+        )
         title = (
-            "פחות תיקו בסוף: " + "; ".join(comparisons)
-            if comparisons
+            f"בסוף כל שלב פחות תיקו ({totals.loc['last']:.0%} מול {totals.loc['rest']:.0%})"
+            if {"last", "rest"} <= set(totals.index)
             else "3 המחזורים האחרונים: אין תקופת שאר להשוואה"
         )
         fig.update_layout(
@@ -259,12 +258,29 @@ def chapter_c_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         season = int(data.season_id.iloc[0])
         fig.update_layout(
             title=(
-                f"{season + 1998}/{str(season + 1999)[-2:]}: "
+                f"{season_label(season)}: "
                 f"המובילות צברו {int(final.iloc[0])} ו־{int(final.iloc[1])} נקודות על המגרש"
             )
         )
     else:
         raise ValueError(f"Unknown chapter C chart: {kind}")
-    return _finish(fig).update_layout(
+    result = _finish(fig)
+    if kind == "last_rounds":
+        for trace in result.data:
+            plain = re.sub(r"[\u200e\u200f\u202a-\u202e]", "", str(trace.name))
+            trace.marker.color = AWAY_COLOR if plain == "3 המחזורים האחרונים" else HOME_COLOR
+    if kind == "race":
+        highlights = ['מכבי ת"א', "מכבי חיפה", "הפועל י-ם"]
+        if "final_position" in data:
+            relegated = data.loc[data.final_position.ge(13)].sort_values("final_position").team_name
+            if len(relegated):
+                highlights.append(str(relegated.iloc[0]))
+        colors = dict(zip(highlights, ["#2563eb", "#16a34a", "#9333ea", "#ea580c"], strict=False))
+        for trace in result.data:
+            plain = re.sub(r"[\u200e\u200f\u202a-\u202e]", "", str(trace.name))
+            trace.line.color = colors.get(plain, "#c5c5c5")
+            trace.line.width = 3.5 if plain in colors else 1
+            trace.showlegend = plain in colors
+    return result.update_layout(
         title_x=0.97, title_xanchor="right", height=650, margin=dict(t=130, b=85, l=65, r=65)
     )

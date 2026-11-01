@@ -15,6 +15,7 @@ from .core import (
     _goals_interval,
     _match_rates,
     _mean_interval,
+    _relationship,
     _selection,
     _subset,
     rate_interval,
@@ -117,10 +118,14 @@ def _extreme(group: pd.DataFrame, highest: bool) -> pd.DataFrame:
     return candidates
 
 
-def _credit_interval(credits: pd.Series, n_bootstrap: int) -> tuple[float, float, float]:
+def _credit_interval(
+    credits: pd.Series, n_bootstrap: int, min_bootstrap_seasons: int = 2
+) -> tuple[float, float, float]:
     credits = credits.dropna().astype(float)
     if credits.isin([0, 1]).all():
         return rate_interval(int(credits.sum()), len(credits))
+    if len(credits) < min_bootstrap_seasons:
+        return float(credits.mean()), float("nan"), float("nan")
     lower, upper = _mean_interval(credits, n_bootstrap)
     return float(credits.mean()), lower, upper
 
@@ -146,6 +151,7 @@ def table_settling(
     *,
     upper_sizes: Mapping[int, int | None],
     n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+    min_bootstrap_seasons: int = 2,
 ) -> pd.DataFrame:
     """Measure association with the finish using equal season weights and fractional tie credit.
 
@@ -198,8 +204,10 @@ def table_settling(
             spearman_mean=group.spearman.mean(),
             spearman_n=int(group.spearman.count()),
         )
-        row["spearman_ci_lower"], row["spearman_ci_upper"] = _mean_interval(
-            group.spearman, n_bootstrap
+        row["spearman_ci_lower"], row["spearman_ci_upper"] = (
+            _mean_interval(group.spearman, n_bootstrap)
+            if group.spearman.count() >= min_bootstrap_seasons
+            else (float("nan"), float("nan"))
         )
         for column, label in (
             ("leader", "leader_won_title_rate"),
@@ -215,7 +223,7 @@ def table_settling(
             row[f"n_tied_{column}"] = int(group[f"{column}_tied"].sum())
             row[f"{label}_tied"] = row[f"n_tied_{column}"]
             row[label], row[f"{label}_ci_lower"], row[f"{label}_ci_upper"] = _credit_interval(
-                credits, n_bootstrap
+                credits, n_bootstrap, min_bootstrap_seasons
             )
             sensitivity = label.removesuffix("_rate") + "_excl_ties"
             unique = credits.loc[~group[f"{column}_tied"]]
@@ -239,7 +247,7 @@ def table_settling(
         row[f"{label}_weighted_team_count"] = float(group.upper_success.sum())
         row[f"{label}_tied_seasons"] = int(group.upper_tied.sum())
         row[label], row[f"{label}_ci_lower"], row[f"{label}_ci_upper"] = _credit_interval(
-            credits, n_bootstrap
+            credits, n_bootstrap, min_bootstrap_seasons
         )
         rows.append(row)
     return pd.DataFrame(rows).set_index(["era", "k"], drop=True).sort_index()
@@ -456,6 +464,83 @@ def playoff_form_summary(
     )
 
 
+def playoff_deviations(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+) -> pd.DataFrame:
+    """Centre each team's regular/playoff ppm within its own season and playoff group.
+
+    This compares relative strength among the SAME selected opponents; selection into
+    a playoff is retrospective. Middle playoffs remain available but are very sparse.
+    """
+    frame = playoff_form(tables, seasons)
+    grouped = frame.groupby(["season_id", "final_stage"], observed=True)
+    frame["regular_deviation"] = frame.ppm_regular - grouped.ppm_regular.transform("mean")
+    frame["playoff_deviation"] = frame.ppm_playoff - grouped.ppm_playoff.transform("mean")
+    return frame
+
+
+def playoff_persistence(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+    *,
+    n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+) -> pd.DataFrame:
+    """Slope/correlation of relative regular and playoff ppm, with whole-season bootstrap CIs."""
+    _bootstrap_count(n_bootstrap)
+    frame = playoff_deviations(tables, seasons)
+    rows = [
+        dict(
+            final_stage=stage,
+            **_relationship(
+                group,
+                "regular_deviation",
+                "playoff_deviation",
+                intervals=True,
+                n_bootstrap=n_bootstrap,
+            ),
+        )
+        for stage, group in frame.groupby("final_stage", observed=True)
+    ]
+    return pd.DataFrame(rows).set_index("final_stage", drop=True).sort_index()
+
+
+def draw_rates_by_distance(
+    tables: AnalysisTables,
+    seasons: Iterable[int] = DEVELOPMENT_SEASONS,
+) -> pd.DataFrame:
+    """Draw rates by rounds remaining in each observed season-stage, with Wilson intervals.
+
+    Distance refers to numbered rounds, not days or remaining games for an individual
+    club. This is descriptive; the observed final round is not a prematch feature.
+    """
+    games = _subset(tables.match_table, _selection(seasons))
+    end = games.groupby(["season_id", "stage"], observed=True)["round"].transform("max")
+    labels = ["0–2", "3–5", "6–8", "9–11", "12–14", "15+"]
+    games["distance_bin"] = pd.cut(
+        end - games["round"], [-1, 2, 5, 8, 11, 14, np.inf], labels=labels
+    )
+    rows = []
+    for (stage, distance), group in games.groupby(["stage", "distance_bin"], observed=True):
+        count = int(group.result.eq("draw").sum())
+        rate, lo, hi = rate_interval(count, len(group))
+        rows.append(
+            dict(
+                stage=stage,
+                distance_bin=distance,
+                n=len(group),
+                draw_count=count,
+                n_seasons=group.season_id.nunique(),
+                draw_rate=rate,
+                draw_rate_ci_lower=lo,
+                draw_rate_ci_upper=hi,
+            )
+        )
+    result = pd.DataFrame(rows)
+    result["distance_bin"] = pd.Categorical(result.distance_bin, labels, ordered=True)
+    return result.set_index(["stage", "distance_bin"], drop=True).sort_index()
+
+
 def _pregame_rates(tables: AnalysisTables, selected: list[int]) -> pd.DataFrame:
     # Select each side's own strictly prior games, then retrieve its cumulative kth totals.
     standings = standings_by_match_number(tables, selected, stage="all")
@@ -493,6 +578,7 @@ def final_rounds_check(
     last_n: int = 3,
     *,
     n_bootstrap: int = MEAN_BOOTSTRAP_DRAWS,
+    stages: Iterable[str] = STAGES,
 ) -> pd.DataFrame:
     """Compare last numbered rounds within each stage; upset needs both strictly prior team rates.
 
@@ -504,6 +590,10 @@ def final_rounds_check(
         raise ValueError("last_n must be positive")
     _bootstrap_count(n_bootstrap)
     games = _subset(tables.match_table, selected)
+    chosen = tuple(stages)
+    if not chosen or not set(chosen) <= set(STAGES):
+        raise ValueError("Unknown or empty stage selection")
+    games = games.loc[games.stage.isin(chosen)].copy()
     last_round = games.groupby(["season_id", "stage"], observed=True)["round"].transform("max")
     games["period"] = np.where(games["round"].gt(last_round - last_n), "last", "rest")
     history = _pregame_rates(tables, selected)

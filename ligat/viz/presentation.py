@@ -3,9 +3,11 @@
 import html
 import re
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd  # type: ignore[import-untyped]
+
+from ligat.viz.seasons import expand_season_text, format_figure_seasons, season_label
 
 HEBREW = re.compile(r"[\u0590-\u05ff]")
 # Keep a numeric/Latin island in reading order, including signs, percentages and parentheses.
@@ -25,6 +27,7 @@ def rtl_text(text: str, *, force: bool = False) -> str:
     English-only labels stay intact unless force requests a dynamic Hebrew hover.
     HTML tags and Plotly placeholder syntax are preserved.
     """
+    text = expand_season_text(text)
     if (not force and not HEBREW.search(text)) or "\u202b" in text:
         return text
     pieces = re.split(r"(<[^>]+>)", text)
@@ -53,6 +56,8 @@ def rtl_figure(figure: Any, *, labels: Mapping[str, str] | None = None) -> Any:
     without changing the data coordinates, category matching or hover event values.
     """
 
+    format_figure_seasons(figure)
+
     def hover_label(template: str) -> str:
         # Translate literal labels only; never replace Plotly variable names.
         pieces = re.split(r"(%\{[^}]+\}|<[^>]+>)", template)
@@ -64,6 +69,15 @@ def rtl_figure(figure: Any, *, labels: Mapping[str, str] | None = None) -> Any:
                     part,
                 )
         return rtl_text("".join(pieces), force=True)
+
+    def text_values(value: Any) -> Any:
+        # Heatmaps have numeric 2-D text arrays. Keep both shape and numeric types:
+        # stringifying a row makes Plotly's %{text:.1f} render NaN or the wrong cell.
+        if isinstance(value, str):
+            return rtl_text(value)
+        if hasattr(value, "__iter__"):
+            return [text_values(item) for item in value]
+        return value
 
     for key in figure.layout:
         axis = figure.layout[key]
@@ -98,7 +112,7 @@ def rtl_figure(figure: Any, *, labels: Mapping[str, str] | None = None) -> Any:
         annotation.text = rtl_text(annotation.text)
     for trace in figure.data:
         if trace.name:
-            trace.name = rtl_text(trace.name)
+            trace.name = rtl_text((labels or {}).get(trace.name, trace.name))
         if getattr(trace, "hovertemplate", None):
             value = trace.hovertemplate
             trace.hovertemplate = (
@@ -110,9 +124,7 @@ def rtl_figure(figure: Any, *, labels: Mapping[str, str] | None = None) -> Any:
                 setattr(
                     trace,
                     field,
-                    rtl_text(value)
-                    if isinstance(value, str)
-                    else [rtl_text(str(v)) for v in value],
+                    text_values(value),
                 )
         if trace.legendgrouptitle.text:
             trace.legendgrouptitle.text = rtl_text(trace.legendgrouptitle.text)
@@ -140,15 +152,26 @@ def display_table(
     percent: Iterable[str] = (),
     values: Mapping[str, str] | None = None,
     intervals: Mapping[str, tuple[str, str]] | None = None,
+    show_intervals: bool = True,
+    show_index: bool = True,
+    precision: Mapping[str, int] | None = None,
+    interval_style: Literal["dash", "words"] = "dash",
+    unicode_minus: Iterable[str] = (),
 ) -> TableDisplay:
     """Return a Hebrew RTL table without modifying data, selecting or aggregating rows.
 
     Column selection is explicit. Known CI pairs become one column; percentages and
     their intervals share a scale (one decimal). Missing numbers stay NA, not zero.
     Index levels are retained and labelled, including nullable/multi-level indices.
+    Opt into words for signed intervals: individually isolated endpoints separated by
+    Hebrew "עד". The default preserves established notebook output byte for byte.
+    unicode_minus opts selected numeric columns into an isolated Unicode minus sign.
     """
     chosen = list(frame.columns if columns is None else columns)
+    if interval_style not in ("dash", "words"):
+        raise ValueError("interval_style must be dash or words")
     rates = set(percent)
+    minus_columns = set(unicode_minus)
     translations = values or {}
 
     def label(name: Any) -> str:
@@ -165,12 +188,19 @@ def display_table(
         if isinstance(value, bool):
             return "כן" if value else "לא"
         if isinstance(value, (int, float)) or pd.api.types.is_number(value):
+            if column in ("season_id", "season"):
+                return season_label(int(value))
             if column in rates:
                 return f"{float(value) * 100:.1f}%"
+            if precision and column in precision:
+                digits = precision[column]
+                if value != 0 and abs(value) < 10 ** (-digits):
+                    return f"{value:.2e}"
+                return f"{value:.{digits}f}"
             if float(value).is_integer():
                 return f"{int(value):,}"
             return f"{float(value):.2f}"
-        return translations.get(str(value), str(value))
+        return expand_season_text(translations.get(str(value), str(value)))
 
     def escaped(value: str) -> str:
         # bdi isolates signed numbers/percentages from the surrounding RTL table.
@@ -196,28 +226,38 @@ def display_table(
         if column.endswith("_rate") and lower not in frame:
             lower, upper = column[:-5] + "_ci_lower", column[:-5] + "_ci_upper"
         fields.append((label(column), column, None))
-        if lower in frame and upper in frame:
+        if show_intervals and lower in frame and upper in frame:
             fields.append((f"טווח 95% — {label(column)}", lower, upper))
             consumed.update((lower, upper))
     # A generic CI can describe a named fraction rather than a column called rate.
     if (
-        "ci_lower" in chosen
+        show_intervals
+        and "ci_lower" in chosen
         and "ci_upper" in chosen
         and not any(f[2] == "ci_upper" for f in fields)
     ):
         fields.append(("טווח 95%", "ci_lower", "ci_upper"))
-    index_names = [label(n) if n is not None else "" for n in frame.index.names]
+    index_names = (
+        [label(n) if n is not None else "" for n in frame.index.names] if show_index else []
+    )
     headers = index_names + [f[0] for f in fields]
     head = "".join(f"<th>{html.escape(h)}</th>" for h in headers)
     rows = []
     for index, row in frame.iterrows():
         index_values = index if isinstance(index, tuple) else (index,)
-        cells = [
-            escaped(number(v, str(n))) for v, n in zip(index_values, frame.index.names, strict=True)
-        ]
+        cells = (
+            [
+                escaped(number(v, str(n)))
+                for v, n in zip(index_values, frame.index.names, strict=True)
+            ]
+            if show_index
+            else []
+        )
         for _, column, upper_bound in fields:
             if upper_bound is None:
                 value = number(row[column], column)
+                if column in minus_columns and pd.api.types.is_number(row[column]):
+                    value = "−" + value[1:] if value.startswith("-") else value
             else:
                 base = column.removesuffix("_ci_lower")
                 if base not in rates and base + "_rate" in rates:
@@ -225,6 +265,12 @@ def display_table(
                 if column == "ci_lower" and ("rate" in rates or "fraction_below" in rates):
                     base = "rate" if "rate" in rates else "fraction_below"
                 lo, hi = number(row[column], base), number(row[upper_bound], base)
+                if interval_style == "words" and "NA" not in (lo, hi):
+                    lo, hi = lo.rstrip("%"), hi.rstrip("%")
+                    lo = "−" + lo[1:] if lo.startswith("-") else lo
+                    hi = "−" + hi[1:] if hi.startswith("-") else hi
+                    cells.append(f'<span dir="rtl">{escaped(lo)} עד {escaped(hi)}</span>')
+                    continue
                 value = "NA" if "NA" in (lo, hi) else f"{lo.rstrip('%')}–{hi.rstrip('%')}"
             cells.append(escaped(value))
         rows.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")

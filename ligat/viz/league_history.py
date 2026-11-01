@@ -7,6 +7,7 @@ import plotly.graph_objects as go  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
 from ligat.viz.league_stats import AWAY_COLOR, DRAW_COLOR, HOME_COLOR, _finish
+from ligat.viz.seasons import season_label
 
 OBJECTIVES = {
     "champion": "אלופה",
@@ -14,7 +15,7 @@ OBJECTIVES = {
     "safety": "שורדת — הניקוד הנמוך ביותר",
     "relegated_max": "יורדת — הניקוד הגבוה ביותר",
 }
-COLORS = [HOME_COLOR, "#16a34a", DRAW_COLOR, AWAY_COLOR]
+COLORS = ["#2563eb", "#16a34a", "#9333ea", "#ea580c"]
 ERA_NAMES = {"12_teams": "12 קבוצות", "16_teams": "16 קבוצות", "14_teams": "14 קבוצות"}
 CALENDAR_NAMES = {
     "Saturday": "שבת",
@@ -29,7 +30,7 @@ CALENDAR_NAMES = {
 
 
 def _years(frame: pd.DataFrame) -> list[str]:
-    return [f"{int(s) + 1998}/{str(int(s) + 1999)[-2:]}" for s in frame.index]
+    return [season_label(int(s)) for s in frame.index]
 
 
 def _errors(frame: pd.DataFrame, metric: str, scale: float = 1) -> dict[str, Any]:
@@ -60,6 +61,28 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                     ),
                 )
             )
+            era = frame.loc[frame.era.eq("14_teams")]
+            if len(era) > 1:
+                values = era[f"{key}_ppm"]
+                fig.add_shape(
+                    type="rect",
+                    x0=_years(era)[0],
+                    x1=_years(era)[-1],
+                    y0=values.mean() - values.std(),
+                    y1=values.mean() + values.std(),
+                    line_width=0,
+                    fillcolor=color,
+                    opacity=0.08,
+                    layer="below",
+                )
+                fig.add_shape(
+                    type="line",
+                    x0=_years(era)[0],
+                    x1=_years(era)[-1],
+                    y0=values.mean(),
+                    y1=values.mean(),
+                    line=dict(color=color, width=1, dash="dot"),
+                )
         fig.update_layout(
             title=(
                 f"האלופה צוברת {frame.champion_ppm.min():.1f}–"
@@ -87,7 +110,7 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
             )
         median = era.safety_points.median()
         fig.update_layout(
-            title=f"חציון השורדת הנמוכה בעידן 14 הקבוצות: {median:.0f} נקודות; אין הבטחת הישרדות",
+            title=f"טווחי היעדים בעידן 14: חציון השורדת {median:.0f} נקודות",
             yaxis_title="נקודות על המגרש",
             showlegend=False,
         )
@@ -95,41 +118,39 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         fig = go.Figure(
             go.Scatter(
                 x=_years(frame),
-                y=frame.home_win_rate * 100,
+                y=frame.ppm_gap,
                 mode="lines+markers",
-                name="ניצחון בית",
+                name="פער נקודות בית–חוץ",
                 line_color=HOME_COLOR,
-                error_y=_errors(frame, "home_win_rate", 100),
+                error_y=_errors(frame, "ppm_gap") if "ppm_gap_ci_lower" in frame else None,
                 customdata=frame.n,
-                hovertemplate="%{x}: %{y:.1f}%<br>n=%{customdata}<extra></extra>",
+                hovertemplate="%{x}: %{y:.3f} נק׳ למשחק<br>n=%{customdata}<extra></extra>",
             )
         )
-        overall = (frame.home_win_rate * frame.n).sum() / frame.n.sum()
-        title = f"הבית ניצח ב־{overall:.1%} מהמשחקים"
+        title = "פער הנקודות בית–חוץ לאורך העונות"
         if summary is not None and summary.n_seasons.gt(0).all():
             early, late = summary.iloc[0], summary.iloc[1]
             direction = "ירד" if late.mean_ppm_gap < early.mean_ppm_gap else "עלה"
             title = (
-                f"פער הבית–חוץ {direction} מ־{early.mean_ppm_gap:+.2f} ל־{late.mean_ppm_gap:+.2f} "
-                f"נק׳ למשחק; ניצחונות בית {early.mean_home_win_rate:.0%} "
-                f"מול {late.mean_home_win_rate:.0%}"
+                f"פער הבית–חוץ {direction} מ־{early.mean_ppm_gap:.2f} "
+                f"ל־{late.mean_ppm_gap:.2f} "
+                "נק׳ למשחק"
             )
+            for row, (start, end) in zip((early, late), ((11, 16), (17, 25)), strict=True):
+                visible = frame.loc[frame.index.to_series().between(start, end)]
+                if len(visible):
+                    fig.add_trace(
+                        go.Scatter(
+                            x=_years(visible),
+                            y=[row.mean_ppm_gap] * len(visible),
+                            mode="lines",
+                            name=f"ממוצע {season_label(start)}–{season_label(end)}",
+                            line=dict(color=AWAY_COLOR, dash="dash"),
+                        )
+                    )
         fig.update_layout(
             title=title,
-            yaxis_title="ניצחונות בית (%)",
-        )
-        for season in (21, 22):
-            if season in frame.index:
-                fig.add_vline(
-                    x=_years(frame.loc[[season]])[0], line_dash="dot", line_color=AWAY_COLOR
-                )
-        fig.add_annotation(
-            xref="paper",
-            yref="paper",
-            x=0,
-            y=1.14,
-            showarrow=False,
-            text="2019/20–2020/21: קורונה וקהל — הקשר היסטורי לאימות, לא נתון שנמדד כאן",
+            yaxis_title="פער נקודות למשחק — בית פחות חוץ",
         )
     elif kind == "eras":
         fig = make_subplots(
@@ -137,7 +158,7 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         )
         for col, metric in enumerate(("goals_per_match", "big_margin_rate", "std_ppm"), 1):
             scale = 100 if metric == "big_margin_rate" else 1
-            errors = _errors(frame, metric, scale) if metric != "std_ppm" else None
+            errors = _errors(frame, metric, scale) if f"{metric}_ci_lower" in frame else None
             fig.add_trace(
                 go.Bar(
                     x=[ERA_NAMES[e] for e in frame.index],
@@ -150,13 +171,8 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 row=1,
                 col=col,
             )
-        leading = frame.loc[frame.goals_per_match.idxmax()]
-        era_name = ERA_NAMES[frame.goals_per_match.idxmax()]
         fig.update_layout(
-            title=(
-                f"בליגת {era_name} יותר שערים ({leading.goals_per_match:.2f}) "
-                f"ו־{leading.big_margin_rate:.0%} הפרשים של 3 ומעלה"
-            ),
+            title="הבדלי העידנים נמצאים בטווח התנודה הרגילה בין עונות",
             showlegend=False,
         )
     elif kind == "season_trends":
@@ -186,17 +202,7 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
                 row=1,
                 col=2,
             )
-        endpoints = frame.sort_index().iloc[[0, -1]]
-        first, last = endpoints.iloc[0], endpoints.iloc[1]
-        labels = _years(endpoints)
-        direction = "ירד" if last.draw_rate < first.draw_rate else "עלה"
-        fig.update_layout(
-            title=(
-                f"תיקו {direction} מ־{first.draw_rate:.1%} ל־{last.draw_rate:.1%}; "
-                f"0:0 מ־{first.zero_zero_rate:.1%} ל־{last.zero_zero_rate:.1%} "
-                f"({labels[0]}–{labels[1]})"
-            )
-        )
+        fig.update_layout(title="מגמות בכל העונות: תיקו יציב, פחות תוצאות 0:0")
     elif kind == "balance":
         if summary is None:
             raise ValueError("Champion counts are required for the balance chart")
@@ -205,7 +211,10 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         )
         fig.add_trace(
             go.Scatter(
-                x=_years(frame), y=frame.std_ppm, name="סטיית תקן של ppm", line_color=HOME_COLOR
+                x=_years(frame),
+                y=frame.std_ppm,
+                name="סטיית תקן של נקודות למשחק",
+                line_color=HOME_COLOR,
             ),
             row=1,
             col=1,
@@ -215,13 +224,24 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
             row=1,
             col=2,
         )
+        if "luck_std" in frame:
+            fig.add_trace(
+                go.Scatter(
+                    x=_years(frame),
+                    y=frame.luck_std,
+                    name="פיזור ממזל בלבד",
+                    line=dict(color=DRAW_COLOR, dash="dash"),
+                ),
+                row=1,
+                col=1,
+            )
         maccabi = summary.loc[summary.index.isin([1061, 1005]), "titles"].sum()
         fig.update_layout(
             title=(
                 f"{len(summary)} מועדונים זכו ב־{int(summary.titles.sum())} אליפויות; "
                 f"מכבי ת״א ומכבי חיפה ב־{int(maccabi)}"
             ),
-            showlegend=False,
+            showlegend=True,
         )
     elif kind == "calendar":
         fig = make_subplots(
@@ -272,6 +292,15 @@ def chapter_b_chart(kind: str, frame: pd.DataFrame, summary: pd.DataFrame | None
         )
     else:
         raise ValueError(f"Unknown chapter B chart: {kind}")
-    return _finish(fig).update_layout(
+    result = _finish(fig)
+    if kind in {"thresholds", "threshold_boxes"}:
+        # These four objectives are categories; keep the explicitly reviewed four-color palette.
+        for trace, color in zip(result.data, COLORS, strict=True):
+            trace.marker.color = color
+            trace.line.color = color if trace.type == "scatter" else None
+    if kind == "eras":
+        for trace in result.data:
+            trace.marker.color = HOME_COLOR
+    return result.update_layout(
         title_x=0.97, title_xanchor="right", margin={"t": 125, "b": 95, "l": 70, "r": 70}
     )

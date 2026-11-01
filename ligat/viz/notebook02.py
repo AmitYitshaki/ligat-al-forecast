@@ -1,6 +1,27 @@
 """Presentation vocabulary for notebook 02; no analytical calculations."""
 
 COLUMN_NAMES: dict[str, str] = {
+    "upper_size": "גודל העליון",
+    "n_teams": "מספר קבוצות",
+    "points_std": "סטיית תקן של הנקודות",
+    "ppm_gap_se": "טעות תקן — פער בית–חוץ",
+    "normal_n": "משחקים רגילים באותן עונות",
+    "overlap_n": "משחקי התנאי בהשוואה",
+    "raw_gap": "פער נקודות גולמי",
+    "condition": "תנאי משחק",
+    "p_bonferroni": "p לאחר Bonferroni",
+    "p_bh": "p לאחר BH",
+    "luck_std": "פיזור ממזל בלבד",
+    "latent_std": "פיזור יכולת משוער",
+    "luck_fraction": "חלק המזל בשונות",
+    "previous_rank": "דירוג ספורטיבי בעונה הקודמת",
+    "best_previous": "הטובה ביותר בעונה הקודמת",
+    "top3_previous": "בשלישייה בעונה הקודמת",
+    "previous_available": "יש נתוני עונה קודמת",
+    "std": "סטיית תקן",
+    "se": "טעות תקן",
+    "p": "p ללא תיקון",
+    "mean_gap": "ממוצע פער הנקודות",
     "big_win_rate_ci_lower": "גבול תחתון לניצחון גדול",
     "big_win_rate_ci_upper": "גבול עליון לניצחון גדול",
     "narrow_win_rate_ci_lower": "גבול תחתון לניצחון צר",
@@ -240,7 +261,6 @@ COLUMN_NAMES: dict[str, str] = {
     "is_second_yellow": "צהוב שני",
     "second_yellow_n": "אדומים בצהוב שני",
     "second_yellow_share": "חלק הצהוב השני",
-    "referee": "שופט",
     "penalty_goals_per_match": "שערי פנדל למשחק",
     "home_red_share": "חלק אדומי הבית",
     "home_penalty_goal_share": "חלק פנדלי הבית",
@@ -278,6 +298,37 @@ COLUMN_NAMES: dict[str, str] = {
     "weaker_side": "ביתיות הכוח",
 }
 
+COLUMN_NAMES.update(
+    {
+        "points_official": "נקודות רשמיות",
+        "deduction": "שינוי נקודות מנהלתי",
+        "points_from_matches": "נקודות על המגרש",
+        "goal_difference_per_match": "הפרש שערים למשחק",
+        "final_stage": "פלייאוף",
+        "clean_sheet_rate": "ללא ספיגה",
+        "failed_to_score_rate": "ללא הבקעה",
+        "squad_size": "גודל סגל",
+        "season": "עונה",
+        "distance_bin": "מחזורים עד סוף השלב",
+        "draw_count": "מספר תוצאות תיקו",
+        "count": "מספר משחקים בתוצאה",
+        "imputed_share": "כלל החציון הישן",
+    }
+)
+COLUMN_NAMES.update(
+    {
+        "value": "ערך",
+        "league_mean": "ממוצע קבוצות־עונות בליגה",
+        "persistence": "מתאם בין עונות",
+        "observed_sd": "סטיית תקן שנמדדה",
+        "luck_sd": "סטיית תקן הצפויה מרעש",
+        "promoted_in": "עולה חדשה",
+        "late_draws": "תיקו במחזורי הסיום",
+        "late_n": "משחקים במחזורי הסיום",
+        "rest_draws": "תיקו בשאר המחזורים",
+        "rest_n": "משחקים בשאר המחזורים",
+    }
+)
 # Only proportions are percentages. Counts per game, ppm, correlations and phi are not.
 PERCENT_COLUMNS: set[str] = {c for c in COLUMN_NAMES if c.endswith(("_rate", "_share"))} | {
     "rate",
@@ -400,4 +451,62 @@ VALUE_NAMES: dict[str, str] = {
     "Q3": "חמישון 3",
     "Q4": "חמישון 4",
     "Q5": "חמישון 5",
+}
+
+# Chapter-A round-two diagnostics. Keep existing translations for later chapters unchanged.
+COLUMN_NAMES.update(
+    {
+        "ppm_change": "שינוי בקצב",
+        "residual_sd": "סטייה טיפוסית סביב הקו",
+        "mean_prev": "ממוצע העונה הקודמת במדגם",
+        "mean_t": "ממוצע העונה הנוכחית במדגם",
+        "predictor": "נתונים מהעונה הקודמת",
+        "r_squared": "חלק השונות המוסבר (R²)",
+        "loso_rmse": "שגיאה בעונה שהושארה בחוץ (RMSE)",
+        "p_value": "p ללא תיקון",
+        "comparisons": "מספר השוואות",
+        "p_bonferroni": "p אחרי Bonferroni",
+        "correlation": "מתאם",
+        "period": "תקופה",
+        "rule": "כלל",
+        "median_diff_pp": "פער חציוני בנקודות אחוז",
+        "mae_pp": "שגיאה מוחלטת ממוצעת בנקודות אחוז",
+    }
+)
+
+CHAPTER_A_PRECISION: dict[str, int] = {
+    "loso_rmse": 3,
+    "r_squared": 3,
+    "p_value": 4,
+    "p_bonferroni": 4,
+    "correlation": 3,
+}
+
+CHAPTER_A_VALUE_NAMES = {
+    **VALUE_NAMES,
+    "value": "שווי קודם גולמי",
+    "log_value": "לוגריתם השווי הקודם",
+    "gd": "הפרש שערים קודם",
+    "gd_value": "הפרש שערים ושווי קודם גולמי",
+    "gd_log_value": "הפרש שערים ולוגריתם שווי קודם",
+    "gd_history": "הפרש שערים קודם והיסטוריה",
+    "gd_value_history": "הפרש שערים ושווי קודם, עם היסטוריה",
+    "median": "חציון החצי התחתון — ישן",
+    "q30": "אחוזון 30 בחצי התחתון — חדש",
+    "all": "כל המדגם",
+    "attack_defence": "התקפה מול הגנה, בניכוי ממוצע העונה",
+    "previous_gd": "הפרש שערים קודם מול נקודות נוכחיות",
+    "previous_ppm": "נקודות קודמות מול נקודות נוכחיות",
+    "home_gap": "פער ביתיות בין עונות",
+    "mean_gap": "פער ביתיות ממוצע",
+    "n_pairs": "מספר זוגות עונות",
+    "n": "מספר קבוצות־עונה",
+    "top3_gap": "פער ביתיות בשלוש הראשונות",
+    "places4_8_gap": "פער ביתיות במקומות 4–8",
+    "places9_11_gap": "פער ביתיות במקומות 9–11",
+    "club_mean_sd": "פיזור ממוצעי מועדונים ותיקים",
+    "club_luck_sd": "פיזור צפוי לממוצעי מועדונים ותיקים",
+    "big_win_share": "חלק הניצחונות הגדולים מכל הניצחונות",
+    "btts_rate_residual": "שארית BTTS אחרי התקפה והגנה",
+    "over_2_5_rate_residual": "שארית 3+ אחרי התקפה והגנה",
 }
