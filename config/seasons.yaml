@@ -2,23 +2,24 @@
 # season_id = start_year - 1998.
 # verified: true  -> checked against IFA data (see docs/DATA_SOURCES.md)
 # verified: false -> assumption; must be confirmed in T-007 before use.
-# tiebreakers / playoff_schedule are filled in T-006.
-# Data split is pending a decision by Amit and Claude Code (2026-10-09).
+# Rules: docs/reports/R-003-league-rules.md; notebook 03 phase A (T-010).
+# Only rule fields are added here; existing verification flags are preserved.
 
 defaults:
   league_id: 40
   points_win: 3
   points_draw: 1
   relegated: 2
+  relegation_playoff_position: null  # No relegation playoff in the default 14-team format.
   playoff_groups: {upper: 6, lower: 8}  # 14-team era; older formats override below.
 
 seasons:
   - {season_id: 8,  label: "2006/07", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: true}
   - {season_id: 9,  label: "2007/08", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: true}
   - {season_id: 10, label: "2008/09", n_teams: 12, regular_rounds: 33, playoffs: [],                       points_halved: false, verified: false}
-  - {season_id: 11, label: "2009/10", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: true, playoff_groups: {upper: 6, middle: 4, lower: 6}}
-  - {season_id: 12, label: "2010/11", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: false, playoff_groups: {upper: 6, middle: 4, lower: 6}}
-  - {season_id: 13, label: "2011/12", n_teams: 16, regular_rounds: 30, playoffs: [upper, lower],           points_halved: false, verified: true, playoff_groups: {upper: 8, lower: 8}}
+  - {season_id: 11, label: "2009/10", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: true, playoff_groups: {upper: 6, middle: 4, lower: 6}, relegation_playoff_position: 14, playoff_legs: 1}  # R-003: rank 14 is at risk; one playoff leg (5/3/5 games).
+  - {season_id: 12, label: "2010/11", n_teams: 16, regular_rounds: 30, playoffs: [upper, middle, lower],   points_halved: true,  verified: false, playoff_groups: {upper: 6, middle: 4, lower: 6}, relegation_playoff_position: 14, playoff_legs: 1}  # R-003: same league format; relegation test has two legs outside this table.
+  - {season_id: 13, label: "2011/12", n_teams: 16, regular_rounds: 30, playoffs: [upper, lower],           points_halved: false, verified: true, playoff_groups: {upper: 8, lower: 8}, relegated: 3, playoff_legs: 1}  # R-003 and final_tables: three relegated; seven playoff games, no halving.
   - {season_id: 14, label: "2012/13", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: true}
   - {season_id: 15, label: "2013/14", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
   - {season_id: 16, label: "2014/15", n_teams: 14, regular_rounds: 26, playoffs: [upper, lower],           points_halved: false, verified: false}
@@ -38,4 +39,9 @@ seasons:
 playoff_formats:
   upper:  {teams: 6, rounds: 10, legs: 2}   # verified for 14-team era
   lower:  {teams: 8, rounds: 7,  legs: 1}   # verified for 14-team era
-  middle: {teams: null, rounds: null, legs: null}   # 16-team era; fill in T-007
+  middle: {teams: 4, rounds: 3, legs: 1}   # R-003: ranks 7–10 in 2009/10–2010/11, one leg.
+
+tiebreak_rules:
+  until_2007_08: [points, goal_difference, goals_for]  # R-003 §1: wins were not a criterion.
+  from_2008_09: [points, goal_difference, wins, goals_for, head_to_head]  # R-003 §1: unresolved ties receive average rank; no decider simulation in A.
+playoff_split_tiebreak: previous_season_rank  # R-003 §1 rule 6': only at the split, after other criteria.
