@@ -1,0 +1,301 @@
+{
+  "experiment_id": "EXP-001",
+  "attempt": 2,
+  "status": "completed_not_selected",
+  "selected_configuration": null,
+  "created_at_utc": "2026-11-03T09:36:39.181689+00:00",
+  "commit": "776b4d16796211ebec36e096ed3d06e3bb1fc750",
+  "source_sha256": {
+    "ligat/cli.py": "162a7fd1aa51d27f77ac1ac341d41503d4deb65b57f052eb256de57a4c93782c",
+    "ligat/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/analysis/prematch_review.py": "d1da2b39c75c6ff26243010fe9a33f6befb51e0272db1f485b8f2d71d6574929",
+    "ligat/analysis/prematch_validation.py": "fceb380a5a27a133c1af9d70deafba98f994c0ee34e9c99228f24f464a6fd7c0",
+    "ligat/analysis/prepare.py": "6fa01699436764bc9ec2778d898e7de77569c75c1c6a665f6751e80b40d4ed3d",
+    "ligat/analysis/score_cache.py": "68aaee72f813f14e9fe8e0958fc7aa4382de4718cbbe48af5c589deeee66988b",
+    "ligat/analysis/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/data/build.py": "d2230cd7be3eb5d0a78e83f1e8783b02139b8e38e8bb3fe0e384cd8787828891",
+    "ligat/data/details.py": "3271c85cd2f918a7eb5a864ffa6fb27e9a657b4b1e767a24e06d30988ea962ae",
+    "ligat/data/export.py": "cd7aaf7fe9d861562741976279afb604264d89565191e8a9da67e9acd82105e8",
+    "ligat/data/game_pages.py": "bed5d27de3d25b5537eda5f324404572363c2e1d273479ba47c4aa12b17aabf0",
+    "ligat/data/parse.py": "6f13174012ff14a4b2b6e86041c9f4d4248fe72781e4c3046b6c4fe4aa11f39f",
+    "ligat/data/repository.py": "5fdfc7d7d18e30dd5ed683c382279d708dcecf43af420b602f37d05992d35a63",
+    "ligat/data/schemas.py": "53118e28a98512e90285b2892fe79066072e6d0262fe74ed18bdf4a16f4ebd7d",
+    "ligat/data/squad_values.py": "656ec6b1c558019eba5eac91f6659d67a8bbb7934a4c632591a03d7dd511dbb9",
+    "ligat/data/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/evaluate/backtest.py": "ebb3fcfc4bfbbf5aa3f6ba3618c13fc81186adf680cd95f2c5b74f39579da8d3",
+    "ligat/evaluate/calibration_artifacts.py": "b00641589cfc4a1eea50f2a71bf89a850de02846cf887b1b506657d3a25e8fd4",
+    "ligat/evaluate/comparison.py": "281d6619757d5f1ac661935959d05d5aa8e4f83f24a5d1887c9b20284efc6937",
+    "ligat/evaluate/elo_calibration.py": "e8126695575cbae600bd5c19370beb833dc988bb2c5947ba05abb5e9e5d0d21e",
+    "ligat/evaluate/metrics.py": "c26a861a1ed4d9179e352e5ce2bfd1e4ce8aee4d959d0bb7ce55e1b26d6f172e",
+    "ligat/evaluate/splits.py": "005cee0a0625a054e862baea36429e57a8cc858c090c447f79cc08c24eacacb9",
+    "ligat/evaluate/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/features/artifacts.py": "1e2718466851e51e7c9aba0ce41c25cf35329505756cc79f86df73fbd2a03fac",
+    "ligat/features/base.py": "a98163b124ec0b48effb1e6bfee690fd71cf7f242a3f5fb1d25625c067f298de",
+    "ligat/features/elo.py": "334e12fdc46a9c60adc544405b1c7c41443c4de569b26eb0bdbef515795b6988",
+    "ligat/features/registry.py": "6103a233deefdcba74cb0002453130a3dbbf91934ee2f22f5bf97ccfcf08eadb",
+    "ligat/features/table_state.py": "bd3eb35cd2b80c33507e2c6d4ef69d2ad6685d1d2d307507189a454c928eaf5d",
+    "ligat/features/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/models/base.py": "8d1f99b91bc61b972d8902bbbf19b9ce8776e0e242df064681ff04ea2d0e6491",
+    "ligat/models/baselines.py": "fa4c380e53f18a0d3baa31b5899256a479b906246bfe090032b27afde9cc3556",
+    "ligat/models/ordered_logit.py": "0aa2cd45cd5f7dd3b2cc24b288801546cb7021b0fbcd7d015841953eb9ed50f1",
+    "ligat/models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/scrape/base.py": "69ea7f35802306b4dc7bff8d88820cbbd5a27f5c7261cca20227162ad653e51b",
+    "ligat/scrape/games.py": "a8d6ff2b2ccf8936daf82fb6cfa082bb6106c3122b57b7565f93e647a1f8ff9a",
+    "ligat/scrape/ifa.py": "452b5b3f7841617ffbd4e7a6f855c31a624fe3fb5e2b69c62b55f2981079a3a8",
+    "ligat/scrape/transfermarkt.py": "ba2390fda931b778f98be1cac319efae4a375850bb6f245b24ecc1dc1f97962a",
+    "ligat/scrape/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/simulate/rules.py": "06de07e29023f4554e31a3fec998e1ca559495229626c6dc940d6645e5dd79ec",
+    "ligat/simulate/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/viz/context.py": "632ab3cb6e9259e7ec14bf3f8aa8d6cf3682c2b3e8b25eb0532d6ee17b98eb02",
+    "ligat/viz/course_review.py": "ad07e55e03b6c61276467065eb9c5ad063cf4fe19a25870c3659722178fcafa4",
+    "ligat/viz/league_history.py": "362dad7f1060e142ecf076cd57e527d5d0d2a50f71ddcd3a2034b25821281efb",
+    "ligat/viz/league_stats.py": "3b69532e9ab80680fc3908601d52b5e4e7750eab648a9b5709d65f41c7e2f364",
+    "ligat/viz/match_flow.py": "ee77c7ef9cbd04fc8f1900b41a5e4f2a379420a3dcebed8fa4cc6c4da6887cdf",
+    "ligat/viz/notebook02.py": "0a138c79d0571223dbdddf794ddef8d263f2197c781c85509f25df33cdcc7e05",
+    "ligat/viz/prematch.py": "534f8ce79216031da782570274ae7eb5d7485f8c8689ff59bdf8d8fed1c79883",
+    "ligat/viz/presentation.py": "9096554337d89459fecebe5f13a6cfe1a1966422e3a775cbd472e547b9eca891",
+    "ligat/viz/review.py": "6e75c7742dcd6078f8819d63cb7f0f874f1739f6df5bcf41740427d2926a8cfb",
+    "ligat/viz/score_review.py": "7918d9d48092b55a63db02383825e66f6643df73c8318e44e175a46b94115e5e",
+    "ligat/viz/seasons.py": "26239e6afa2145f19745c6de039353911cee2096c6556e0710644f42a973c9b2",
+    "ligat/viz/season_course.py": "2bcd0bfe7174cd5662d3b0d22daccf1bb43f561386661ff1115a49d1a7de5ce7",
+    "ligat/viz/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/viz/charts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/analysis/league_stats/chapter_a.py": "6b4f1da59f8c963abf710e6f9fde04e5618322959ff311e48b415b6f9800c5d2",
+    "ligat/analysis/league_stats/conditions.py": "59c1bbaf3df7cf38d2e994acba1dbbd02ea995c0119631da0ea3edd30717d54f",
+    "ligat/analysis/league_stats/context.py": "1b6feb0bcc905227cde573e25438dfdce982c2cd2651bba0a324d0b359ac37e4",
+    "ligat/analysis/league_stats/core.py": "1177f30540584bab6a20b7f66e9684812cb1371aee86cc8c60b8f0fdb3a763b2",
+    "ligat/analysis/league_stats/course_review.py": "30cfe20a84a32ea4004b6ac07f453a2f6ce047f00b9cef6dde9272a8164eec65",
+    "ligat/analysis/league_stats/history_review.py": "7d54ad0f5bd352ee1927266d5e33fb3bdd30090dc5f239c9c2a0f24c31a89816",
+    "ligat/analysis/league_stats/match_flow.py": "91f20b52e6fbcde2aef63e4c07b9bd430260b6d75dbb1bc22a0c2f9637522090",
+    "ligat/analysis/league_stats/poisson_check.py": "138588be1298216a561e6ae656897325670dc0e92ac9e4bd8fccecec9614ee25",
+    "ligat/analysis/league_stats/score_review.py": "4e03feb021f19d3434c8f67f4250c4f25cf895229e7da9974b649f1e94e6dd78",
+    "ligat/analysis/league_stats/season_course.py": "2cb23158f9a71aef56149025a5739d224b7e89a08c046f10622c8f5d699efffc",
+    "ligat/analysis/league_stats/__init__.py": "d5c04e76c18e893b3aa1ca34fc79d5fe5df9f657a1091819ffc7105247c44db8"
+  },
+  "experiment_sha256": "745c81e1493467e22ca29c4654ac2b87bd22abeb82dc4185bee02b59fc7d898a",
+  "input_sha256": "b3a082508c1a6fa454efa8f8772373296351e8d369395b5e06c32d3a3c6780cc",
+  "table_state_sha256": "791179dd391eb0b9b9dee3c6f903ed0a3b835435145f9671a9a5ff59e8d91d6c",
+  "timings": {
+    "load_seconds": 31.534901099978015,
+    "prepare_seconds": 0.6093925000168383,
+    "stage1_seconds": 529.6023620001506,
+    "direct_control_seconds": 1.0220782000105828,
+    "stage2_seconds": 33.59708580002189,
+    "loso_seconds": 6.779480000026524,
+    "report_data_seconds": 0.8789522999431938,
+    "total_seconds": 614.9585621999577
+  },
+  "memory": {
+    "peak_working_set_bytes": 849498112,
+    "working_set_bytes": 764035072,
+    "private_bytes": 2041061376
+  },
+  "stage1_memory": {
+    "peak_working_set_bytes": 686231552,
+    "working_set_bytes": 686231552,
+    "private_bytes": 1953083392
+  },
+  "proposals_not_approved": [
+    "elo-b24989debf11c0ba4af09aa247bd264ad754349b8d0db4ba88e9c440fd00e950"
+  ],
+  "disagreement": true,
+  "attempt1_preserved": true,
+  "files": {
+    "all_rankings.csv": {
+      "sha256": "ca758fb116ff7399fc3bb8715e1149779f284bca10ca70c16fea50a9539df3eb",
+      "bytes": 369045
+    },
+    "b0_comparisons.csv": {
+      "sha256": "b1866893279e404156d0dc0de9c67639d43892f460a0c47c74854e9e630ad63e",
+      "bytes": 6332
+    },
+    "b0_folds.csv": {
+      "sha256": "54019661b4f70f5216265305ac21b163ab503771de534d031edb9ef2d6f6b0fa",
+      "bytes": 772
+    },
+    "close_configurations.csv": {
+      "sha256": "7c9ac276f4358cbafa37c8ec4cf8afc8adb2d72061ff7507a9f8bf18ae535d2f",
+      "bytes": 3872
+    },
+    "convergence.json": {
+      "sha256": "c6ecf4a73aaa6b0ca223a8052e3917d1e0b423adfff65cf442fd9a382a6a4bdc",
+      "bytes": 412
+    },
+    "execution.json": {
+      "sha256": "000d4af92977f6c1e64763924e85bfdde3028dab40468de2fafa4e3d3792c28a",
+      "bytes": 443226
+    },
+    "gradient_accepted_fits.csv": {
+      "sha256": "8a1dd7187d8f3efb476f963e67e90bb7f00492b23501c6f016250239fb3626cc",
+      "bytes": 21878
+    },
+    "labels.csv": {
+      "sha256": "e9bd8f3960f39ac62b06d782cf2879874ae00015dfe4cb3f588a02468741c16f",
+      "bytes": 99727
+    },
+    "loso_vs_walk_forward.csv": {
+      "sha256": "e8f81b7741b15d475a3d367d9a895969d0b4d95899d1d19e045313b039e5af58",
+      "bytes": 2970
+    },
+    "proposal_1_all_teams.csv": {
+      "sha256": "1ddffa4320c9f90e78e71a4f2cd908cce2190a39c9f072abc370b47e6ab32252",
+      "bytes": 21016
+    },
+    "proposal_1_gaps_4plus.csv": {
+      "sha256": "d838f83087eac64b905f35dadf618373cd3c76a2583c452791d0f4abb7e979cf",
+      "bytes": 1316
+    },
+    "proposal_converter_effect.csv": {
+      "sha256": "3a3835b072b2b97e39706d3b0e5085aee7439ab19574ef77c66bb5761698d260",
+      "bytes": 3338
+    },
+    "proposal_sporting_alignment.csv": {
+      "sha256": "ff09d5ecefbaf22db1190acd36389886e0a091575343dc583dd73fddfb5e4f57",
+      "bytes": 2501
+    },
+    "README.md": {
+      "sha256": "fe05774b83583cb8bb68e4a5e7d7302565da2fece38e87c6a55c9a560bc43d5a",
+      "bytes": 404
+    },
+    "refinement.json": {
+      "sha256": "36819c80a0bcbb1e95eaedaddd49f51581998118924c68f58957059f5dec2c5a",
+      "bytes": 296
+    },
+    "stage1_marginals.csv": {
+      "sha256": "75bdf3b031b40cf1f837ad1cee298b95ff156549105d4ce0d52c81ff66b57c07",
+      "bytes": 1457
+    },
+    "stage2_table.csv": {
+      "sha256": "3b92ea5eeb407f98e7e359d17d6f3b9b11a764f9721c1b57b8870000c7e983b5",
+      "bytes": 11628
+    },
+    "top20.csv": {
+      "sha256": "5cf64e0735ada80a2d64cc5044777063e56f061c093f45607280cc0d85536a6b",
+      "bytes": 5897
+    },
+    "combined/comparison.csv": {
+      "sha256": "62f7f3f1e9e0b9cd22929b454543010b67cc22266e5b6866f57f1fbd46d81e94",
+      "bytes": 305523
+    },
+    "combined/configurations.json": {
+      "sha256": "565adda094abea97c92c8f1fe6ea5975e00f820244307fb1f1740b9284c6e6d1",
+      "bytes": 445864
+    },
+    "combined/experiment.yaml": {
+      "sha256": "745c81e1493467e22ca29c4654ac2b87bd22abeb82dc4185bee02b59fc7d898a",
+      "bytes": 3327
+    },
+    "combined/fold_scores.csv": {
+      "sha256": "753edf90ab3810eb21faf159f0092e16c8b710d0d21e13fb967496742e9ea8d1",
+      "bytes": 5792514
+    },
+    "combined/metadata.json": {
+      "sha256": "601632fc30ae33c52033745d62d5f9ad347d4316444294ac0fe4d338265714c5",
+      "bytes": 135012
+    },
+    "loso/comparison.csv": {
+      "sha256": "5e35632bbb557bbac729824237f0c269345189161091f6cb746c7f72070cc32f",
+      "bytes": 1882
+    },
+    "loso/configurations.json": {
+      "sha256": "3b6fe2857c165a2b305aeccc954e6a0f675f23927e62604c042411868d34fd8a",
+      "bytes": 3346
+    },
+    "loso/experiment.yaml": {
+      "sha256": "745c81e1493467e22ca29c4654ac2b87bd22abeb82dc4185bee02b59fc7d898a",
+      "bytes": 3327
+    },
+    "loso/fold_scores.csv": {
+      "sha256": "cdebe3c0bb45fee9dc6f7c6de3027d051b7a7e8a6965fa60bfa6a39c7441aeaf",
+      "bytes": 59235
+    },
+    "loso/metadata.json": {
+      "sha256": "280f0838a00cd39dad8a61fc25697bdb34cdaa2031f9720e0e363b68f1ff279e",
+      "bytes": 9547
+    },
+    "stage1/comparison.csv": {
+      "sha256": "d82b797d2664c389683844dacbd4515e1c27a19550579d8949d694325bea5915",
+      "bytes": 298406
+    },
+    "stage1/configurations.json": {
+      "sha256": "ba79f5d1c5ea67492e6ca69ad9a8c43495b5da0506d36d82adbe00e73837112a",
+      "bytes": 435715
+    },
+    "stage1/experiment.yaml": {
+      "sha256": "745c81e1493467e22ca29c4654ac2b87bd22abeb82dc4185bee02b59fc7d898a",
+      "bytes": 3327
+    },
+    "stage1/fold_scores.csv": {
+      "sha256": "9adf2cede84b06e76c4e10686d120a126528e38d5bb034a8c5af0ba7a18f9394",
+      "bytes": 5657641
+    },
+    "stage1/metadata.json": {
+      "sha256": "ba48e3cab283a99284192e27de9aece3775c78748afb2e1dbe1a92e77fa31424",
+      "bytes": 131955
+    },
+    "stage2/comparison.csv": {
+      "sha256": "0275479f3bda9c9310184534baf967fd9db0932173ae54249ee5f0f27472226b",
+      "bytes": 9499
+    },
+    "stage2/configurations.json": {
+      "sha256": "5239e97a22b1bc146efd4a5618ec72b909bac4b27d230a08c535e493ed9b88fa",
+      "bytes": 13495
+    },
+    "stage2/experiment.yaml": {
+      "sha256": "745c81e1493467e22ca29c4654ac2b87bd22abeb82dc4185bee02b59fc7d898a",
+      "bytes": 3327
+    },
+    "stage2/fold_scores.csv": {
+      "sha256": "8b42f5e4bdb33447820dc193b1f7438e16d80576fb17832cc959ef751de7648b",
+      "bytes": 179251
+    },
+    "stage2/metadata.json": {
+      "sha256": "4bb77cf1f83b2491329ba4b38af5b59922f7d7c8c96f2a3c64a46a8e373d1ee1",
+      "bytes": 12419
+    },
+    "../../../data/derived/elo/exp001_b0_predictions.parquet": {
+      "sha256": "9c9634f1e43f73164289163cdaeffb2bb5b294b3e5abea521491385e3e7ad18f",
+      "bytes": 34109
+    },
+    "../../../data/derived/elo/exp001_combined_snapshots.parquet": {
+      "sha256": "cecfa05bd4e23d60ea7c2064a141c3248848f61638745c1a43cdca2fdc0dd831",
+      "bytes": 5357158
+    },
+    "../../../data/derived/elo/exp001_loso_snapshots.parquet": {
+      "sha256": "33b07c84084692561400c7247493cb6f6e670b6c75840089b8a653c56505a338",
+      "bytes": 48582
+    },
+    "../../../data/derived/elo/exp001_predictions_combined.parquet": {
+      "sha256": "c3bf1adaf5bff186e0871fced8b5ca6f56f6b2de611cdfee7b01d37b368fbbfa",
+      "bytes": 1934801
+    },
+    "../../../data/derived/elo/exp001_predictions_loso.parquet": {
+      "sha256": "5a2e54d0fa456f869df8b891369129c5204684343c6954834789531a70b73005",
+      "bytes": 2250632
+    },
+    "../../../data/derived/elo/exp001_predictions_stage1.parquet": {
+      "sha256": "e309f8c08762c337b27e91b7772a7c5889e168251eebaa35a3fd5171dc3c0118",
+      "bytes": 1934765
+    },
+    "../../../data/derived/elo/exp001_snapshots.parquet": {
+      "sha256": "307ca1b924e8646cfd725dc08f13f2754887e0b28b199114d3e88535c3800905",
+      "bytes": 5304534
+    },
+    "../../../data/derived/elo/exp001_stage2_snapshots.parquet": {
+      "sha256": "eff9e6fe940473bb8112dd78d5db010d23695da42d58cedb57c68d605fd70af3",
+      "bytes": 52201
+    },
+    "../../../data/reports/nb03_B3b_results.md": {
+      "sha256": "cf212939a24efb595b44c894450253f526ceb25c0d01116a9952d9dd612cd6a9",
+      "bytes": 42839
+    },
+    "../../../data/reports/nb03_B3b_attempt2_preservation.json": {
+      "sha256": "2f23222378333b004353aa3446ed50782ada87182c8aef580c4946b3da30e152",
+      "bytes": 867
+    },
+    "../../../data/reports/nb03_B3b_attempt2_checks.json": {
+      "sha256": "47efbcd6ba5e09ec7a85d60a182f2ff05ac5ef613aa0f28d2c85bfdf2ddb3c80",
+      "bytes": 459
+    }
+  }
+}

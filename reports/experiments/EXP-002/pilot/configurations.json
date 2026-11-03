@@ -1,0 +1,74 @@
+[
+  {
+    "config_id": "P_reference_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": null
+  },
+  {
+    "config_id": "P_reference_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": null
+  },
+  {
+    "config_id": "O_reference_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": null
+  },
+  {
+    "config_id": "P_w10_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_w10_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_w10_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_ewma10_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_ewma10_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_ewma10_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "venue"
+    }
+  }
+]

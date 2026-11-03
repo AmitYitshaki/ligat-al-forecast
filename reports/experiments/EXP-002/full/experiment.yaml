@@ -1,0 +1,50 @@
+# EXP-002: declared before the blind B4b pilot; no full grid runs in B4b.
+experiment_id: EXP-002  # Attack/defense and points form, T-010 §8.4.
+inputs:
+  form:
+    path: data/derived/form/form_v1.parquet  # Frozen B4a candidates; never rebuilt here.
+    sha256: 3d67321b77d2edc8e2dd525a98fcaaeeb740bbb7b3da11a173ec7bfa7df2c77a  # B4a artifact checksum.
+  elo:
+    path: data/derived/elo/elo_E0050_prematch.parquet  # Selected E0050 prematch, no Elo rerun.
+    sha256: 759b9b830b617b9dec9c519242544c733ffa068e4cd503f9603851cb25857d9f  # B4a artifact checksum.
+  exp001_sha256: 745c81e1493467e22ca29c4654ac2b87bd22abeb82dc4185bee02b59fc7d898a  # Frozen EXP-001 config.
+candidates:
+  - w5  # Last five, prior fills missing current-season matches.
+  - w10  # Last ten.
+  - w20  # Last twenty.
+  - ewma5  # Five-game half-life, reset in summer.
+  - ewma10  # Ten-game half-life.
+  - ewma20  # Twenty-game half-life.
+  - std_m3  # Season-to-date mean with prior weight three.
+  - std_m6  # Season-to-date mean with prior weight six.
+  - std_m10  # Season-to-date mean with prior weight ten.
+  - prev  # Raw previous season, no shrinkage.
+  - hist  # All completed team history, game weighted.
+variants:
+  - all  # All current-season fixtures; complexity zero.
+  - venue  # Each team's current home/away role; complexity +1.
+poisson:
+  log_offset: 0.1  # מונע log(0) כשקבוצה לא הבקיעה או לא ספגה בכל החלון; קטן מספיק כדי לא להשפיע על ערכים רגילים.
+  with_elo: [true, false]  # Select using true; false is descriptive only.
+  max_goals: 10  # Normalize the 0..10 independent Poisson square and record omitted mass.
+  selection_metric: poisson_nll  # Mean per team row, including log(y!).
+ordered:
+  selection_metric: log_loss  # Home/draw/away mean per game.
+  elo_first: true  # Only the Elo coefficient is required to be nonnegative.
+evaluation:
+  seasons: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]  # Development only.
+  folds: 15  # Expanding training, initial three seasons; last five reported separately.
+  leakage_log_loss_threshold: 0.98  # Stop on H/D/A mean in either route, without displaying the score.
+  paired_se_multiplier: 1  # One SE on paired fold differences; ddof=1, 15 folds.
+  half_life: null  # No time weights in this diagnostic experiment.
+  loso: false  # Not part of EXP-002.
+simplicity:
+  all: 0  # No extra venue split.
+  venue: 1  # One structural addition, no order among window types.
+  tie_break: selection_metric  # Lower route-specific selection loss among equally simple close options.
+  approval_required: true  # Rankings/proposals never constitute an approved choice.
+pilot:
+  - candidate: w10  # Predeclared candidate, independent of pilot results.
+    variant: all  # First pilot configuration in each route.
+  - candidate: ewma10  # Predeclared exponential candidate.
+    variant: venue  # Second pilot configuration in each route.
