@@ -51,7 +51,7 @@ ligat-al-forecast/
 │   ├── features/               # M0 prematch: מצב לפני שריקה (as_of)
 │   │   ├── base.py             # FeatureBlock (ממשק)
 │   │   ├── table_state.py      # M0-A: מצב טבלה מחושב לפי תאריך (ללא דליפה)
-│   │   ├── form.py             # M0-B: כושר נע (5/10/20/EWMA) ומומנטום
+│   │   ├── form.py             # M0-B: כושר והתקפה והגנה (5/10/20, ‏EWMA, מתחילת העונה, עונה קודמת, כל ההיסטוריה; ה-ת12)
 │   │   ├── elo.py              # M0-B: דירוג Elo לפני משחק
 │   │   ├── season_context.py   # M0-C: הקשר עונתי (t-1) ושווי סגל
 │   │   └── pipeline.py         # איחוד כל בלוקי הפיצ'רים לשכבת prematch
