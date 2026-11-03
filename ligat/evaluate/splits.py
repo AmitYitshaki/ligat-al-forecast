@@ -12,18 +12,21 @@ def expanding_window_folds(
     seasons: range | list[int] = DEVELOPMENT_SEASONS,
     min_train_seasons: int = 3,
     repository: Repository | None = None,
+    *,
+    include_holdout: bool = True,
 ) -> pd.DataFrame:
     """15 default development folds, then single final-validation and test evaluations.
 
     Hyperparameters are selected once using validation losses weighted by game count
     across development folds. The final two rows are not tuning folds.
+    With include_holdout=False, neither their rows nor their match counts are read.
     """
     selected = sorted(seasons)
     if len(set(selected)) != len(selected) or not set(selected) <= set(DEVELOPMENT_SEASONS):
         raise ValueError("Fold seasons must be distinct development seasons 8–25")
     if min_train_seasons < 1 or min_train_seasons >= len(selected):
         raise ValueError("Minimum training seasons must leave at least one development fold")
-    requested = [*selected, FINAL_VALIDATION_SEASON, TEST_SEASON]
+    requested = [*selected, FINAL_VALIDATION_SEASON, TEST_SEASON] if include_holdout else selected
     matches = (repository or Repository()).read_filtered(
         "matches", [("season_id", "in", requested)]
     )
@@ -33,10 +36,11 @@ def expanding_window_folds(
         (n - min_train_seasons + 1, selected[:n], selected[n])
         for n in range(min_train_seasons, len(selected))
     ]
-    plans += [
-        ("final_validation", selected, FINAL_VALIDATION_SEASON),
-        ("test", [*selected, FINAL_VALIDATION_SEASON], TEST_SEASON),
-    ]
+    if include_holdout:
+        plans += [
+            ("final_validation", selected, FINAL_VALIDATION_SEASON),
+            ("test", [*selected, FINAL_VALIDATION_SEASON], TEST_SEASON),
+        ]
     for fold, training, validation in plans:
         assert max(training) < validation and validation not in training
         rows.append(

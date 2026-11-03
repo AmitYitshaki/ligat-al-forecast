@@ -78,6 +78,44 @@ FEATURES.update(
         ),
     }
 )
+FEATURES.update(
+    {
+        column: FeatureSpec("elo", "🔬", "D", ("M1", "M2", "M4"), "ה-ת2; ה-ת11; T-010 §8.1")
+        for column in ("elo_pre", "elo_opponent_pre", "elo_diff", "elo_expected")
+    }
+)
+
+FORM_CANDIDATES = (
+    "w5",
+    "w10",
+    "w20",
+    "ewma5",
+    "ewma10",
+    "ewma20",
+    "std_m3",
+    "std_m6",
+    "std_m10",
+    "prev",
+    "hist",
+)
+FORM_COLUMNS = tuple(
+    f"{metric}_{variant}_{candidate}"
+    for metric in ("gf", "ga", "pts")
+    for variant in ("all", "venue")
+    for candidate in FORM_CANDIDATES
+)
+FEATURES.update(
+    {
+        column: FeatureSpec(
+            "form",
+            "🔬",
+            "D",
+            ("M2", "M4"),
+            "ה-ת12; T-010 §8.4; season 8 league-neutral prior uses its full season (training only)",
+        )
+        for column in FORM_COLUMNS
+    }
+)
 
 
 def validate_feature_columns(frame: pd.DataFrame, block: str) -> None:

@@ -38,3 +38,14 @@ def test_expanding_folds_and_final_boundaries() -> None:
 def test_invalid_fold_inputs(seasons: list[int], minimum: int) -> None:
     with pytest.raises(ValueError):
         expanding_window_folds(seasons, minimum, CountsRepository())
+
+
+def test_development_only_plan_never_requests_holdout_counts() -> None:
+    class DevelopmentRepository(CountsRepository):
+        def read_filtered(self, name: str, filters: list) -> pd.DataFrame:
+            assert filters == [("season_id", "in", list(range(8, 26)))]
+            return super().read_filtered(name, filters)
+
+    plan = expanding_window_folds(repository=DevelopmentRepository(), include_holdout=False)
+    assert len(plan) == 15
+    assert plan.validation_season.tolist() == list(range(11, 26))
