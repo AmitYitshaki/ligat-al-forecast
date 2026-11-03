@@ -1,6 +1,9 @@
 # Generated outputs
 reports/figures/
 reports/gallery/*.html
+# EXP-002 predictions — יועברו ל-data/derived ב-B6; מחוץ ל-Git בהחלטת עמית
+/reports/experiments/EXP-002/full/predictions.parquet
+/reports/experiments/EXP-002/full/team_predictions.parquet
 build/
 dist/
 
