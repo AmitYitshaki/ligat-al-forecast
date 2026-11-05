@@ -118,6 +118,31 @@ FEATURES.update(
 )
 
 
+SEASON_CONTEXT_COLUMNS = (
+    "prev_value_share_avg",
+    "prev_value_share_total",
+    "prev_position_pct",
+    "prev_ppm",
+    "prev_gd_per_game",
+    "promoted_in",
+    "squad_value_imputed",
+    "prev_season_known",
+    "league_size",
+)
+FEATURES.update(
+    {
+        column: FeatureSpec(
+            "season_context",
+            "🔬" if column in SEASON_CONTEXT_COLUMNS[:5] else "✅",
+            "K" if column == "league_size" else "S",
+            ("M2", "M4", "M5"),
+            "ה-ת13; ה-ס1; ה-ס5; T-010 §9",
+        )
+        for column in SEASON_CONTEXT_COLUMNS
+    }
+)
+
+
 def validate_feature_columns(frame: pd.DataFrame, block: str) -> None:
     """Reject every unregistered column, including rejected in-match/context features."""
     columns = set(frame.columns) | {name for name in frame.index.names if name is not None}
