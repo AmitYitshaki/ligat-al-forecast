@@ -17,6 +17,8 @@ from ligat.analysis.prematch_b_review import (
     top_configuration_contrasts,
 )
 from ligat.analysis.prematch_form_review import (
+    EXP002_PREDICTIONS_DIRECTORY,
+    SELECTED_P,
     FormReview,
     candidate_description,
     candidate_table,
@@ -27,6 +29,7 @@ from ligat.analysis.prematch_form_review import (
     load_form_review,
     poisson_coefficients,
 )
+from ligat.evaluate.calibration_artifacts import verify_calibration
 from ligat.evaluate.goal_metrics import poisson_outcomes
 from ligat.viz.prematch_b import calibration_chart, marginal_chart
 from ligat.viz.prematch_form import haifa_chart
@@ -219,18 +222,138 @@ def test_integer_marginal_labels_do_not_change_means():
     assert list(chart.data[0].y) == [1.02, 1.01]
 
 
-def test_corrupt_experiment_stops_before_dataframe_read(tmp_path, monkeypatch):
+@pytest.fixture
+def relocated_review(tmp_path, monkeypatch):
+    """Small real Parquets with original manifest names and derived predictions."""
     directory = tmp_path / "reports/experiments/EXP-002/full"
     directory.mkdir(parents=True)
-    (directory / "fold_scores.parquet").write_bytes(b"changed")
-    metadata = {
+    derived = tmp_path / EXP002_PREDICTIONS_DIRECTORY
+    derived.mkdir(parents=True)
+    index = pd.MultiIndex.from_tuples([(1, 1005), (1, 2000)], names=["game_id", "team_id"])
+    form_path = tmp_path / "data/derived/form/form_v1.parquet"
+    form_path.parent.mkdir(parents=True)
+    pd.DataFrame({"gf_all_w5": [1.0, 2.0]}, index=index).to_parquet(form_path)
+    elo_path = form_path.with_name("elo.parquet")
+    pd.DataFrame({"season_id": [11, 11]}, index=index).to_parquet(elo_path)
+
+    def digest(path):
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    form_metadata = form_path.with_suffix(".metadata.json")
+    form_metadata.write_text(
+        json.dumps({"seasons": list(range(8, 26)), "artifact_sha256": digest(form_path)})
+    )
+    monkeypatch.setattr(
+        "ligat.analysis.prematch_form_review.FORM_METADATA_SHA256", digest(form_metadata)
+    )
+    for name in ("fold_scores.parquet", "fits.parquet"):
+        pd.DataFrame({"season_id": [11]}).to_parquet(directory / name)
+    for name in ("comparison_P.csv", "comparison_O.csv"):
+        pd.DataFrame({"config_id": [SELECTED_P]}).to_csv(directory / name, index=False)
+    (directory / "configurations.json").write_text(
+        json.dumps([{"config_id": SELECTED_P, "candidate": None}])
+    )
+    for name, count in (("predictions.parquet", 2), ("team_predictions.parquet", 4)):
+        pd.DataFrame(
+            {"season_id": [11] * (count + 1), "config_id": [SELECTED_P] * count + ["other"]}
+        ).to_parquet(derived / name)
+    files = {p.name: {"sha256": digest(p)} for p in directory.iterdir()}
+    files.update({p.name: {"sha256": digest(p)} for p in derived.iterdir()})
+    manifest = {
+        "experiment_id": "EXP-002",
+        "stage": "full",
         "completed": True,
-        "files": {"fold_scores.parquet": {"sha256": hashlib.sha256(b"original").hexdigest()}},
+        "inputs": {
+            name: {"path": path.relative_to(tmp_path).as_posix(), "sha256": digest(path)}
+            for name, path in (("form", form_path), ("elo", elo_path))
+        },
+        "files": files,
     }
-    (directory / "metadata.json").write_text(json.dumps(metadata))
+    (directory / "metadata.json").write_text(json.dumps(manifest))
+    return tmp_path
+
+
+def test_load_form_review_reads_verified_predictions_from_derived(relocated_review):
+    review = load_form_review(relocated_review)
+    assert len(review.predictions) == 2
+    assert len(review.team_predictions) == 4
+    assert review.predictions.config_id.eq(SELECTED_P).all()
+    assert review.form.index.equals(review.elo.index)
+    directory = relocated_review / "reports/experiments/EXP-002/full"
+    assert not (directory / "predictions.parquet").exists()
+    assert not (directory / "team_predictions.parquet").exists()
+
+
+@pytest.mark.parametrize("name", ["predictions.parquet", "team_predictions.parquet"])
+@pytest.mark.parametrize("change", ["corrupt", "missing"])
+def test_relocated_prediction_failure_stops_before_dataframe_read(
+    relocated_review, monkeypatch, name, change
+):
+    path = relocated_review / EXP002_PREDICTIONS_DIRECTORY / name
+    if change == "corrupt":
+        path.write_bytes(b"modified")
+    else:
+        path.unlink()
     monkeypatch.setattr(pd, "read_parquet", lambda *a, **k: pytest.fail("read before checksum"))
+    monkeypatch.setattr(pd, "read_csv", lambda *a, **k: pytest.fail("read before checksum"))
+    error = ValueError if change == "corrupt" else FileNotFoundError
+    with pytest.raises(error):
+        load_form_review(relocated_review)
+
+
+def test_corrupt_experiment_stops_before_dataframe_read(relocated_review, monkeypatch):
+    directory = relocated_review / "reports/experiments/EXP-002/full"
+    (directory / "fold_scores.parquet").write_bytes(b"changed")
+    monkeypatch.setattr(pd, "read_parquet", lambda *a, **k: pytest.fail("read before checksum"))
+    monkeypatch.setattr(pd, "read_csv", lambda *a, **k: pytest.fail("read before checksum"))
     with pytest.raises(ValueError, match="checksum mismatch"):
-        load_form_review(tmp_path)
+        load_form_review(relocated_review)
+
+
+@pytest.mark.parametrize("name", ["fits.parquet", "comparison_P.csv", "../predictions.parquet"])
+def test_non_prediction_manifest_member_cannot_use_alternate_location(relocated_review, name):
+    directory = relocated_review / "reports/experiments/EXP-002/full"
+    alternate = relocated_review / "alternate"
+    alternate.mkdir()
+    original = directory / name
+    if original.is_file():
+        original.rename(alternate / original.name)
+    with pytest.raises(ValueError, match="Only explicit EXP-002 prediction filenames"):
+        verify_calibration(
+            directory / "metadata.json", file_locations={name: alternate / original.name}
+        )
+
+
+def test_relocation_cannot_add_an_unlisted_prediction_file(relocated_review):
+    manifest = relocated_review / "reports/experiments/EXP-002/full/metadata.json"
+    metadata = json.loads(manifest.read_text())
+    del metadata["files"]["predictions.parquet"]
+    manifest.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="members of the saved manifest"):
+        load_form_review(relocated_review)
+
+
+def test_default_verification_does_not_search_for_relocated_files(relocated_review):
+    manifest = relocated_review / "reports/experiments/EXP-002/full/metadata.json"
+    with pytest.raises(FileNotFoundError):
+        verify_calibration(manifest)
+
+
+@pytest.mark.parametrize(("experiment", "stage"), [("EXP-001", "stage1"), ("EXP-002", "pilot")])
+def test_alternate_locations_are_restricted_to_full_exp002(relocated_review, experiment, stage):
+    manifest = relocated_review / "reports/experiments/EXP-002/full/metadata.json"
+    metadata = json.loads(manifest.read_text())
+    metadata.update(experiment_id=experiment, stage=stage)
+    manifest.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="Only full EXP-002"):
+        verify_calibration(
+            manifest,
+            file_locations={
+                "predictions.parquet": relocated_review
+                / EXP002_PREDICTIONS_DIRECTORY
+                / "predictions.parquet"
+            },
+        )
 
 
 def test_saved_controls_and_selected_coefficient_translation_without_refitting(monkeypatch):

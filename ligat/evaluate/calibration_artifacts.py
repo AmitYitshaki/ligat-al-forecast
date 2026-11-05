@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -152,13 +153,29 @@ def save_calibration(
     return manifest
 
 
-def verify_calibration(manifest: Path) -> dict[str, Any]:
-    """Verify every manifest checksum, including derived artifacts kept outside Git."""
+def verify_calibration(
+    manifest: Path, *, file_locations: Mapping[str, Path] | None = None
+) -> dict[str, Any]:
+    """Verify all checksums; only full EXP-002 predictions may be relocated explicitly.
+
+    Manifest names and hashes remain unchanged. Without ``file_locations``, every
+    file is resolved relative to the manifest, as when the experiment was saved.
+    """
     metadata: dict[str, Any] = json.loads(manifest.read_text(encoding="utf-8"))
     if metadata.get("completed") is not True:
         raise ValueError("Experiment save is incomplete")
+    locations = file_locations or {}
+    if locations:
+        if metadata.get("experiment_id") != "EXP-002" or metadata.get("stage") != "full":
+            raise ValueError("Only full EXP-002 prediction files may use alternate locations")
+        if not set(locations) <= {"predictions.parquet", "team_predictions.parquet"}:
+            raise ValueError(
+                "Only explicit EXP-002 prediction filenames may use alternate locations"
+            )
+        if not set(locations) <= metadata["files"].keys():
+            raise ValueError("Alternate files must be members of the saved manifest")
     for name, expected in metadata["files"].items():
-        path = manifest.parent / name
+        path = locations.get(name, manifest.parent / name)
         if hashlib.sha256(path.read_bytes()).hexdigest() != expected["sha256"]:
             raise ValueError("Experiment artifact checksum mismatch")
     return metadata

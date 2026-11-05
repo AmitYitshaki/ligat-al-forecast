@@ -16,8 +16,8 @@ from ligat.analysis.prematch_b_review import WORDS
 from ligat.evaluate.calibration_artifacts import verify_calibration
 from ligat.evaluate.goal_metrics import poisson_outcomes
 
-# B6 moves prediction files; this is the only prediction-directory setting to change.
-EXP002_PREDICTIONS_DIRECTORY = Path("reports/experiments/EXP-002/full")
+# C0 relocates predictions while retaining the original frozen manifest and hashes.
+EXP002_PREDICTIONS_DIRECTORY = Path("data/derived/exp002")
 SELECTED_P = "P_ewma5_venue_elo"
 POINTS_EXAMPLE = "O_ewma20_all_elo"
 FORM_METADATA_SHA256 = "b3f7a38f40d5db31f86695e3f1ba00788741b07422d4b6d06f993b5085c7b02c"
@@ -50,7 +50,14 @@ def _check(path: Path, expected: str) -> None:
 def load_form_review(root: Path) -> FormReview:
     """Verify saved inputs before reading frames; never read clean or replay models."""
     directory = root / "reports/experiments/EXP-002/full"
-    manifest = verify_calibration(directory / "metadata.json")
+    prediction_directory = root / EXP002_PREDICTIONS_DIRECTORY
+    manifest = verify_calibration(
+        directory / "metadata.json",
+        file_locations={
+            name: prediction_directory / name
+            for name in ("predictions.parquet", "team_predictions.parquet")
+        },
+    )
     for key in ("form", "elo"):
         item = manifest["inputs"][key]
         _check(root / item["path"], item["sha256"])
@@ -64,12 +71,6 @@ def load_form_review(root: Path) -> FormReview:
     identities = []
     for item in json.loads((directory / "configurations.json").read_text(encoding="utf-8")):
         identities.append({**item, **(item["candidate"] or {})})
-    prediction_directory = root / EXP002_PREDICTIONS_DIRECTORY
-    # Verify that files opened through the relocation constant are manifest members.
-    verified = {(directory / name).resolve() for name in manifest["files"]}
-    for name in ("predictions.parquet", "team_predictions.parquet"):
-        if (prediction_directory / name).resolve() not in verified:
-            raise ValueError("Prediction directory is not covered by the saved manifest")
     result = FormReview(
         form=pd.read_parquet(form_path),
         elo=pd.read_parquet(root / manifest["inputs"]["elo"]["path"]),
