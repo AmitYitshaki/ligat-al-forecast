@@ -52,6 +52,44 @@ class EvaluationResult:
     label: str
 
 
+@dataclass(frozen=True)
+class DevelopmentPolicy:
+    """Explicit EXP-003 training and validation subsets; default judges are unchanged."""
+
+    training_start: int = 9
+    excluded_seasons: tuple[int, ...] = ()
+    validation_seasons: tuple[int, ...] = tuple(range(11, 26))
+
+    def __post_init__(self) -> None:
+        if (
+            self.training_start not in (8, 9)
+            or self.excluded_seasons not in ((), (11,))
+            or not self.validation_seasons
+            or tuple(sorted(set(self.validation_seasons))) != self.validation_seasons
+            or not set(self.validation_seasons) <= set(range(11, 26))
+            or set(self.validation_seasons) & set(self.excluded_seasons)
+        ):
+            raise ValueError("Invalid explicit development policy")
+
+
+def policy_folds(games: pd.DataFrame, policy: DevelopmentPolicy) -> pd.DataFrame:
+    """Filter the approved original fold plan, preserving validation game IDs and fold IDs."""
+    plan = development_folds(games)
+    plan = plan.loc[plan.validation_season.isin(policy.validation_seasons)].copy()
+    plan["train_seasons"] = plan.train_seasons.map(
+        lambda seasons: tuple(
+            s for s in seasons if s >= policy.training_start and s not in policy.excluded_seasons
+        )
+    )
+    if plan.train_seasons.map(len).eq(0).any():
+        raise ValueError("Explicit policy leaves an empty training fold")
+    counts = games.groupby("season_id").size()
+    plan["n_train_matches"] = plan.train_seasons.map(
+        lambda seasons: int(counts.reindex(seasons).sum())
+    )
+    return plan.reset_index(drop=True)
+
+
 class _CountsRepository(Repository):
     """Reuse the approved fold builder with already-loaded development data only."""
 
@@ -184,6 +222,7 @@ def evaluate(
     feature_columns: Sequence[str] = (),
     folds: pd.DataFrame | None = None,
     mode: Mode = "walk_forward",
+    policy: DevelopmentPolicy | None = None,
 ) -> EvaluationResult:
     """Fit fresh predictors per fold and score only after target-free prediction.
 
@@ -194,7 +233,15 @@ def evaluate(
     if mode not in ("walk_forward", "loso"):
         raise ValueError("Unknown evaluation mode")
     frame = _prepare_games(games)
-    expected = development_folds(frame) if mode == "walk_forward" else loso_folds(frame)
+    if policy is not None and mode != "walk_forward":
+        raise ValueError("Explicit development policy does not permit LOSO")
+    expected = (
+        policy_folds(frame, policy)
+        if policy is not None
+        else development_folds(frame)
+        if mode == "walk_forward"
+        else loso_folds(frame)
+    )
     plan = expected if folds is None else folds
     _validate_folds(plan, expected)
     features = list(feature_columns)
@@ -231,5 +278,11 @@ def evaluate(
         per_fold,
         summary,
         mode,
-        "כרונולוגי: 15 קיפולי פיתוח" if mode == "walk_forward" else RETROSPECTIVE_LABEL,
+        (
+            f"כרונולוגי: {len(plan)} קיפולי פיתוח; אימון מעונה {policy.training_start}"
+            if policy is not None
+            else "כרונולוגי: 15 קיפולי פיתוח"
+            if mode == "walk_forward"
+            else RETROSPECTIVE_LABEL
+        ),
     )

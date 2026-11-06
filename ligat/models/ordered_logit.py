@@ -63,7 +63,11 @@ def _log_probabilities(
 
 
 def fit_ordered_logit(
-    x: ArrayLike, outcomes: ArrayLike, sample_weight: ArrayLike | None = None
+    x: ArrayLike,
+    outcomes: ArrayLike,
+    sample_weight: ArrayLike | None = None,
+    *,
+    nonnegative_first: bool = True,
 ) -> OrderedFit:
     """Fit beta/theta1/delta by weighted MLE; x contains no home-advantage offset.
 
@@ -71,12 +75,16 @@ def fit_ordered_logit(
     each outcome must still have positive training mass for finite thresholds.
     Precision loss (status 2) is accepted only with a recomputed normalized
     gradient within the fixed tolerance. Other failures or reversed strength stop.
+    The optional EXP-003 alone route sets nonnegative_first=False because its
+    first column is a context candidate, rather than Elo. Defaults are unchanged.
     """
     matrix = np.asarray(x, dtype=float)
     if matrix.ndim == 2:
         if matrix.shape[1] == 1:
-            return fit_ordered_logit(matrix[:, 0], outcomes, sample_weight)
-        return _fit_matrix(matrix, outcomes, sample_weight)
+            return fit_ordered_logit(
+                matrix[:, 0], outcomes, sample_weight, nonnegative_first=nonnegative_first
+            )
+        return _fit_matrix(matrix, outcomes, sample_weight, nonnegative_first=nonnegative_first)
     values = _x(x)
     y = validate_outcomes(outcomes, len(values))
     weights = np.ones(len(values)) if sample_weight is None else np.asarray(sample_weight, float)
@@ -122,7 +130,7 @@ def fit_ordered_logit(
     if not (result.success or accepted_by_gradient_check):
         raise RuntimeError(failure_message)
     beta, theta1, delta = (float(p) for p in result.x)
-    if beta < 0:
+    if nonnegative_first and beta < 0:
         raise RuntimeError("Negative ordered-logit beta: stop and investigate")
     logs, _ = _log_probabilities(result.x, values)
     likelihood = float(weights @ logs[indices, y])
@@ -185,7 +193,11 @@ def _matrix_logs(
 
 
 def _fit_matrix(
-    x: NDArray[np.float64], outcomes: ArrayLike, sample_weight: ArrayLike | None
+    x: NDArray[np.float64],
+    outcomes: ArrayLike,
+    sample_weight: ArrayLike | None,
+    *,
+    nonnegative_first: bool = True,
 ) -> OrderedFit:
     if not len(x) or x.shape[1] < 2 or not np.isfinite(x).all():
         raise ValueError("Expected a finite nonempty feature matrix with Elo first")
@@ -225,7 +237,7 @@ def _fit_matrix(
     )
     if not (result.success or accepted):
         raise RuntimeError(f"Ordered-matrix optimizer did not converge: status={result.status}")
-    if result.x[0] < 0:
+    if nonnegative_first and result.x[0] < 0:
         raise RuntimeError("Negative ordered-logit Elo beta: stop and investigate")
     logs, _ = _matrix_logs(result.x, x)
     likelihood = float(weights @ logs[indices, y])

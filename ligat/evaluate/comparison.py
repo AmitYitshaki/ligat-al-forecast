@@ -1,6 +1,6 @@
 """Rank configurations on identical games; flag uncertainty, never select one."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -32,6 +32,7 @@ def compare(
     *,
     for_selection: bool = True,
     metric: Literal["log_loss", "poisson_nll"] = "log_loss",
+    validation_seasons: Sequence[int] | None = None,
 ) -> Comparison:
     """Compare log loss on paired games, using Amit's paired one-SE rule.
 
@@ -42,6 +43,15 @@ def compare(
     """
     if not results:
         raise ValueError("At least one evaluated configuration is required")
+    expected_seasons = (
+        tuple(range(11, 26)) if validation_seasons is None else tuple(validation_seasons)
+    )
+    if (
+        not expected_seasons
+        or tuple(sorted(set(expected_seasons))) != expected_seasons
+        or not set(expected_seasons) <= set(range(11, 26))
+    ):
+        raise ValueError("Comparison requires explicit distinct development validation seasons")
     if metric not in ("log_loss", "poisson_nll"):
         raise ValueError("Unknown selection metric")
     if metric == "poisson_nll" and not all(
@@ -77,7 +87,7 @@ def compare(
             if metric == "poisson_nll"
             else summarize(frame.reset_index())
         )
-        if mode == "walk_forward" and folds.season_id.tolist() != list(range(11, 26)):
+        if mode == "walk_forward" and folds.season_id.tolist() != list(expected_seasons):
             raise ValueError("Selection requires all 15 approved development folds")
         losses[name] = folds.set_index("season_id")[metric]
         counts[name] = folds.set_index("season_id")["rows" if metric == "poisson_nll" else "games"]
@@ -120,7 +130,7 @@ def compare(
             for name in ranked.index:
                 differences = loss_table[name] - loss_table[best]
                 mean_difference = float(np.average(differences, weights=counts[best]))
-                se = float(differences.std(ddof=1) / np.sqrt(15))
+                se = float(differences.std(ddof=1) / np.sqrt(len(expected_seasons)))
                 ranked.loc[name, "paired_mean_difference"] = mean_difference
                 ranked.loc[name, "paired_se"] = se
                 close[name] = name == best or mean_difference <= se
@@ -135,5 +145,7 @@ def compare(
         last_winners,
         disagreement,
         mode == "walk_forward" and (disagreement or tied),
-        "15 development folds" if mode == "walk_forward" else RETROSPECTIVE_LABEL,
+        f"{len(expected_seasons)} development folds"
+        if mode == "walk_forward"
+        else RETROSPECTIVE_LABEL,
     )

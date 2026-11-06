@@ -11,9 +11,11 @@ from numpy.typing import NDArray
 from ligat.evaluate.backtest import (
     IDENTITY_COLUMNS,
     TARGET_COLUMNS,
+    DevelopmentPolicy,
     _prepare_games,
     _validate_folds,
     development_folds,
+    policy_folds,
     summarize,
 )
 from ligat.evaluate.goal_metrics import poisson_nll, poisson_outcomes
@@ -68,12 +70,13 @@ def evaluate_goals(
     feature_columns: Sequence[str],
     folds: pd.DataFrame | None = None,
     max_goals: int = 10,
+    policy: DevelopmentPolicy | None = None,
 ) -> GoalEvaluationResult:
     """Fit on past seasons; send targets only to fitting and subsequent scoring."""
     frame = _prepare_games(games)
     if not {"home_goals", "away_goals"} <= set(frame):
         raise ValueError("Goal evaluation requires both goal targets")
-    expected = development_folds(frame)
+    expected = development_folds(frame) if policy is None else policy_folds(frame, policy)
     plan = expected if folds is None else folds
     _validate_folds(plan, expected)
     features = list(feature_columns)
@@ -122,5 +125,16 @@ def evaluate_goals(
     per_game = pd.concat(parts, ignore_index=True)
     per_fold, summary = summarize_goals(per_game)
     return GoalEvaluationResult(
-        per_game, per_fold, summary, pd.concat(team_parts, ignore_index=True)
+        per_game,
+        per_fold,
+        summary,
+        pd.concat(team_parts, ignore_index=True),
+        label=(
+            "Chronological goal judge: 15 development folds"
+            if policy is None
+            else (
+                f"Chronological goal judge: {len(plan)} development folds; "
+                f"training from {policy.training_start}"
+            )
+        ),
     )

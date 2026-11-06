@@ -1,0 +1,30 @@
+[
+  {
+    "route": "O",
+    "candidate": null,
+    "reference": "elo",
+    "sensitivity": false,
+    "config_id": "O_elo"
+  },
+  {
+    "route": "O",
+    "candidate": "gd",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_gd"
+  },
+  {
+    "route": "P",
+    "candidate": null,
+    "reference": "poisson",
+    "sensitivity": false,
+    "config_id": "P_poisson"
+  },
+  {
+    "route": "P",
+    "candidate": "value_avg",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_value_avg"
+  }
+]
