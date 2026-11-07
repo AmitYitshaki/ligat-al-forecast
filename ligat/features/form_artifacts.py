@@ -3,7 +3,7 @@
 import hashlib
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -78,14 +78,22 @@ def _records(frame: pd.DataFrame) -> list[dict[str, object]]:
 
 
 def _publish(
-    frame: pd.DataFrame, target: Path, metadata: dict[str, object], block: str
+    frame: pd.DataFrame,
+    target: Path,
+    metadata: dict[str, object],
+    block: str,
+    *,
+    validate_columns: Callable[[pd.DataFrame], None] | None = None,
 ) -> tuple[Path, Path]:
     if not target.resolve().is_relative_to(Path("data/derived").resolve()):
         raise ValueError("Artifacts must stay inside data/derived")
     sidecar = target.with_suffix(".metadata.json")
     if target.exists() or sidecar.exists():
         raise FileExistsError(f"Refusing to overwrite {target} or its metadata")
-    validate_feature_columns(frame, block)
+    if validate_columns is None:
+        validate_feature_columns(frame, block)
+    else:
+        validate_columns(frame)
     if frame.index.names != ["game_id", "team_id"] or not frame.index.is_unique:
         raise ValueError("Expected unique (game_id, team_id) artifact index")
     sizes = frame.groupby(level="game_id").size()

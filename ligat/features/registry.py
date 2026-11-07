@@ -142,6 +142,32 @@ FEATURES.update(
     }
 )
 
+FEATURES["prev_value_share_avg"] = replace(
+    FEATURES["prev_value_share_avg"],
+    model_status=(("M2", "✅"),),
+    decision=FEATURES["prev_value_share_avg"].decision + "; ה-ת14",
+)
+PREMATCH_CONTRAST_COLUMNS = (
+    "value_avg_log_ratio",
+    "position_log_ratio",
+    "prev_ppm_diff",
+    "prev_gd_diff",
+)
+PREMATCH_OPPONENT_COLUMNS = ("opp_gf_venue_ewma5", "opp_ga_venue_ewma5")
+FEATURES.update(
+    {
+        column: FeatureSpec(
+            "prematch",
+            "🔬",
+            "S" if column in PREMATCH_CONTRAST_COLUMNS else "D",
+            ("M2", "M4", "M5") if column in PREMATCH_CONTRAST_COLUMNS else ("M2", "M4"),
+            "ה-ת14; T-010 §9",
+            (("M2", "✅"),) if column == "value_avg_log_ratio" else (),
+        )
+        for column in (*PREMATCH_OPPONENT_COLUMNS, *PREMATCH_CONTRAST_COLUMNS)
+    }
+)
+
 
 def validate_feature_columns(frame: pd.DataFrame, block: str) -> None:
     """Reject every unregistered column, including rejected in-match/context features."""
@@ -152,3 +178,11 @@ def validate_feature_columns(frame: pd.DataFrame, block: str) -> None:
     }
     if unknown or wrong_block:
         raise ValueError(f"Unregistered features for {block}: {sorted(unknown | wrong_block)}")
+
+
+def validate_prematch_feature_columns(frame: pd.DataFrame) -> None:
+    """Require registration across the frozen blocks and the added prematch features."""
+    columns = set(frame.columns) | {name for name in frame.index.names if name is not None}
+    unknown = columns - IDENTIFICATION_COLUMNS - FEATURES.keys()
+    if unknown:
+        raise ValueError(f"Unregistered features for prematch: {sorted(unknown)}")

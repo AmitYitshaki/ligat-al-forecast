@@ -1,7 +1,9 @@
 """CLI entry points; importing this module never starts a download."""
 
+import hashlib
 import json
 import logging
+import subprocess
 from pathlib import Path
 from typing import Annotated
 
@@ -21,7 +23,49 @@ scrape_app = typer.Typer(no_args_is_help=True)
 app.add_typer(scrape_app, name="scrape")
 export_app = typer.Typer(no_args_is_help=True)
 app.add_typer(export_app, name="export")
+run_app = typer.Typer(no_args_is_help=True)
+app.add_typer(run_app, name="run")
 ConfigOption = Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)]
+
+
+@run_app.command("prematch")
+def prematch(config: ConfigOption = Path("config/prematch.yaml")) -> None:
+    """Assemble frozen M0 blocks locally; validate an existing version without overwriting."""
+    from ligat.features.form_artifacts import FormProvenance
+    from ligat.features.pipeline import build_prematch, load_prematch_config, load_prematch_inputs
+    from ligat.features.prematch_artifacts import ensure_prematch
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    try:
+        spec = load_prematch_config(config)
+        frames = load_prematch_inputs(spec)
+        frame = build_prematch(**frames)
+        try:
+            commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        except subprocess.CalledProcessError as exc:
+            raise ValueError("Prematch provenance requires a readable Git revision") from exc
+        source_paths = (
+            "ligat/cli.py",
+            "ligat/features/pipeline.py",
+            "ligat/features/prematch_artifacts.py",
+            "ligat/features/registry.py",
+            "ligat/features/form_artifacts.py",
+        )
+        provenance = FormProvenance(
+            commit,
+            spec.input_fingerprint(),
+            {
+                name: hashlib.sha256(
+                    (Path(__file__).resolve().parents[1] / name).read_bytes()
+                ).hexdigest()
+                for name in source_paths
+            },
+        )
+        created = ensure_prematch(frame, spec, provenance)
+        typer.echo(f"prematch: {'created' if created else 'up to date'} ({len(frame)} rows)")
+    except (ValueError, OSError, KeyError) as exc:
+        logging.getLogger(__name__).error("Prematch stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
 
 
 def parse_seasons(value: str, *, minimum: int = 8, maximum: int = 27) -> tuple[int, ...]:

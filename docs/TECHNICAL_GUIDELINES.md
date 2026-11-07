@@ -54,7 +54,8 @@ ligat-al-forecast/
 │   │   ├── form.py             # M0-B: כושר והתקפה והגנה (5/10/20, ‏EWMA, מתחילת העונה, עונה קודמת, כל ההיסטוריה; ה-ת12)
 │   │   ├── elo.py              # M0-B: דירוג Elo לפני משחק
 │   │   ├── season_context.py   # M0-C: הקשר עונתי (t-1) ושווי סגל
-│   │   └── pipeline.py         # איחוד כל בלוקי הפיצ'רים לשכבת prematch
+│   │   ├── pipeline.py         # איחוד בלוקים קפואים לשכבת prematch, בלי חישוב מחדש
+│   │   └── prematch_artifacts.py # פרסום prematch_v1 בלי דריסה (`ligat run prematch`)
 │   ├── motivation/             # M1 motivation: פענוח מוטיבציה וחשיבות תחרותית (0–1)
 │   │   ├── analysis.py         # ניתוח סטיות מול ציפיית Elo
 │   │   ├── leverage.py         # חשיבות משחק (Leverage) וחלופות
