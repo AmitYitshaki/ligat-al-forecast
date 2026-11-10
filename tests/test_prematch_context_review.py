@@ -217,16 +217,29 @@ def test_exports_cannot_write_into_data_directories(tmp_path):
         save_context_figures({}, tmp_path / "data")
 
 
-def test_notebook_keeps_approved_prefix_sources_and_explains_every_new_code_cell():
+def test_notebook_keeps_approved_b1_b2_sources_and_explains_every_new_code_cell():
     notebook = json.loads((ROOT / "notebooks/explore/03_prematch.ipynb").read_text("utf-8"))
     cells = notebook["cells"]
-    prefix = [{"type": c["cell_type"], "source": "".join(c["source"])} for c in cells[:120]]
+    start = next(
+        i
+        for i, cell in enumerate(cells)
+        if cell["cell_type"] == "markdown" and "<h2>B1 — Elo ו־EXP-001" in "".join(cell["source"])
+    )
+    guarded = cells[start : start + 90]
+    assert len(guarded) == 90
+    prefix = [{"type": c["cell_type"], "source": "".join(c["source"])} for c in guarded]
     digest = hashlib.sha256(
         json.dumps(prefix, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
-    assert digest == "6741c8c7d3fe92ad8d911a6406e1fba3dee999a30810efecc0ae9456f53a8816"
-    assert len(cells) > 120
-    for i, cell in enumerate(cells[120:], 120):
+    # Identical to HEAD 0036c7e cells 30–119; R1 edits to part A are outside this guard.
+    assert digest == "3662857af635cb2f801dee97bee790f5924baced50e7a54793a41a6751153343"
+    explanation_start = next(
+        i
+        for i, cell in enumerate(cells)
+        if cell["cell_type"] == "markdown"
+        and "<h2>חלק C — מהעונה הקודמת אל המידע שלפני השריקה" in "".join(cell["source"])
+    )
+    for i, cell in enumerate(cells[explanation_start:], explanation_start):
         if cell["cell_type"] == "code":
             assert cells[i - 1]["cell_type"] == "markdown"
             explanation = "".join(cells[i - 1]["source"])
