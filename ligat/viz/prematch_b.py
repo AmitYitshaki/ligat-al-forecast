@@ -14,6 +14,20 @@ from ligat.viz.presentation import TableDisplay, display_table
 from ligat.viz.seasons import season_label
 
 NAMES = {
+    "decay": "דעיכה",
+    "effective_seasons": "כמה עונות שוות בפועל",
+    "outcome": "תוצאה",
+    "ece": "ECE — שגיאת כיול ממוצעת",
+    "width": "רוחב אזור התיקו",
+    "peak_probability": "תיקו מרבי מתמטי",
+    "peak_gap": "פער Elo בשיא התיקו",
+    "correct": "בחירות נכונות",
+    "chosen": "משחקים שנבחרו",
+    "precision": "דיוק כשבוחרים בתוצאה",
+    "metric": "מדד",
+    "correlation": "מתאם עם מספר העונה",
+    "p_value": "p תיאורי",
+    "seasons": "עונות",
     "label": "תצורה",
     "games": "משחקים",
     "log_loss": "log loss",
@@ -71,6 +85,10 @@ def review_table(
 ) -> TableDisplay:
     """Isolate seasons/numbers in RTL and wrap the explanatory words column."""
     data = frame.copy()
+    if "metric" in data:
+        data["metric"] = data.metric.replace(
+            {"spearman": "ספירמן העונתי", "exact_percent": "אחוז המיקום הזהה בעונה"}
+        )
     if "season_id" in data:
         data["season"] = data.season_id.map(lambda sid: season_label(int(sid)))
         data = data.drop(columns="season_id")
@@ -122,6 +140,20 @@ def review_table(
             "מקום זהה (%)": 1,
             "עד ±1 (%)": 1,
             "עד ±2 (%)": 1,
+            "spearman": 2,
+            "exact_percent": 1,
+            "within_one_percent": 1,
+            "within_two_percent": 1,
+            "בית אחרי": 1,
+            "חוץ אחרי": 1,
+            "בקיץ: דירוג 1600": 1,
+            "elo_start": 0,
+            "elo_end": 0,
+            "chosen": 0,
+            "correct": 0,
+            "peak_gap": 1,
+            "דירוג לפני הקיץ": 1,
+            "דירוג אחרי הקיץ": 1,
         }
     )
     return display_table(
@@ -217,7 +249,7 @@ def time_weight_chart(stage2: pd.DataFrame) -> Any:
         y="loss",
         markers=True,
         custom_data=["configs"],
-        labels={"weight": "זמן מחצית למשקל עונה", "loss": "ממוצע log loss"},
+        labels={"weight": "דעיכה — המשקל נחצה כל מספר העונות", "loss": "ממוצע log loss"},
         title="משקלי זמן: אותם 10 בסיסי Elo — קשר תיאורי, לא סיבתי",
     )
     figure.update_xaxes(
@@ -321,13 +353,22 @@ def draw_histogram(predictions: pd.DataFrame) -> Any:
 
 
 def confusion_chart(matrix: pd.DataFrame) -> Any:
+    counts = matrix.to_numpy()
+    totals = counts.sum(axis=1, keepdims=True)
+    shares = np.divide(counts, totals, out=np.zeros_like(counts, dtype=float), where=totals > 0)
+    text = np.array(
+        [
+            [f"{count:,}<br>({share:.1%})" for count, share in zip(row, rates, strict=True)]
+            for row, rates in zip(counts, shares, strict=True)
+        ]
+    )
     figure = go.Figure(
         go.Heatmap(
             z=matrix.to_numpy(),
             x=list(OUTCOMES),
             y=list(OUTCOMES),
             colorscale="Blues",
-            text=matrix.to_numpy(),
+            text=text,
             texttemplate="%{text}",
             hovertemplate="בפועל: %{y}<br>argmax: %{x}<br>משחקים: %{z}<extra></extra>",
         )
@@ -344,21 +385,24 @@ def confusion_chart(matrix: pd.DataFrame) -> Any:
 def alignment_chart(teams: pd.DataFrame) -> Any:
     data = teams.copy()
     data["season"] = data.season_id.map(lambda sid: season_label(int(sid)))
+    data["description"] = data.team_name + " — " + data.season
+    data = data.groupby(["position", "elo_rank"], as_index=False).agg(
+        count=("team_name", "size"), examples=("description", lambda x: "<br>".join(x))
+    )
     figure = px.scatter(
         data,
         x="position",
         y="elo_rank",
-        hover_name="team_name",
+        size="count",
         opacity=0.55,
-        custom_data=["season", "elo_end", "position_difference"],
+        custom_data=["count", "examples"],
         labels={"position": "מקום ספורטיבי בסיום", "elo_rank": "מקום לפי Elo בסיום"},
         title="בדיקה בדיעבד: Elo בסוף העונה מול המקום הספורטיבי — כל הליגה",
     )
     figure.update_traces(
         hovertemplate=(
-            "%{hovertext}<br>%{customdata[0]}<br>ספורטיבי: %{x}<br>Elo: %{y}"
-            "<br>דירוג Elo: %{customdata[1]:.1f}"
-            "<br>פער מקומות: %{customdata[2]}<extra></extra>"
+            "ספורטיבי: %{x}<br>Elo: %{y}<br>קבוצות־עונות: %{customdata[0]}"
+            "<br>%{customdata[1]}<extra></extra>"
         )
     )
     figure.add_scatter(
@@ -371,4 +415,6 @@ def alignment_chart(teams: pd.DataFrame) -> Any:
     )
     figure.update_xaxes(dtick=1, range=[0.5, 16.5])
     figure.update_yaxes(dtick=1, range=[0.5, 16.5])
+    figure.add_vline(x=6.5, line_dash="dash", line_color=DRAW_COLOR)
+    figure.add_hline(y=6.5, line_dash="dash", line_color=DRAW_COLOR)
     return _finish_chart(figure)

@@ -179,7 +179,7 @@ def ewma_illustrations() -> tuple[pd.DataFrame, pd.DataFrame]:
 def candidate_description(candidate: str, variant: str) -> tuple[str, str]:
     """Plain-language memory rule and venue distinction for the 22 methods."""
     if candidate.startswith("ewma"):
-        memory = f"זמן מחצית {candidate[4:]} משחקים"
+        memory = f"המשקל נחצה כל {candidate[4:]} הופעות"
         words = f"עדכון מעריכי: משקל משחק נחצה כל {candidate[4:]} משחקים"
     elif candidate.startswith("std_m"):
         memory = f"מתחילת העונה; פתיחה במשקל {candidate[5:]}"
@@ -337,7 +337,7 @@ def points_coefficients(review: FormReview) -> pd.DataFrame:
     frame = review.fits.loc[review.fits.config_id.eq(POINTS_EXAMPLE)].copy()
     frame["beta_form"] = frame.additional_betas.map(lambda value: float(value[0]))
     frame[WORDS] = (
-        "הצעת הפשטות בכושר: EWMA עם מחצית 20 משחקים, כל המגרשים; שני מקדמים באותה המרה סדורה"
+        "הצעת הפשטות בכושר: EWMA, המשקל נחצה כל 20 הופעות, כל המגרשים; שני מקדמים באותה המרה סדורה"
     )
     return frame[["season_id", "beta", "beta_form", WORDS]].sort_values("season_id")
 
@@ -450,7 +450,7 @@ def decision_table() -> pd.DataFrame:
                 "רכיב": "התקפה והגנה ewma5/venue",
                 "מעמד": "נבחר, חריגה מודעת מכלל הפשטות",
                 "סרגל": "NLL = 1.409455",
-                WORDS: "זמן מחצית חמישה משחקים, בית וחוץ בנפרד, נוסף מעל Elo במודל השערים",
+                WORDS: "המשקל נחצה כל חמש הופעות, בית וחוץ בנפרד, נוסף מעל Elo במודל השערים",
             },
             {
                 "רכיב": "כושר בנקודות",

@@ -163,7 +163,11 @@ def dead_games_chart(summary: pd.DataFrame) -> Any:
         title="משחקים בלי יעד פתוח נפוצים יותר בפלייאוף מאשר בסדיר", yaxis_rangemode="tozero"
     )
     figure.update_xaxes(
-        categoryorder="array", categoryarray=sorted(frame.season.unique()), tickangle=-35
+        categoryorder="array",
+        categoryarray=sorted(frame.season.unique()),
+        tickangle=-35,
+        title_standoff=55,
+        automargin=True,
     )
     figure = _finish(figure)
     # This categorical comparison deliberately overrides the common sequential

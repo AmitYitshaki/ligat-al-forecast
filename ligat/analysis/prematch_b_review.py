@@ -105,6 +105,7 @@ def load_elo_review(root: Path) -> EloReview:
         tables[name] = pd.read_csv(directory / filename)
     tables["folds"] = pd.read_csv(directory / "stage1/fold_scores.csv")
     tables["folds"] = tables["folds"].loc[lambda x: x.config_id == E0050].copy()
+    tables["stage2_folds"] = pd.read_csv(directory / "stage2/fold_scores.csv")
     prediction_path = root / "data/derived/elo/exp001_predictions_stage1.parquet"
     if not any(
         (directory / name).resolve() == prediction_path.resolve() for name in manifest["files"]
@@ -162,7 +163,7 @@ def top_configuration_contrasts(review: EloReview) -> pd.DataFrame:
     for row in frame.itertuples():
         changes, words = [], []
         if not pd.isna(row.half_life):
-            changes.append(f"משקל זמן: מחצית {row.half_life:g} עונות")
+            changes.append(f"דעיכה: המשקל נחצה כל {row.half_life:g} עונות")
             words.append("ההמרה מדגישה עונות עדכניות")
         if row.dead_game_discount != 1:
             changes.append(f"משקל {row.dead_game_discount:g} במשחק מת")
@@ -206,8 +207,8 @@ def grid_overview(review: EloReview) -> pd.DataFrame:
         )
     rows.append(
         {
-            "פרמטר": "זמן מחצית למשקל עונה",
-            "ערכים שנבדקו": "ללא, 1, 2, 4 עונות",
+            "פרמטר": "דעיכת משקל עונה",
+            "ערכים שנבדקו": "ללא; המשקל נחצה כל 1, 2 או 4 עונות",
             WORDS: "שלב שני בלבד, על אותם 10 בסיסי Elo המובילים; בלי שינוי בסיס ה־Elo",
         }
     )
@@ -301,7 +302,7 @@ def score_ruler(review: EloReview) -> pd.DataFrame:
         ("⅓ לכל תוצאה", math.log(3), "בית, תיקו וחוץ בהסתברות שווה"),
         ("B0", float(b0["log_loss"]), "שכיחויות תוצאות בעונות האימון בלבד; בלי זהות הקבוצות"),
         ("E0050", float(chosen.log_loss), configuration_words(chosen)),
-        ("סף 0.98", 0.98, "יעד איכות שנקבע מראש; אינו מודל שנמדד כאן"),
+        ("סף חשד לדליפה", 0.98, "מתחת לסף בממוצע הקיפולים עוצרים; Elo שאחרי המשחק קיבל 0.968"),
     ]
     return pd.DataFrame(
         [

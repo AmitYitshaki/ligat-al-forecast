@@ -254,11 +254,11 @@ def test_approved_b1_through_c8_sources_remain_unchanged():
         for i, cell in enumerate(cells)
         if cell["cell_type"] == "markdown" and "<h2>B1 — Elo ו־EXP-001" in "".join(cell["source"])
     )
-    guarded = cells[start : start + 145]
-    assert len(guarded) == 145
+    guarded = cells[start : start + 149]
+    assert len(guarded) == 149
     prefix = [{"type": c["cell_type"], "source": "".join(c["source"])} for c in guarded]
     digest = hashlib.sha256(
         json.dumps(prefix, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
-    # HEAD 0036c7e cells 30–174, with only the approved 0–119 → 5–124 reference in C8.
-    assert digest == "44a30fb47bdc7ad9fac6aac77aef290ecb81e0068d0185a54029b849a76c9b06"
+    # R2: four B1 cells added; outside-B1 source guard passed against HEAD 8461d3d.
+    assert digest == "92e61bbb96dc615cbe2690123a77f54fca086d7ce8820ea04e9bfea4e3879e52"
