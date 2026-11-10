@@ -31,25 +31,21 @@ def interaction_chart(frame: pd.DataFrame) -> Any:
     values = frame.pivot(index="k", columns="season_regression", values="log_loss")
     x = [f"{100 * number:g}%" for number in values.columns]
     y = [f"K={number:g}" for number in values.index]
+    labels = [
+        [f"{value:.5f}" + (" ★" if value == series.min() else "") for value in series]
+        for _, series in values.iterrows()
+    ]
     figure = go.Figure(
         go.Heatmap(
             z=values.to_numpy(),
             x=x,
             y=y,
-            text=values.to_numpy(),
-            texttemplate="%{text:.5f}",
+            text=labels,
+            texttemplate="%{text}",
             colorbar=dict(title="log loss"),
             hovertemplate="%{y}<br>נסיגה %{x}<br>ממוצע %{z:.6f}<extra></extra>",
         )
     )
-    for row, series in values.iterrows():
-        figure.add_annotation(
-            x=f"{100 * series.idxmin():g}%",
-            y=f"K={row:g}",
-            text="★",
-            xshift=45,
-            showarrow=False,
-        )
     figure.update_layout(
         title="תגובה בעונה מול מחיקה בקיץ: ממוצע על 1,280 הצירופים",
         xaxis_title="החלק שנמחק בקיץ",
@@ -67,9 +63,17 @@ def decay_chart(profiles: pd.DataFrame, differences: pd.DataFrame, reference_gai
     figure = make_subplots(
         rows=1, cols=2, subplot_titles=["מה כל אפשרות עושה", "מה יצא"], horizontal_spacing=0.15
     )
-    for label, group in profiles.groupby("decay", sort=False):
+    colors = ["#34306e", "#23758b", "#31a480", "#b49d14"]
+    for (label, group), color in zip(profiles.groupby("decay", sort=False), colors, strict=True):
         figure.add_trace(
-            go.Scatter(x=group.season, y=group.weight, name=label, mode="lines+markers"),
+            go.Scatter(
+                x=group.season,
+                y=group.weight,
+                name=label,
+                mode="lines+markers",
+                line=dict(color=color),
+                marker=dict(color=color),
+            ),
             row=1,
             col=1,
         )
@@ -79,6 +83,7 @@ def decay_chart(profiles: pd.DataFrame, differences: pd.DataFrame, reference_gai
             x=labels,
             y=differences.difference,
             mode="markers",
+            marker=dict(color=colors, size=10),
             error_y=dict(type="data", array=differences.se, visible=True),
             showlegend=False,
             customdata=differences[["log_loss", "decay"]],
@@ -96,6 +101,12 @@ def decay_chart(profiles: pd.DataFrame, differences: pd.DataFrame, reference_gai
     figure.update_yaxes(title_text="הפסד פחות ללא דעיכה (±SE)", tickformat=".5f", row=1, col=2)
     figure.update_layout(title="דעיכה משנה את ההמרה בלבד: עשרה בסיסי Elo נשארים קבועים")
     figure = _finish_chart(figure, height=820)
+    # The shared league palette finalizer may recolor non-outcome traces. Keep
+    # these four explicit colors paired across the two panels after finalization.
+    for trace, color in zip(figure.data[:4], colors, strict=True):
+        trace.line.color = color
+        trace.marker.color = color
+    figure.data[4].marker.color = colors
     figure.update_layout(
         margin=dict(l=85, r=85, t=180, b=200),
         legend=dict(orientation="h", y=1.18, x=0.5, xanchor="center"),

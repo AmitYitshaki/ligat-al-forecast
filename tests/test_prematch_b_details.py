@@ -74,7 +74,9 @@ def test_interaction_averages_the_grid_instead_of_selecting_the_best() -> None:
     assert len(result) == 16 and result.configs.eq(80).all()
     assert result.iloc[0].log_loss == pytest.approx(10.1 + 0.0395)
     assert result.best_in_row.sum() == 4
-    assert len(interaction_chart(result).layout.annotations) == 4
+    chart = interaction_chart(result)
+    assert sum("★" in text for row in chart.data[0].text for text in row) == 4
+    assert all("★" in row[0] for row in chart.data[0].text)
     with pytest.raises(ValueError, match="1280"):
         interaction_table(frame.iloc[1:])
 

@@ -225,14 +225,14 @@ def test_notebook_keeps_approved_b1_b2_sources_and_explains_every_new_code_cell(
         for i, cell in enumerate(cells)
         if cell["cell_type"] == "markdown" and "<h2>B1 — Elo ו־EXP-001" in "".join(cell["source"])
     )
-    guarded = cells[start : start + 94]
-    assert len(guarded) == 94
+    guarded = cells[start : start + 96]
+    assert len(guarded) == 96
     prefix = [{"type": c["cell_type"], "source": "".join(c["source"])} for c in guarded]
     digest = hashlib.sha256(
         json.dumps(prefix, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
-    # R2: four B1 cells added; outside-B1 source guard passed against HEAD 8461d3d.
-    assert digest == "536b388c28cb0d16e1d2c17af9dbf40a4bdd3a7332b93feac33127e69575b0a4"
+    # R3: memory diagram added; source guard passed against committed R2 395d11a.
+    assert digest == "28565ccabf00e44c2e83042cc2e145203e7820faf614ea258e4c808075f84ae5"
     explanation_start = next(
         i
         for i, cell in enumerate(cells)

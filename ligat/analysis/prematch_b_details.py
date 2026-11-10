@@ -189,7 +189,11 @@ def draw_peaks(coefficients: pd.DataFrame) -> pd.DataFrame:
     result["width"] = result.theta2 - result.theta1
     result["peak_probability"] = 2 * expit(result.width / 2) - 1
     result["peak_gap"] = 400 * (result.theta1 + result.theta2) / (2 * result.beta)
-    result[WORDS] = "הרוחב קבוע בקיפול; הפער מזיז את מרכז הפעמון עד שמסת התיקו מרבית"
+    result[WORDS] = [
+        f"תקרה {100 * row.peak_probability:.1f}%; "
+        f"התיקו מרבי כשהבית חלש ב־{abs(row.peak_gap):.1f} נקודות Elo"
+        for row in result.itertuples()
+    ]
     return result
 
 

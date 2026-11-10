@@ -168,8 +168,12 @@ def ewma_illustrations() -> tuple[pd.DataFrame, pd.DataFrame]:
                 "מה נמדד": quantity,
                 **{name: by_method.loc[name, quantity] for name in by_method.index},
                 WORDS: (
-                    "ב־EWMA משקל משחק נחצה אחרי 5/10/20 משחקים; "
-                    "בחלון 5 כל אחד מחמשת האחרונים מקבל 20%"
+                    "סכום משקלי חמש ההופעות האחרונות; יתרת המשקל נשארת לעבר ולפתיחה"
+                    if quantity == "חלק מחמשת האחרונים"
+                    else (
+                        f"משקל התוצאה שהתקבלה לפני {quantity.split()[-1]} הופעות; "
+                        "חלון 5 חותך את העבר בבת אחת"
+                    )
                 ),
             }
         )
@@ -324,8 +328,8 @@ def poisson_coefficients(review: FormReview, *, identifier: str = SELECTED_P) ->
                 "defense_change_percent": 100 * ((1.75 / 1.6) ** d - 1),
                 "home_win_change_pp": 100 * (probabilities[1, 0] - probabilities[0, 0]),
                 WORDS: (
-                    "התקפה והגנת היריבה מעל Elo; הבסיס לדוגמה: 1.5→1.65, "
-                    "יתר המשתנים בממוצע אימון ו־Elo אפס"
+                    f"ביתיות {100 * np.expm1(gamma):.2f}% לשערים; "
+                    f"רגישות התקפה {a:.3f}, הגנה {d:.3f}"
                 ),
             }
         )
@@ -336,9 +340,10 @@ def points_coefficients(review: FormReview) -> pd.DataFrame:
     """The saved simplicity proposal ewma20/all, not the different O leader."""
     frame = review.fits.loc[review.fits.config_id.eq(POINTS_EXAMPLE)].copy()
     frame["beta_form"] = frame.additional_betas.map(lambda value: float(value[0]))
-    frame[WORDS] = (
-        "הצעת הפשטות בכושר: EWMA, המשקל נחצה כל 20 הופעות, כל המגרשים; שני מקדמים באותה המרה סדורה"
-    )
+    frame[WORDS] = [
+        f"Elo עם מקדם {row.beta:.2f}, לצד כושר עם מקדם {row.beta_form:+.2f}; שני משתנים באותה המרה"
+        for row in frame.itertuples()
+    ]
     return frame[["season_id", "beta", "beta_form", WORDS]].sort_values("season_id")
 
 
@@ -360,6 +365,15 @@ def coefficient_summary(coefficients: pd.DataFrame) -> pd.DataFrame:
                 "median": coefficients[column].median(),
                 "minimum": coefficients[column].min(),
                 "maximum": coefficients[column].max(),
+                WORDS: {
+                    "a": "רגישות השערים לכושר ההבקעה של הקבוצה",
+                    "d": "רגישות השערים לכושר הספיגה של היריבה",
+                    "b": "משקל פער Elo במודל השערים",
+                    "gamma": "תוספת הבית מעבר לשאר המשתנים",
+                    "attack_change_percent": "תוספת שערים בדוגמת הבקעה מ־1.5 ל־1.65",
+                    "defense_change_percent": "תוספת שערים כשהיריבה סופגת מ־1.5 ל־1.65",
+                    "home_win_change_pp": "שינוי בניצחון בית באותה דוגמת הבקעה",
+                }[column],
             }
             for column in columns
         ]
@@ -454,11 +468,11 @@ def decision_table() -> pd.DataFrame:
             },
             {
                 "רכיב": "כושר בנקודות",
-                "מעמד": "🔬 רק לבנצ׳מרק XGBoost; לא ב־M0",
+                "מעמד": "🔬 נמצא ב־M0 כמועמד; לא ברירת מחדל",
                 "סרגל": "0 מ־22 מוסיפים בממוצע",
                 WORDS: (
                     "קצב הנקודות לא הוסיף בהמרה הסדורה; "
-                    "יישאר מועמד רק לניסוי הלא ליניארי וייצא אם לא יתרום"
+                    "pts_venue_ewma5 ייבדק ב־ablation של M2; פער המעמד ל־M4 פתוח ב־S4 D02"
                 ),
             },
         ]
@@ -468,6 +482,19 @@ def decision_table() -> pd.DataFrame:
 def displayed_controls(review: FormReview) -> pd.DataFrame:
     """Readable vertical controls, preserving numerical values in control_numbers."""
     values = control_numbers(review).iloc[0]
+    explanations = {
+        "P Elo בלבד": "Poisson עם ביתיות ו־Elo; ייחוס לתוספת של חלונות שערים",
+        "P ללא Elo": "קבוע וביתיות בלבד; ממחיש את תרומת דירוג הכוח",
+        "נבחר NLL": "ציון השערים של התקפה והגנה EWMA 5 בבית ובחוץ בנפרד",
+        "נבחר z": "תוספת הנבחר מעל ייחוס Elo, ביחידות רעש של הפרש הקיפולים",
+        "O Elo בלבד": "סרגל בית/תיקו/חוץ של E0050, ביחידות שונות מציון שערים",
+        "מועמדי כושר משפרים": "כמה מהגרסאות במסלול הנקודות משפרות בממוצע מעל Elo",
+        "תיקו חזוי (%)": "ממוצע ההסתברות לתיקו מתוך רשת התוצאות השמורה",
+        "תיקו נצפה (%)": "שיעור המשחקים שהסתיימו בפועל בתיקו בוולידציה",
+        "ρ התקפה": "שיעור הפער בהבקעה ששורד את הקיץ לקראת 2023/2024",
+        "ρ הגנה": "שיעור הפער בספיגה ששורד את הקיץ בכל המגרשים",
+        "ρ נקודות": "שיעור פער קצב הנקודות ששורד את הקיץ",
+    }
     rows = []
     for name, value in values.items():
         if name == WORDS:
@@ -477,7 +504,7 @@ def displayed_controls(review: FormReview) -> pd.DataFrame:
             digits = 3
         if name == "מועמדי כושר משפרים":
             digits = 0
-        rows.append({"מדד": name, "ערך": f"{value:.{digits}f}", WORDS: values[WORDS]})
+        rows.append({"מדד": name, "ערך": f"{value:.{digits}f}", WORDS: explanations[name]})
     return pd.DataFrame(rows)
 
 

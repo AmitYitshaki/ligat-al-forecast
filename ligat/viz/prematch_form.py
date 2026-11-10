@@ -8,6 +8,7 @@ import plotly.express as px  # type: ignore[import-untyped]
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
+from ligat.analysis.prematch_b_review import WORDS
 from ligat.analysis.prematch_form_review import METRICS, SELECTED_P, STRATA
 from ligat.viz.league_stats import DRAW_COLOR, GOOD_SCALE
 from ligat.viz.prematch_b import _finish_chart
@@ -15,6 +16,27 @@ from ligat.viz.presentation import TableDisplay, display_table
 from ligat.viz.seasons import season_label
 
 NAMES = {
+    WORDS: "מה זה, במילים",
+    "memory_family": "משפחת זיכרון",
+    "probability": "הסתברות",
+    "nll": "קנס NLL",
+    "venue_games": "הופעות באותו מגרש",
+    "approx_rounds": "מחזורי ליגה בקירוב",
+    "prior_mass": "משקל שנותר לפתיחה",
+    "league_all": "ליגה — הכול",
+    "league_home": "ליגה — בית",
+    "league_away": "ליגה — חוץ",
+    "promoted_all": "עולה — הכול",
+    "promoted_home": "עולה — בית",
+    "promoted_away": "עולה — חוץ",
+    "c": "c קבוע",
+    "difference_pp": "פער בנקודות אחוז",
+    "se_pp": "SE לשיעור (נ״א)",
+    "descriptive_z": "פער / SE תיאורי",
+    "expected_count": "משחקים צפויים",
+    "observed_count": "משחקים בפועל",
+    "excess_count": "עודף משחקים",
+    "count_noise": "רעש ספירה תיאורי",
     "season": "עונה",
     "metric": "מדד",
     "stratum": "סוג משחקים",
@@ -59,7 +81,12 @@ NAMES = {
 
 
 def form_table(
-    frame: pd.DataFrame, *, columns: list[str] | None = None, percent: tuple[str, ...] = ()
+    frame: pd.DataFrame,
+    *,
+    columns: list[str] | None = None,
+    percent: tuple[str, ...] = (),
+    digits: dict[str, int] | None = None,
+    highlight_id: str | None = None,
 ) -> TableDisplay:
     """Hebrew labels, explicit percent units and isolated negative coefficients."""
     data = frame.copy()
@@ -74,6 +101,14 @@ def form_table(
         data["stratum"] = data.stratum.replace(STRATA)
     if "quantity" in data:
         data["quantity"] = data.quantity.map(lambda value: NAMES.get(value, value))
+    if "method" in data:
+        data["method"] = data.method.replace(
+            {
+                "P_reference_no_elo": "שערים: ביתיות בלבד",
+                "P_reference_elo": "שערים: ביתיות ו־Elo",
+                "O_reference_elo": "תוצאות: Elo בלבד",
+            }
+        )
     chosen = list(data.columns) if columns is None else columns
     precision = {column: 4 for column in chosen}
     precision.update(
@@ -102,7 +137,8 @@ def form_table(
             )
         }
     )
-    return display_table(
+    precision.update(digits or {})
+    result = display_table(
         data,
         {name: NAMES.get(name, name) for name in chosen},
         columns=chosen,
@@ -112,6 +148,19 @@ def form_table(
         values={"True": "כן", "False": "לא"},
         unicode_minus=tuple(chosen),
     )
+    if highlight_id is not None:
+        positions = np.flatnonzero(data.config_id.eq(highlight_id))
+        if len(positions) != 1:
+            raise ValueError("Highlighted candidate must occur exactly once")
+        row = int(positions[0]) + 1
+        result = TableDisplay(
+            result.content.replace(
+                "</style>",
+                f".ligat-table tbody tr:nth-child({row}) td"
+                "{background:#dbeafe;font-weight:700} </style>",
+            )
+        )
+    return result
 
 
 def rho_chart(coefficients: pd.DataFrame) -> Any:
@@ -242,9 +291,30 @@ def addition_chart(candidates: pd.DataFrame) -> Any:
         )
     )
     figure.add_vline(x=0, line_color=DRAW_COLOR)
-    figure.add_vline(x=1, line_dash="dash", line_color=DRAW_COLOR, annotation_text="שגיאת תקן אחת")
+    figure.add_vline(x=1, line_dash="dash", line_color=DRAW_COLOR)
+    figure.add_annotation(
+        x=1,
+        y=1.06,
+        xref="x",
+        yref="paper",
+        text="שגיאת תקן אחת",
+        showarrow=False,
+        xanchor="left",
+        yanchor="bottom",
+    )
+    chosen = candidates.loc[candidates.config_id.eq(SELECTED_P)]
+    figure.add_scatter(
+        x=chosen.z,
+        y=chosen.method,
+        mode="markers",
+        name="הגרסה שנבחרה",
+        marker=dict(symbol="star", size=15, color="#111827"),
+        hovertemplate="הגרסה שנבחרה: %{y}<br>z=%{x:.3f}<extra></extra>",
+    )
     figure.update_yaxes(categoryorder="array", categoryarray=data.method.tolist())
-    return _finish_chart(figure, height=950)
+    figure = _finish_chart(figure, height=950)
+    figure.update_layout(margin=dict(l=220, r=85, t=125, b=110))
+    return figure
 
 
 def recent_scatter(candidates: pd.DataFrame, references: pd.DataFrame) -> Any:
@@ -268,20 +338,29 @@ def recent_scatter(candidates: pd.DataFrame, references: pd.DataFrame) -> Any:
                 "<br>דירוג ב־5: %{customdata[2]}<extra></extra>"
             ),
         )
-    for identifier, name, position, symbol in (
-        ("P_ewma5_all_elo", "ewma5/all — מוביל והצעת פשטות", "bottom right", "circle-open"),
-        (SELECTED_P, "ewma5/venue — נבחר בידי עמית", "top right", "star"),
+    for identifier, name, symbol in (
+        ("P_ewma5_all_elo", "ewma5/all — מוביל והצעת פשטות", "circle-open"),
+        (SELECTED_P, "ewma5/venue — נבחר", "star"),
     ):
         data = candidates.loc[candidates.config_id.eq(identifier)]
         figure.add_scatter(
             x=data.poisson_nll,
             y=data.last5_poisson_nll,
-            mode="markers+text",
+            mode="markers",
             name=name,
-            text=[name],
-            textposition=position,
             marker=dict(size=18, symbol=symbol, color=GOOD_SCALE[4]),
             hovertemplate="NLL ב־15: %{x:.6f}<br>NLL ב־5: %{y:.6f}<extra>%{fullData.name}</extra>",
+        )
+        figure.add_annotation(
+            x=float(data.poisson_nll.iloc[0]),
+            y=float(data.last5_poisson_nll.iloc[0]),
+            text=name,
+            showarrow=True,
+            arrowhead=2,
+            ax=100 if identifier == SELECTED_P else -110,
+            ay=-65 if identifier == SELECTED_P else 55,
+            bgcolor="white",
+            borderpad=4,
         )
     reference = references.set_index("method").loc["P_reference_elo"]
     figure.add_vline(
@@ -299,3 +378,25 @@ def recent_scatter(candidates: pd.DataFrame, references: pd.DataFrame) -> Any:
         yaxis_title="NLL על 5 האחרונות",
     )
     return _finish_chart(figure, height=700)
+
+
+def memory_chart(frame: pd.DataFrame) -> Any:
+    """Show smooth EWMA memories beside the abrupt five-appearance cutoff."""
+    figure = go.Figure()
+    for i, (method, group) in enumerate(frame.groupby("method", sort=False)):
+        figure.add_scatter(
+            x=group.age,
+            y=group.weight,
+            name=method,
+            mode="lines",
+            line=dict(color=GOOD_SCALE[i * 3], shape="hv" if method == "חלון 5" else "linear"),
+            hovertemplate="גיל %{x}<br>משקל %{y:.3%}<extra>%{fullData.name}</extra>",
+        )
+    figure.update_layout(
+        title="דעיכה מול צוק: 4:0 לא נעלם בבת אחת אחרי חמש הופעות",
+        xaxis_title="גיל המשחק בהופעות באותה גרסה — 1 הוא האחרון",
+        yaxis_title="משקל התוצאה הקודמת",
+        legend=dict(orientation="h", y=1.12),
+    )
+    figure.update_yaxes(tickformat=".0%")
+    return _finish_chart(figure, height=600)
