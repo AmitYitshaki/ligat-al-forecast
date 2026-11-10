@@ -78,7 +78,10 @@ def decay_profiles() -> tuple[pd.DataFrame, pd.DataFrame]:
             {
                 "decay": label,
                 "effective_seasons": float(weights.sum()),
-                WORDS: "סכום משקל אחד לכל עונת אימון; העונה האחרונה שווה 1, לא גודל מדגם משחקים",
+                WORDS: (
+                    f"{label}: {weights.sum():.2f} עונות שקולות; "
+                    f"משקל העונה הראשונה {weights[0]:.4f}, האחרונה 1"
+                ),
             }
         )
         rows.extend(

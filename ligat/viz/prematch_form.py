@@ -30,7 +30,7 @@ NAMES = {
     "promoted_home": "עולה — בית",
     "promoted_away": "עולה — חוץ",
     "c": "c קבוע",
-    "difference_pp": "פער בנקודות אחוז",
+    "difference_pp": "בפועל פחות חזוי (נקודות אחוז)",
     "se_pp": "SE לשיעור (נ״א)",
     "descriptive_z": "פער / SE תיאורי",
     "expected_count": "משחקים צפויים",

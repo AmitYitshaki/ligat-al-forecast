@@ -276,7 +276,11 @@ def match_example(frame: pd.DataFrame, team_config: Path) -> pd.DataFrame:
                 "away": b[c],
                 "home_name": names[int(key[1])],
                 "away_name": names[int(a.opponent_id)],
-                WORDS: FEATURE_NAMES[c],
+                WORDS: (
+                    "ציפיית Elo עם תוספת הבית 30; אינה הסתברות ניצחון"
+                    if c == "elo_expected"
+                    else FEATURE_NAMES[c]
+                ),
             }
             for c in columns
         ]

@@ -197,9 +197,12 @@ def test_fold_plot_highlights_only_2009_10_and_sorts_season_categories():
     review, _, _ = synthetic_review()
     chart = value_fold_chart(value_fold_gaps(review))
     assert list(chart.layout.xaxis.categoryarray) == [season_label(s) for s in range(11, 26)]
-    highlighted = [trace for trace in chart.data if trace.marker.color == DRAW_COLOR]
-    assert len(highlighted) == 2
-    assert all(list(trace.x) == [season_label(11)] for trace in highlighted)
+    assert len(chart.data) == 4
+    for full, recent in ((chart.data[0], chart.data[1]), (chart.data[2], chart.data[3])):
+        assert full.marker.color == recent.marker.color != DRAW_COLOR
+        assert list(full.marker.line.width) == [3] + [0] * 14
+        assert all(width == 0 for width in recent.marker.line.width)
+        assert season_label(11) not in recent.x
 
 
 def test_tables_require_words_and_isolate_signed_numbers_and_full_season_labels():
@@ -231,8 +234,8 @@ def test_notebook_keeps_approved_b1_b2_sources_and_explains_every_new_code_cell(
     digest = hashlib.sha256(
         json.dumps(prefix, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
-    # R3: memory diagram added; source guard passed against committed R2 395d11a.
-    assert digest == "28565ccabf00e44c2e83042cc2e145203e7820faf614ea258e4c808075f84ae5"
+    # R4: approved C edits; source guard passed against baseline b4fbf1c.
+    assert digest == "204627f3d80019df8f3ebb2b1f85bd3084606b89b5ad476499fbe0015d96315a"
     explanation_start = next(
         i
         for i, cell in enumerate(cells)

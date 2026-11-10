@@ -148,14 +148,14 @@ def probe_reference() -> pd.DataFrame:
                 "clubs": 11,
                 "spearman": 0.945455,
                 "source": "nb03_C1_value_check.md §A",
-                WORDS: "דף העונה מול הדף המתוארך לסוף העונה; נתון מצוטט",
+                WORDS: "דף השווי של העונה מול הדף המתוארך לסוף העונה; נתון מצוטט",
             },
             {
                 "date": "1.9.2025",
                 "clubs": 11,
                 "spearman": 0.772727,
                 "source": "nb03_C1_value_check.md §A",
-                WORDS: "דף העונה מול הדף אחרי הקיץ; נתון מצוטט",
+                WORDS: "דף השווי של העונה מול הדף אחרי הקיץ; נתון מצוטט",
             },
         ]
     )
@@ -300,7 +300,10 @@ def value_methodology_tables(tables: AnalysisTables) -> dict[str, pd.DataFrame]:
         raise ValueError("Expected two source-anomaly clubs in three development seasons")
     anomaly["total_million"] = anomaly.total_value_eur.astype(float) / 1e6
     anomaly["average_million"] = anomaly.avg_value_eur.astype(float) / 1e6
-    anomaly[WORDS] = "ערך המקור ללא תיקון; הצגה מול העונות הסמוכות בלבד"
+    anomaly[WORDS] = [
+        f"{r.team_name}, עונה {r.season_id}: דירוג שווי {r.value_rank:g}; ללא תיקון המקור"
+        for r in anomaly.itertuples()
+    ]
     return {
         "direction": summary,
         "paired": paired,
@@ -466,7 +469,7 @@ def added_results(review: ContextReview) -> pd.DataFrame:
                     "recent_improvement": recent["improvement"],
                     "recent_better": recent["better"],
                     "adds": primary["improvement"] > primary["se"],
-                    WORDS: EXPLANATIONS[candidate],
+                    WORDS: f"מסלול {route}: {EXPLANATIONS[candidate]}",
                 }
             )
     return pd.DataFrame(records)
@@ -491,7 +494,10 @@ def direct_decisions(review: ContextReview) -> pd.DataFrame:
                     "recent_improvement": recent["improvement"],
                     "disagreement": condition != (recent["improvement"] > 0),
                     "approved": "ממוצע נשאר" if default == "value_avg" else "0.75 נשאר",
-                    WORDS: "החלופה נדרשת לשפר ביותר מ-SE ב-15; בחמש האחרונות משווים ציונים בלבד",
+                    WORDS: (
+                        f"{route}: {CANDIDATES[alternative]} מול {CANDIDATES[default]}; "
+                        "נדרש יותר מ-SE ב-15; בחמש הכיוון בלבד"
+                    ),
                 }
             )
     return pd.DataFrame(records)
@@ -539,7 +545,10 @@ def selected_coefficients(review: ContextReview) -> pd.DataFrame:
                         "value_coefficient": float(part.at[season, "z_value_avg"])
                         if value
                         else np.nan,
-                        WORDS: "מקדמי הקיפול שנאמדו במקור; השווי ו-Elo חולקים מידע",
+                        WORDS: (
+                            f"{route}, עונה {season}, {'עם' if value else 'ללא'} שווי: "
+                            f"מקדם Elo {part.at[season, 'b_elo']:.3f}"
+                        ),
                     }
                 )
     return pd.DataFrame(records)
@@ -560,7 +569,7 @@ def sensitivity_overview(review: ContextReview) -> pd.DataFrame:
                 "first_season": int(first.season_id),
                 "first_training": int(first.training_seasons),
                 "first_improvement": float(first.improvement),
-                WORDS: "עונה 11 הוסרה גם מהאימון וגם מהולידציה; הייחוס מאומן באותו תנאי",
+                WORDS: f"{route}: עונה 11 הוסרה מהאימון ומהוולידציה, גם אצל הייחוס",
             }
         )
     return pd.DataFrame(rows)
@@ -638,7 +647,8 @@ def gd_translation(review: ContextReview) -> pd.DataFrame:
                 "home_win_low": probabilities[0],
                 "home_win_high": probabilities[1],
                 "change_pp": probabilities[1] - probabilities[0],
-                WORDS: "מעבר בין רבעוני פער הפרש השערים אשתקד; ב-O מחזיקים Elo שווה",
+                WORDS: f"מסלול {route}: מעבר בין רבעוני פער הפרש השערים; "
+                + ("ללא Elo" if route == "A" else "Elo מוחזק שווה"),
             }
         )
     return pd.DataFrame(records)
@@ -670,7 +680,13 @@ def control_numbers(review: ContextReview) -> pd.DataFrame:
                 "value": value,
                 "expected": expected,
                 "passed": abs(value - expected) <= tolerance,
-                WORDS: "מספר בקרה מחושב מהתוצרים השמורים מול דוח C3b",
+                WORDS: {
+                    "B0": "סרגל שכיחויות התוצאות, אימון מעונה 9",
+                    "Elo": "סרגל תוצאות בית/תיקו/חוץ על בסיס דירוג הכוח",
+                    "Poisson": "קנס לשערי שתי הקבוצות לפי Elo והכושר",
+                    "P value_avg dbar": "ייחוס השערים פחות המועמד עם שווי ממוצע",
+                    "התאמות": "מספר התאמות המקדמים השמורות; כולן התכנסו",
+                }[name],
             }
             for name, value, expected, tolerance in items
         ]

@@ -15,10 +15,21 @@ from ligat.viz.presentation import TableDisplay, display_table
 from ligat.viz.seasons import season_label
 
 NAMES = {
+    WORDS: "מה זה, במילים",
+    "descriptive_z": "פער / SE — תיאורי",
+    "points_33": "קנה מידה לעונת 33 משחקים",
+    "loss_share": "חלק מההפסד נטו (%)",
+    "loss_sum": "סכום ייחוס פחות מועמד",
+    "games": "משחקים",
+    "missing_when": "חסר כאשר",
+    "missing": "שורות חסרות",
+    "initial_three": "מתוכן בעונות ללא פיצול",
+    "seasons_9_10": "מתוכן ב-2007/2008–2008/2009",
     "column": "עמודה",
     "newcomer_policy": "הטיפול בעולה",
     "date": "תאריך ההשוואה",
-    "clubs": "מועדונים משותפים",
+    "clubs": "מועדונים במדגם",
+    "feature": "פער",
     "spearman": "ספירמן",
     "source": "מקור",
     "value_rank": "מיקום בשווי הממוצע",
@@ -76,9 +87,25 @@ NAMES = {
 }
 
 
-def context_table(frame: pd.DataFrame, *, columns: list[str] | None = None) -> TableDisplay:
+def context_table(
+    frame: pd.DataFrame,
+    *,
+    columns: list[str] | None = None,
+    thousandths: bool = False,
+    alternative: bool = False,
+) -> TableDisplay:
     """Use the shared bidi-aware table renderer, retaining explicit explanatory words."""
     data = frame.copy()
+    if thousandths:
+        for column in ("improvement", "se", "recent_improvement", "first_improvement"):
+            if column in data:
+                data[column] *= 1000
+    if "quantity" in data and "value" in data:
+        count = data.quantity.eq("התאמות")
+        if count.any():
+            for column in ("value", "expected"):
+                data[column] = data[column].astype(object)
+                data.loc[count, column] = data.loc[count, column].map(lambda x: str(int(x)))
     if WORDS not in data:
         raise ValueError("Every C methods/metrics table requires the words column")
     if "season_id" in data:
@@ -125,12 +152,39 @@ def context_table(frame: pd.DataFrame, *, columns: list[str] | None = None) -> T
                 "rank_last5",
                 "value_rank",
                 "first_training",
+                "games",
+                "missing",
+                "initial_three",
+                "seasons_9_10",
             )
         }
     )
+    labels = {c: NAMES.get(c, c) for c in chosen}
+    if thousandths:
+        for column in ("improvement", "se", "recent_improvement", "first_improvement"):
+            if column in chosen:
+                labels[column] += " (אלפיות)"
+                precision[column] = 2
+    if alternative:
+        labels["improvement"] = "שיפור החלופה מול ברירת המחדל (אלפיות)"
+    for column in chosen:
+        if pd.api.types.is_numeric_dtype(data[column]) and not pd.api.types.is_bool_dtype(
+            data[column]
+        ):
+            data[column] = (
+                data[column]
+                .astype(object)
+                .map(
+                    lambda value: (
+                        str(int(value))
+                        if pd.notna(value) and np.isfinite(value) and float(value).is_integer()
+                        else value
+                    )
+                )
+            )
     return display_table(
         data,
-        {c: NAMES.get(c, c) for c in chosen},
+        labels,
         columns=chosen,
         precision=precision,
         show_index=False,
@@ -197,6 +251,17 @@ def distribution_chart(frame: pd.DataFrame) -> Any:
                 row=i // 3 + 1,
                 col=i % 3 + 1,
             )
+        unit = (
+            "נתח מהשווי בליגה"
+            if "value" in metric
+            else "מיקום חלקי גודל הליגה; נמוך טוב"
+            if "position" in metric
+            else "נקודות למשחק"
+            if metric == "prev_ppm"
+            else "הפרש שערים למשחק"
+        )
+        figure.update_yaxes(title_text=unit, row=i // 3 + 1, col=i % 3 + 1)
+        figure.update_xaxes(title_text="מעמד בתחילת העונה", row=i // 3 + 1, col=i % 3 + 1)
     figure.update_layout(title="מדדי t−1: עולות מול ותיקות — שורה אחת לכל קבוצה־עונה")
     figure.update_xaxes(categoryorder="array", categoryarray=["ותיקות", "עולות"])
     return _finish_chart(figure, height=900)
@@ -219,7 +284,11 @@ def context_heatmap(matrix: pd.DataFrame) -> Any:
     )
     figure.update_layout(title="מדדי עבר: שלושה מתארים תוצאות, והשווי מתאר את השוק")
     figure.update_yaxes(autorange="reversed")
-    return _finish_chart(figure, height=620)
+    _finish_chart(figure, height=620)
+    figure.data[0].colorscale = "RdBu"
+    figure.data[0].zmid = 0
+    figure.update_layout(margin=dict(l=300, r=120, t=110, b=150))
+    return figure
 
 
 def value_comparison_chart(paired: pd.DataFrame) -> Any:
@@ -255,12 +324,13 @@ def alone_chart(frame: pd.DataFrame, references: pd.DataFrame) -> Any:
     refs = references.set_index("method")
     for column, score, color in ((1, "score", GOOD_SCALE[7]), (2, "recent_score", GOOD_SCALE[3])):
         figure.add_trace(
-            go.Bar(
+            go.Scatter(
                 x=frame[score],
                 y=frame.method,
-                orientation="h",
+                mode="markers",
                 name="המדד לבדו",
                 marker_color=color,
+                marker_size=12,
                 showlegend=False,
                 hovertemplate="%{y}<br>log loss: %{x:.6f}<extra></extra>",
             ),
@@ -273,6 +343,7 @@ def alone_chart(frame: pd.DataFrame, references: pd.DataFrame) -> Any:
                 line_color=line_color,
                 line_dash="dash",
                 annotation_text=reference,
+                annotation_position="top left" if reference == "Elo" else "bottom right",
                 row=1,
                 col=column,
             )
@@ -287,7 +358,9 @@ def alone_chart(frame: pd.DataFrame, references: pd.DataFrame) -> Any:
             col=column,
         )
     figure.update_layout(title="EXP-003, מסלול A: מה מדד העונה הקודמת אומר לבדו")
-    return _finish_chart(figure, height=650)
+    _finish_chart(figure, height=650)
+    figure.update_layout(margin=dict(l=240, r=90, t=120, b=130))
+    return figure
 
 
 def save_context_figures(figures: dict[str, Any], directory: Path) -> dict[str, tuple[str, str]]:
@@ -337,43 +410,72 @@ def added_chart(frame: pd.DataFrame, route: str) -> Any:
     figure.update_yaxes(
         categoryorder="array", categoryarray=data.method.tolist(), autorange="reversed"
     )
-    return _finish_chart(figure, height=650)
+    _finish_chart(figure, height=650)
+    figure.update_layout(margin=dict(l=270, r=90, t=110, b=120))
+    return figure
 
 
 def value_fold_chart(frame: pd.DataFrame) -> Any:
-    """Highlight 2009/10 while retaining the separate O/P route colors."""
-    figure = go.Figure()
+    """Retain route colors, outline the first fold and give the remaining folds a panel."""
+    figure = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=["כל 15 הקיפולים", "14 הקיפולים ללא 2009/2010"],
+        horizontal_spacing=0.12,
+    )
     for route, color in (("O", GOOD_SCALE[7]), ("P", GOOD_SCALE[3])):
         data = frame.loc[frame.route.eq(route)].sort_values("season_id")
-        labels = data.season_id.map(lambda s: season_label(int(s)))
-        for highlighted in (False, True):
-            mask = data.season_id.eq(11) if highlighted else data.season_id.ne(11)
+        for column in (1, 2):
+            part = data if column == 1 else data.loc[data.season_id.ne(11)]
+            labels = part.season_id.map(lambda s: season_label(int(s)))
             figure.add_trace(
                 go.Bar(
-                    x=labels.loc[mask],
-                    y=data.loc[mask, "improvement"] * 1000,
+                    x=labels,
+                    y=part.improvement * 1000,
                     name=route,
                     legendgroup=route,
-                    showlegend=not highlighted,
+                    showlegend=column == 1,
                     offsetgroup=route,
-                    marker_color=DRAW_COLOR if highlighted else color,
-                    customdata=data.loc[mask, "training_seasons"],
+                    marker_color=color,
+                    marker_line=dict(color="black", width=np.where(part.season_id.eq(11), 3, 0)),
+                    customdata=part.training_seasons,
                     hovertemplate=(
                         "%{x}<br>תוספת ×1000: %{y:+.3f}<br>עונות אימון: %{customdata}<extra>"
                     )
                     + route
                     + "</extra>",
-                )
+                ),
+                row=1,
+                col=column,
             )
-    figure.add_hline(y=0, line_color="black", line_width=2)
+            figure.update_xaxes(
+                categoryorder="array",
+                categoryarray=labels.tolist(),
+                tickangle=-40,
+                title_text="עונת הוולידציה",
+                row=1,
+                col=column,
+            )
+            figure.update_yaxes(title_text="תוספת מעל הייחוס (אלפיות)", row=1, col=column)
+            if column == 1 and part.season_id.eq(11).any():
+                first = part.loc[part.season_id.eq(11)].iloc[0]
+                figure.add_annotation(
+                    x=season_label(11),
+                    y=float(first.improvement) * 1000,
+                    text=f"{first.improvement * 1000:.1f}".replace("-", "−"),
+                    showarrow=False,
+                    xshift=50,
+                    font=dict(size=14, color="#111827"),
+                    bgcolor="white",
+                    borderpad=3,
+                    row=1,
+                    col=1,
+                )
+    figure.add_hline(y=0, line_color="black", line_width=2, row="all", col="all")
     figure.update_layout(
         barmode="group",
         title="שווי ממוצע: הקיפול הדל של 2009/2010 בולט בהפסד",
-        yaxis_title="תוספת מעל הייחוס ×1000",
-        xaxis_title="עונת הולידציה",
     )
-    seasons = sorted(frame.season_id.unique())
-    figure.update_xaxes(
-        categoryorder="array", categoryarray=[season_label(int(s)) for s in seasons], tickangle=-35
-    )
-    return _finish_chart(figure, height=650)
+    _finish_chart(figure, height=700)
+    figure.update_layout(margin=dict(l=100, r=100, t=120, b=170))
+    return figure

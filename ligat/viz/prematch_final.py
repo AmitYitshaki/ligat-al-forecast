@@ -72,7 +72,9 @@ FAMILIES = {
 }
 
 
-def final_table(frame: pd.DataFrame, *, columns: list[str] | None = None) -> TableDisplay:
+def final_table(
+    frame: pd.DataFrame, *, columns: list[str] | None = None, words_label: str = WORDS
+) -> TableDisplay:
     """The shared numeric/bidi formatter with words beside every displayed method."""
     data = frame.copy()
     if WORDS not in data:
@@ -104,7 +106,7 @@ def final_table(frame: pd.DataFrame, *, columns: list[str] | None = None) -> Tab
         precision[column] = 0
     return display_table(
         data,
-        {c: NAMES.get(c, c) for c in chosen},
+        {c: words_label if c == WORDS else NAMES.get(c, c) for c in chosen},
         columns=chosen,
         show_index=False,
         precision=precision,
@@ -122,13 +124,15 @@ def example_table(example: pd.DataFrame) -> TableDisplay:
                 data.at[index, side] = pd.Timestamp(value).strftime("%d.%m.%Y")
             elif row.feature == "stage":
                 data.at[index, side] = STAGES[str(value)]
+            elif row.feature in ("points", "goals_for", "goals_against"):
+                data.at[index, side] = str(int(value))
     return display_table(
         data,
         {
             "feature": "שדה",
             "home": "בית: " + example.home_name.iloc[0],
             "away": "חוץ: " + example.away_name.iloc[0],
-            WORDS: WORDS,
+            WORDS: "מה זה, במילים",
         },
         show_index=False,
         precision={"home": 6, "away": 6},

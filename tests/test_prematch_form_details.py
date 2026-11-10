@@ -112,7 +112,11 @@ def test_draw_rate_se_and_exact_count_noise_use_their_distinct_denominators() ->
             outcome=np.where(home > away, 0, np.where(home == away, 1, 2)),
         )
     )
-    _, strata, exact = draw_uncertainty(frame)
+    outcomes, strata, exact = draw_uncertainty(frame)
+    for table in (outcomes, strata):
+        assert table.difference_pp.tolist() == pytest.approx(
+            100 * (table.observed - table.predicted)
+        )
     assert strata.iloc[0].se_pp == pytest.approx(100 * np.sqrt(2 / 27))
     q = np.exp(-rates.sum(axis=1)) / (poisson.cdf(10, rates[:, 0]) * poisson.cdf(10, rates[:, 1]))
     assert exact.iloc[0].expected_count == pytest.approx(q.sum())

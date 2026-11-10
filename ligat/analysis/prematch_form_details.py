@@ -231,9 +231,9 @@ def draw_uncertainty(predictions: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFr
         f"{row['סוג משחק']}: פער {row['difference_pp']:+.2f} נ״א, מול SE תיאורי {row['se_pp']:.2f}"
         for row in strata.to_dict("records")
     ]
-    outcomes["difference_pp"] = 100 * (outcomes.predicted - outcomes.observed)
+    outcomes["difference_pp"] = 100 * (outcomes.observed - outcomes.predicted)
     outcomes[WORDS] = [
-        f"{row['תוצאה']}: המודל מקצה {row['difference_pp']:+.2f} נ״א לעומת השכיחות בפועל"
+        f"{row['תוצאה']}: בפועל פחות חזוי {row['difference_pp']:+.2f} נ״א; חיובי הוא חוסר במודל"
         for row in outcomes.to_dict("records")
     ]
     rates = predictions[["lambda_home", "lambda_away"]].to_numpy(float)
