@@ -309,8 +309,30 @@ def real_prepared() -> FormExperimentInput:
             return frame
 
     spec = load_form_experiment()
+    repository = Guard()
+    artifacts = [Path(spec.raw["inputs"][key]["path"]) for key in ("form", "elo")]
+    required = [
+        path
+        for artifact in artifacts
+        for path in (artifact, artifact.with_suffix(".metadata.json"))
+    ]
+    required.extend(
+        repository.root / f"{name}.parquet"
+        for name in (
+            "matches",
+            "game_details",
+            "goals",
+            "red_cards",
+            "coaches",
+            "final_tables",
+            "squad_values",
+        )
+    )
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        pytest.skip("Local EXP-002 regression inputs are unavailable: " + ", ".join(missing))
     form, elo = load_form_inputs(spec)
-    tables = load_analysis_tables(Guard(), seasons=DEVELOPMENT_SEASONS)
+    tables = load_analysis_tables(repository, seasons=DEVELOPMENT_SEASONS)
     return prepare_form_experiment(tables, form, elo)
 
 
