@@ -234,8 +234,8 @@ def test_notebook_keeps_approved_b1_b2_sources_and_explains_every_new_code_cell(
     digest = hashlib.sha256(
         json.dumps(prefix, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
-    # R4: approved C edits; source guard passed against baseline b4fbf1c.
-    assert digest == "204627f3d80019df8f3ebb2b1f85bd3084606b89b5ad476499fbe0015d96315a"
+    # R5: approved explanations; exact source guard passed against ea7d30d.
+    assert digest == "de51d65f0ae08e38e70da05c97af6dd5ded8ddcbbe7139adc3c8c250c9a5cb42"
     explanation_start = next(
         i
         for i, cell in enumerate(cells)

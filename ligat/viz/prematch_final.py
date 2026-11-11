@@ -79,6 +79,12 @@ def final_table(
     data = frame.copy()
     if WORDS not in data:
         raise ValueError("Final review tables require explanatory words")
+    if "quantity" in data:
+        for name in ("value", "expected"):
+            if name in data:
+                data[name] = data[name].map(
+                    lambda v: str(int(v)) if float(v).is_integer() else f"{v:.5f}"
+                )
     if "p_value" in data:
         data["p_value"] = data.p_value.map(lambda v: f"{v:.3g}" if pd.notna(v) else "—")
     for column in ("family", "family_a", "family_b"):
@@ -266,7 +272,7 @@ def cramers_chart(statistics: pd.DataFrame) -> Any:
         )
     )
     figure.update_layout(
-        title="קשר לבית/תיקו/חוץ: גודל הקשר קטן; * תא צפוי מתחת ל-5",
+        title="קשר לבית/תיקו/חוץ: גודל הקשר קטן; * ספירה צפויה קטנה מחמש",
         xaxis_title="Cramér's V — שורות בית בלבד",
     )
     figure.update_xaxes(range=[0, float(data.cramers_v.max()) * 1.18])

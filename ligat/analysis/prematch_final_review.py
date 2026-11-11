@@ -446,7 +446,7 @@ def final_controls(review: PrematchFinalReview) -> pd.DataFrame:
                 "value": float(value),
                 "expected": expected,
                 "passed": abs(value - expected) <= tolerance,
-                WORDS: "מחושב מ-prematch ומחישובי C5 מול הפרומפט וה-QA",
+                WORDS: f"{name}: הערך המחושב מושווה לעוגן האימות שנקבע מראש",
             }
             for name, value, expected, tolerance in records
         ]
@@ -489,7 +489,8 @@ def m0_deliverables() -> pd.DataFrame:
             "מעמדי פיצ׳רים",
             "קיים מול מועמד",
             "value_avg והתקפה/הגנה ewma5/venue ברירות מחדל ל-M2; "
-            "gd, ppm, position ו-Elo נשארים 🔬 לאבלציה",
+            "פערי ה-registry מפורטים ב-S4 D01; pts_venue_ewma5 מועמד לפי S4 D02. "
+            "gd, ppm, position ועמודות Elo נשארים 🔬 כקלטים לבדיקה; E0050 הוא סרגל קבוע",
         ),
     ]
     return pd.DataFrame([{"artifact": a, "status": s, WORDS: words} for a, s, words in items])

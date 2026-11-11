@@ -260,5 +260,5 @@ def test_approved_b1_through_c8_sources_remain_unchanged():
     digest = hashlib.sha256(
         json.dumps(prefix, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
-    # R4: approved C edits; source guard passed against baseline b4fbf1c.
-    assert digest == "707dc17010086342e6765a972151ba4512d55d1a5db8e020a776c10b7b4fff0c"
+    # R5: approved explanations; exact source guard passed against ea7d30d.
+    assert digest == "1354417119a12a8363601c6ca11c23aa403c07af9d96b256376dbde22fbf180a"

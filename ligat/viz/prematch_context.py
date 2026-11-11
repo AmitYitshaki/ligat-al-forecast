@@ -283,7 +283,7 @@ def context_heatmap(matrix: pd.DataFrame) -> Any:
         )
     )
     figure.update_layout(title="מדדי עבר: שלושה מתארים תוצאות, והשווי מתאר את השוק")
-    figure.update_yaxes(autorange="reversed")
+    figure.update_yaxes(autorange="reversed", ticklabelstandoff=8)
     _finish_chart(figure, height=620)
     figure.data[0].colorscale = "RdBu"
     figure.data[0].zmid = 0
