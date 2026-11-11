@@ -1,0 +1,17 @@
+inputs:  # Frozen derived blocks only; this component never rebuilds its inputs.
+  table_state:  # Sporting table and mathematical flags from M0-A QA 3.
+    path: data/derived/prematch/table_state_v2.parquet  # Preserve all 30 columns.
+    sha256: 791179dd391eb0b9b9dee3c6f903ed0a3b835435145f9671a9a5ff59e8d91d6c  # Existing v2 bytes.
+    metadata_sha256: d3cfe3f409490b094889953cef461ff3cbdc2fe775fa79ea89cd7f2370049ec0  # Pins the v2 sidecar.
+  elo:  # Selected E0050; no Elo recalculation or recalibration here.
+    path: data/derived/elo/elo_E0050_prematch.parquet  # Same input as EXP-003.
+    sha256: 759b9b830b617b9dec9c519242544c733ffa068e4cd503f9603851cb25857d9f  # Frozen ratings.
+    metadata_sha256: 83e926b1381fcf575412d6264413993b24589b367d2e58cd66aa19a7bdcd30bf  # Frozen provenance.
+  form:  # Read the full block, selecting only EWMA5/venue in the output.
+    path: data/derived/form/form_v1.parquet  # All 66 candidates remain untouched.
+    sha256: 3d67321b77d2edc8e2dd525a98fcaaeeb740bbb7b3da11a173ec7bfa7df2c77a  # Same as EXP-003.
+    metadata_sha256: b3f7a38f40d5db31f86695e3f1ba00788741b07422d4b6d06f993b5085c7b02c  # Opening-value audit.
+  season_context:  # Keep eight columns; exclude value_total under ה-ת14.
+    path: data/derived/prematch/season_context_v1.parquet  # Prior-season context from C2.
+    sha256: 54d5ea3ac5446499b9f77c82111138cdbd56601b199c1447788ffde36ff94af0  # Unchanged Parquet.
+    metadata_sha256: 1878de26fbc67eef1d068daafa405784ff97b6bd0834f4e35d8e2a11967d9c43  # Same corrected audit as EXP-003.

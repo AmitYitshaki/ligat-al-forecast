@@ -10,3 +10,6 @@
 *.zpln filter=nbstripout
 *.ipynb diff=ipynb
 tests/fixtures/games/*.html -text
+
+# תוצרי ניסויים נשמרים byte-for-byte; ה-manifests מכילים checksums גם ל-json/yaml/md, לא רק ל-csv
+reports/experiments/** -text

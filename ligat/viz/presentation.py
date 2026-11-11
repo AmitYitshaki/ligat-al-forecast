@@ -87,6 +87,10 @@ def rtl_figure(figure: Any, *, labels: Mapping[str, str] | None = None) -> Any:
             continue
         if axis.title.text:
             axis.title.text = rtl_text(axis.title.text)
+            # Hebrew embeddings need additional space beyond Plotly's automatic
+            # tick-label estimate, especially for negative decimals and categories.
+            axis.title.standoff = max(axis.title.standoff or 0, 55 if key.startswith("x") else 65)
+            axis.automargin = True
         if axis.ticktext is not None:
             axis.ticktext = [rtl_text(str(t)) for t in axis.ticktext]
         else:

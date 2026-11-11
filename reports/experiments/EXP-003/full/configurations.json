@@ -1,0 +1,233 @@
+[
+  {
+    "route": "A",
+    "candidate": null,
+    "reference": "b0",
+    "sensitivity": false,
+    "config_id": "A_b0"
+  },
+  {
+    "route": "A",
+    "candidate": null,
+    "reference": "elo",
+    "sensitivity": false,
+    "config_id": "A_elo"
+  },
+  {
+    "route": "A",
+    "candidate": "value_avg",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "A_value_avg"
+  },
+  {
+    "route": "A",
+    "candidate": "value_total",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "A_value_total"
+  },
+  {
+    "route": "A",
+    "candidate": "position",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "A_position"
+  },
+  {
+    "route": "A",
+    "candidate": "position_mean",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "A_position_mean"
+  },
+  {
+    "route": "A",
+    "candidate": "ppm",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "A_ppm"
+  },
+  {
+    "route": "A",
+    "candidate": "gd",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "A_gd"
+  },
+  {
+    "route": "A",
+    "candidate": "value_avg+position",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "A_value_avg+position"
+  },
+  {
+    "route": "O",
+    "candidate": null,
+    "reference": "elo",
+    "sensitivity": false,
+    "config_id": "O_elo"
+  },
+  {
+    "route": "O",
+    "candidate": "value_avg",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_value_avg"
+  },
+  {
+    "route": "O",
+    "candidate": "value_total",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_value_total"
+  },
+  {
+    "route": "O",
+    "candidate": "position",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_position"
+  },
+  {
+    "route": "O",
+    "candidate": "position_mean",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_position_mean"
+  },
+  {
+    "route": "O",
+    "candidate": "ppm",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_ppm"
+  },
+  {
+    "route": "O",
+    "candidate": "gd",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_gd"
+  },
+  {
+    "route": "O",
+    "candidate": "value_avg+position",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "O_value_avg+position"
+  },
+  {
+    "route": "P",
+    "candidate": null,
+    "reference": "poisson",
+    "sensitivity": false,
+    "config_id": "P_poisson"
+  },
+  {
+    "route": "P",
+    "candidate": "value_avg",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_value_avg"
+  },
+  {
+    "route": "P",
+    "candidate": "value_total",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_value_total"
+  },
+  {
+    "route": "P",
+    "candidate": "position",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_position"
+  },
+  {
+    "route": "P",
+    "candidate": "position_mean",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_position_mean"
+  },
+  {
+    "route": "P",
+    "candidate": "ppm",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_ppm"
+  },
+  {
+    "route": "P",
+    "candidate": "gd",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_gd"
+  },
+  {
+    "route": "P",
+    "candidate": "value_avg+position",
+    "reference": null,
+    "sensitivity": false,
+    "config_id": "P_value_avg+position"
+  },
+  {
+    "route": "O",
+    "candidate": null,
+    "reference": "elo",
+    "sensitivity": true,
+    "config_id": "O_elo_no_s11"
+  },
+  {
+    "route": "O",
+    "candidate": "value_avg",
+    "reference": null,
+    "sensitivity": true,
+    "config_id": "O_value_avg_no_s11"
+  },
+  {
+    "route": "O",
+    "candidate": "value_total",
+    "reference": null,
+    "sensitivity": true,
+    "config_id": "O_value_total_no_s11"
+  },
+  {
+    "route": "O",
+    "candidate": "value_avg+position",
+    "reference": null,
+    "sensitivity": true,
+    "config_id": "O_value_avg+position_no_s11"
+  },
+  {
+    "route": "P",
+    "candidate": null,
+    "reference": "poisson",
+    "sensitivity": true,
+    "config_id": "P_poisson_no_s11"
+  },
+  {
+    "route": "P",
+    "candidate": "value_avg",
+    "reference": null,
+    "sensitivity": true,
+    "config_id": "P_value_avg_no_s11"
+  },
+  {
+    "route": "P",
+    "candidate": "value_total",
+    "reference": null,
+    "sensitivity": true,
+    "config_id": "P_value_total_no_s11"
+  },
+  {
+    "route": "P",
+    "candidate": "value_avg+position",
+    "reference": null,
+    "sensitivity": true,
+    "config_id": "P_value_avg+position_no_s11"
+  }
+]

@@ -1,0 +1,614 @@
+[
+  {
+    "config_id": "P_reference_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": null
+  },
+  {
+    "config_id": "P_reference_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": null
+  },
+  {
+    "config_id": "O_reference_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": null
+  },
+  {
+    "config_id": "P_w5_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w5",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_w5_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "w5",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_w5_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w5",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_w5_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w5",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_w5_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "w5",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_w5_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w5",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_w10_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_w10_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_w10_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_w10_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_w10_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_w10_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_w20_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w20",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_w20_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "w20",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_w20_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w20",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_w20_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w20",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_w20_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "w20",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_w20_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "w20",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_ewma5_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma5",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_ewma5_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "ewma5",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_ewma5_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma5",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_ewma5_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma5",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_ewma5_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "ewma5",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_ewma5_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma5",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_ewma10_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_ewma10_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_ewma10_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_ewma10_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_ewma10_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_ewma10_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_ewma20_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma20",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_ewma20_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "ewma20",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_ewma20_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma20",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_ewma20_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma20",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_ewma20_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "ewma20",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_ewma20_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "ewma20",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_std_m3_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m3",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_std_m3_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "std_m3",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_std_m3_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m3",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_std_m3_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m3",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_std_m3_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "std_m3",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_std_m3_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m3",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_std_m6_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m6",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_std_m6_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "std_m6",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_std_m6_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m6",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_std_m6_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m6",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_std_m6_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "std_m6",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_std_m6_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m6",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_std_m10_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_std_m10_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "std_m10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_std_m10_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m10",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_std_m10_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_std_m10_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "std_m10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_std_m10_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "std_m10",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_prev_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "prev",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_prev_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "prev",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_prev_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "prev",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_prev_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "prev",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_prev_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "prev",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_prev_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "prev",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_hist_all_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "hist",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_hist_all_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "hist",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "O_hist_all_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "hist",
+      "variant": "all"
+    }
+  },
+  {
+    "config_id": "P_hist_venue_elo",
+    "route": "P",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "hist",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "P_hist_venue_no_elo",
+    "route": "P",
+    "with_elo": false,
+    "candidate": {
+      "candidate": "hist",
+      "variant": "venue"
+    }
+  },
+  {
+    "config_id": "O_hist_venue_elo",
+    "route": "O",
+    "with_elo": true,
+    "candidate": {
+      "candidate": "hist",
+      "variant": "venue"
+    }
+  }
+]

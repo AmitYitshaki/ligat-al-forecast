@@ -1,0 +1,64 @@
+# EXP-001 is frozen before B3b. B3a runs only the eight pilot corners below.
+experiment_id: EXP-001  # Elo calibration specified in T-010 §8.3.
+elo:
+  k:
+    - 10  # Slow response to one result.
+    - 20  # Reference update rate.
+    - 30  # Faster response.
+    - 40  # High-response endpoint.
+  home_advantage:
+    - 30  # Low home offset in rating UPDATES only.
+    - 50  # Reference update offset; never added to conversion input.
+    - 70  # Stronger update offset.
+    - 90  # Upper endpoint.
+  season_regression:
+    - 0.10  # Little summer shrinkage.
+    - 0.16  # EDA: approximately 84% between-season persistence.
+    - 0.33  # Reference summer regression.
+    - 0.50  # Strong summer regression endpoint.
+  use_goal_multiplier:
+    - true  # Distinguish large wins from narrow wins.
+    - false  # Results-only structural baseline.
+  promoted_initialization:
+    - previous_promoted_mean  # Learn newcomer level from completed newcomer seasons.
+    - fixed_1450  # Fixed, simpler newcomer baseline.
+  dead_game_discount:
+    - 0  # Ignore results when either team has mathematically decided objectives.
+    - 0.25  # Quarter update in a dead game (ה-ת9).
+    - 0.5  # Half update.
+    - 0.75  # Three-quarter update.
+    - 1  # No discount, the simpler structural baseline.
+stage2:
+  top_n: 10  # Refit conversion for the ten overall leaders; do not select on last five.
+  half_lives:
+    - null  # No decay, required control.
+    - 1  # One-season half-life.
+    - 2  # Two-season half-life.
+    - 4  # Four-season half-life.
+simplicity:
+  additions:
+    - dead_game_discount  # An addition when discount differs from 1.
+    - use_goal_multiplier  # An addition when enabled.
+    - promoted_initialization  # An addition for previous_promoted_mean.
+    - time_weight  # An addition for a non-null half-life.
+  tie_break: log_loss  # Among equally simple close candidates, prefer lower overall loss.
+  approval_required: true  # Only a proposal; Amit approves the choice.
+refinement:
+  step: 0.1  # Tenths, with every other hyperparameter held fixed.
+  paired_se_multiplier: 1  # Require improvement over the identical undiscounted control > 1 SE.
+  approval_required: true  # Build the grid only; running EXP-001b needs Amit's approval.
+  discounts:
+    0: [0, 0.1, 0.2]  # Between the lower edge (included) and the next coarse neighbor (excluded).
+    0.25: [0.1, 0.2, 0.3, 0.4]  # Tenths strictly between the coarse neighbors 0 and 0.5.
+    0.5: [0.3, 0.4, 0.5, 0.6, 0.7]  # Tenths strictly between coarse neighbors 0.25 and 0.75.
+    0.75: [0.6, 0.7, 0.8, 0.9]  # Tenths strictly between coarse neighbors 0.5 and 1.
+    1: []  # No refinement for the undiscounted winner.
+  reuse_references: [coarse_winner, undiscounted_control]  # Reuse existing scores, including time weights.
+leakage_log_loss_threshold: 0.98  # Stop immediately if a 15-fold mean is below this threshold.
+pilot:
+  k: [10, 40]  # Fixed low/high corners, never selected from scores.
+  home_advantage: [30, 90]  # Fixed low/high update offsets.
+  dead_game_discount: [0, 1]  # Fixed extreme discount corners.
+  season_regression: 0.33  # Fixed reference regression for all eight pilot configurations.
+  use_goal_multiplier: true  # Fixed ON for the pilot.
+  promoted_initialization: previous_promoted_mean  # Fixed historical newcomer pool.

@@ -1,0 +1,158 @@
+[
+  {
+    "config_id": "elo-aee1f4ed5ffc1fb164102b342332da782f6adc738e1cafcda2fe69da343f9a3f",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 0.0
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-c00d69809ee28346e336237e0af1b2bba57052de8c33b4a1f9c89f8c7ab9c8ad",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 0.25
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-43cd28aeb303adadcbc76aeb6d5bb953172fe034990747a5f9368ece2d8a9d23",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 0.5
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-05e5423bd9b7c28d9daba98e2e27ae4daa19aa170697d54ddd7595b7d974faf1",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 0.75
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-c07583cb124b306a75e919651439a2fc05ac03b912dd96810d3e5521bf5bad16",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 1.0
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-4ef3a8a2a460b56758a2398da5841b917e4428c14f435d89474e7db15fc46d71",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "fixed_1450",
+      "dead_game_discount": 0.0
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-ac954cd5e9aee95d1f69299304140a636dbbb597a6e2455da64286be9bd8cfad",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "fixed_1450",
+      "dead_game_discount": 0.25
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-db05ab27d21a0d762cbfb17af68784a2edba602c5857624bd5406828b17b1899",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "fixed_1450",
+      "dead_game_discount": 0.5
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-229a4ea3b46941e9bf3760e9c1d778d76dddb6559a501d1faeced6d80e72e888",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "fixed_1450",
+      "dead_game_discount": 0.75
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-e99aafe7d29bdf0659f3e23cdd1c11258641fb8c8915dfadec72e86e26f7cef8",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": true,
+      "promoted_initialization": "fixed_1450",
+      "dead_game_discount": 1.0
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-77bee57ac9835cf945620cfe729df697a10f54e363589b2182d262431429fe0a",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": false,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 0.0
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-f49c3d23b23ba794ceded81517cf354fa4cc6837876b94b47a1aea316af48bf7",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": false,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 0.25
+    },
+    "half_life": null
+  },
+  {
+    "config_id": "elo-4374c7618669ed598fca211ee4d8e8c9650b9ce0ed7d33071b8d26c44a76ca0d",
+    "elo": {
+      "k": 10.0,
+      "home_advantage": 30.0,
+      "season_regression": 0.1,
+      "use_goal_multiplier": false,
+      "promoted_initialization": "previous_promoted_mean",
+      "dead_game_discount": 0.5
+    },
+    "half_life": null
+  }
+]

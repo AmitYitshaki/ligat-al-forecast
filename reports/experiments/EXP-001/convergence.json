@@ -1,0 +1,20 @@
+[
+  {
+    "stage": "stage1",
+    "fits": 19200,
+    "accepted_by_gradient": 77,
+    "max_abs_gradient_accepted": 2.0705912696233897e-08
+  },
+  {
+    "stage": "stage2",
+    "fits": 600,
+    "accepted_by_gradient": 6,
+    "max_abs_gradient_accepted": 1.2695615991104546e-08
+  },
+  {
+    "stage": "loso",
+    "fits": 180,
+    "accepted_by_gradient": 3,
+    "max_abs_gradient_accepted": 1.2536912179462935e-08
+  }
+]

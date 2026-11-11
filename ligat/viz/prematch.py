@@ -98,7 +98,7 @@ def review_table(
     for column in ("playoff_format", "tiebreak"):
         if column in data:
             replacements = STAGES | {
-                "none": "ללא",
+                "none": "—",
                 "points": "נקודות",
                 "goal_difference": "הפרש",
                 "wins": "ניצחונות",
@@ -108,7 +108,16 @@ def review_table(
             for source, target in replacements.items():
                 data[column] = data[column].str.replace(source, target, regex=False)
     precision = {column: 0 for column in data if column not in percent}
-    precision.update({"sporting_position": 1, "official_position": 0})
+    precision.update({"official_position": 0})
+    # Nonexistent format elements are not missing observations. Keep this local
+    # to presentation; the source frame and nullable numeric dtypes stay intact.
+    for column in ("relegation_test", "upper_cut"):
+        if column in data:
+            data[column] = data[column].astype(object).where(data[column].notna(), "—")
+    if "sporting_position" in data:
+        data["sporting_position"] = data.sporting_position.map(
+            lambda value: value if pd.isna(value) else f"{value:g}"
+        )
     return display_table(
         data,
         NAMES,
@@ -123,10 +132,11 @@ def review_table(
 
 def dead_games_chart(summary: pd.DataFrame) -> Any:
     """Compare the share with at least one mathematically dead team across seasons/stages."""
-    frame = summary.copy()
+    frame = summary.loc[summary.stage.ne("middle")].copy()
     frame["season"] = frame.season_id.map(lambda sid: season_label(int(sid)))
     frame["stage"] = frame.stage.map(STAGES)
     frame["share_percent"] = 100 * frame.at_least_one_share
+    colors = {"סדיר": "#0072B2", "עליון": "#D55E00", "תחתון": "#009E73"}
     figure = px.line(
         frame,
         x="season",
@@ -134,7 +144,7 @@ def dead_games_chart(summary: pd.DataFrame) -> Any:
         color="stage",
         markers=True,
         custom_data=["games", "one", "both"],
-        color_discrete_sequence=[GOOD_SCALE[i] for i in (2, 5, 8, 11)],
+        color_discrete_map=colors,
         labels={
             "season": "עונה",
             "share_percent": "% משחקים עם לפחות קבוצה אחת בלי יעד",
@@ -150,12 +160,23 @@ def dead_games_chart(summary: pd.DataFrame) -> Any:
         )
     )
     figure.update_layout(
-        title="משחקים בלי יעד פתוח נפוצים יותר בפלייאוף מאשר בסדיר", yaxis_range=[0, 105]
+        title="משחקים בלי יעד פתוח נפוצים יותר בפלייאוף מאשר בסדיר", yaxis_rangemode="tozero"
     )
     figure.update_xaxes(
-        categoryorder="array", categoryarray=sorted(frame.season.unique()), tickangle=-35
+        categoryorder="array",
+        categoryarray=sorted(frame.season.unique()),
+        tickangle=-35,
+        title_standoff=55,
+        automargin=True,
     )
-    return _finish(figure)
+    figure = _finish(figure)
+    # This categorical comparison deliberately overrides the common sequential
+    # palette, which _finish otherwise applies even to explicitly supplied colors.
+    for trace in figure.data:
+        color = next(color for stage, color in colors.items() if stage in trace.name)
+        trace.line.color = color
+        trace.marker.color = color
+    return figure
 
 
 def stage_end_chart(distribution: pd.DataFrame) -> Any:

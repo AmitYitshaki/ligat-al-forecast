@@ -1,0 +1,42 @@
+experiment_id: EXP-003  # Declared in EXPERIMENTS before implementing or observing the pilot.
+inputs:
+  context:
+    path: data/derived/prematch/season_context_v1.parquet  # C2 features, unchanged by the audit fix.
+    sha256: 54d5ea3ac5446499b9f77c82111138cdbd56601b199c1447788ffde36ff94af0  # Required unchanged Parquet.
+    metadata_sha256: 1878de26fbc67eef1d068daafa405784ff97b6bd0834f4e35d8e2a11967d9c43  # Pins corrected expanding position means.
+  elo:
+    path: data/derived/elo/elo_E0050_prematch.parquet  # Frozen selected Elo, never recomputed here.
+    sha256: 759b9b830b617b9dec9c519242544c733ffa068e4cd503f9603851cb25857d9f  # B4a Parquet.
+    metadata_sha256: 83e926b1381fcf575412d6264413993b24589b367d2e58cd66aa19a7bdcd30bf  # Selected E0050 provenance.
+  form:
+    path: data/derived/form/form_v1.parquet  # Frozen 66-column form block.
+    sha256: 3d67321b77d2edc8e2dd525a98fcaaeeb740bbb7b3da11a173ec7bfa7df2c77a  # B4a Parquet.
+    metadata_sha256: b3f7a38f40d5db31f86695e3f1ba00788741b07422d4b6d06f993b5085c7b02c  # Existing form metadata.
+candidates:
+  - value_avg  # log of X/Y previous mean-value shares.
+  - value_total  # log of X/Y previous total-value shares.
+  - position  # log of X/Y previous rank fractions; promoted clubs use 0.75.
+  - position_mean  # Only promoted clubs replace 0.75 by the prior-only audit mean.
+  - ppm  # Previous points-per-game difference X minus Y.
+  - gd  # Previous goal-difference-per-game difference X minus Y.
+  - value_avg+position  # Two coefficients; no interaction or new transformation.
+routes: [A, O, P]  # Alone, added to Elo, and added to the selected goal baseline.
+poisson:
+  log_offset: 0.1  # Same fixed log(gf+0.1), log(ga+0.1) as EXP-002.
+  max_goals: 10  # Same normalized diagnostic H/D/A grid as EXP-002.
+  candidate: ewma5  # Selected form half-life, not recalibrated.
+  variant: venue  # Cross own attack with opponent defense in the current venue.
+evaluation:
+  training_start: 9  # Season 8 has missing context, including for references.
+  validation_seasons: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]  # Original 15 validation seasons.
+  half_life: null  # No time weighting in this diagnostic experiment.
+  loso: false  # No retrospective LOSO runs.
+  leakage_log_loss_threshold: 0.98  # Stop in every route without printing the score.
+sensitivity:
+  excluded_season: 11  # Exclude from both training and validation, leaving 14 folds.
+  routes: [O, P]  # References are rerun under the same exclusion.
+  candidates: [value_avg, value_total, value_avg+position]  # Three declared value comparisons only.
+pilot:
+  validation_seasons: [11, 18, 25]  # Exactly three declared pilot folds.
+  configurations: [O_elo, O_gd, P_poisson, P_value_avg]  # Two candidates and their paired references.
+seed: null  # No randomness: deterministic unweighted BFGS MLE.

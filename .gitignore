@@ -1,6 +1,9 @@
 # Generated outputs
 reports/figures/
 reports/gallery/*.html
+# EXP-002 predictions — הועברו ל-data/derived/exp002; ההחרגה נשארת למקרה של הרצה חוזרת
+/reports/experiments/EXP-002/full/predictions.parquet
+/reports/experiments/EXP-002/full/team_predictions.parquet
 build/
 dist/
 
