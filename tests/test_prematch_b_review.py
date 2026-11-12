@@ -191,6 +191,7 @@ def test_snapshot_comparison_normalizes_only_index_integer_representation():
         assert_same_table_state(computed, saved)
 
 
+@pytest.mark.real_data
 def test_saved_controls_when_local_artifacts_exist():
     root = Path(__file__).resolve().parents[1]
     if not (root / "data/derived/elo/exp001_predictions_stage1.parquet").exists():

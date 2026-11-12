@@ -181,6 +181,7 @@ def test_four_home_contrasts_reproduce_frozen_exp003_preparation(blocks):
     assert_exp003_contrasts(blocks, audit)
 
 
+@pytest.mark.real_data
 def test_actual_frozen_inputs_reconstruct_exp003_without_loading_clean_or_fitting():
     spec = load_prematch_config()
     if not all(item.path.exists() for item in spec.inputs.values()):

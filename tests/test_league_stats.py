@@ -241,6 +241,7 @@ def test_course_indices_input_immutability_and_holdouts(
         pd.testing.assert_frame_equal(old, new)
 
 
+@pytest.mark.slow
 def test_course_real_invariants(real_tables: AnalysisTables, real_standings: pd.DataFrame) -> None:
     sizes = load_playoff_upper_sizes()
     standings = real_standings.copy(deep=True)
@@ -940,7 +941,7 @@ def test_promoted_reference_is_previous_season_and_excludes_current_entrants(
     )
 
 
-@pytest.mark.parametrize("function", list(BOOTSTRAP_FUNCTIONS))
+@pytest.mark.parametrize("function", sorted(BOOTSTRAP_FUNCTIONS, key=lambda f: f.__name__))
 def test_bootstrap_count_is_configurable(function: Any, synthetic_tables: AnalysisTables) -> None:
     small = function(synthetic_tables, n_bootstrap=50)
     repeated = function(synthetic_tables, n_bootstrap=50)
@@ -949,6 +950,7 @@ def test_bootstrap_count_is_configurable(function: Any, synthetic_tables: Analys
         function(synthetic_tables, n_bootstrap=0)
 
 
+@pytest.mark.slow
 def test_real_counts_and_positions(real_tables: AnalysisTables) -> None:
     frame = stats.team_season_stats(real_tables)
     assert len(real_tables.match_table) == 4315
@@ -1326,7 +1328,7 @@ def test_flow_distributions_and_denominators(flow_tables: AnalysisTables) -> Non
     assert cards.xs("second_yellow", level="part").second_yellow_n.sum() == 1
 
 
-@pytest.mark.parametrize("function", list(D_BOOTSTRAP))
+@pytest.mark.parametrize("function", sorted(D_BOOTSTRAP, key=lambda f: f.__name__))
 def test_flow_bootstrap_deterministic(function: Any, flow_tables: AnalysisTables) -> None:
     pd.testing.assert_frame_equal(_run_d(function, flow_tables), _run_d(function, flow_tables))
     options = {"red_cards": _flow_cards()} if function == stats.red_card_stats else {}

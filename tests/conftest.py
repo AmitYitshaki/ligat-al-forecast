@@ -15,6 +15,14 @@ from ligat.analysis.prepare import DEVELOPMENT_SEASONS, AnalysisTables, load_ana
 from ligat.data.repository import Repository
 
 
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Mark local-data tests using the transitive fixture closure and frozen M0 inputs."""
+    data_fixtures = {"real_tables", "real_timelines", "real_standings", "frozen"}
+    for item in items:
+        if data_fixtures.intersection(getattr(item, "fixturenames", ())):
+            item.add_marker(pytest.mark.real_data)
+
+
 def _dtype_fingerprint(dtype: Any) -> tuple[Any, ...]:
     if isinstance(dtype, pd.CategoricalDtype):
         return repr(dtype), tuple(dtype.categories.tolist()), dtype.ordered
