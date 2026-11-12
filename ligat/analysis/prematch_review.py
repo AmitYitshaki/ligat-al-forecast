@@ -1,13 +1,11 @@
 """Development-only notebook 03 diagnostics, separated from feature construction."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
 
 import pandas as pd  # type: ignore[import-untyped]
 
 from ligat.analysis.prematch_validation import PrematchValidation
 from ligat.analysis.prepare import DEVELOPMENT_SEASONS, AnalysisTables
-from ligat.features.registry import FEATURES
 from ligat.features.table_state import game_rows, historical_groups
 from ligat.simulate.rules import SeasonRules, sporting_table
 
@@ -53,18 +51,6 @@ def validation_overview(validation: PrematchValidation) -> pd.DataFrame:
         )
         .reset_index()
     )
-
-
-def registry_overview() -> pd.DataFrame:
-    """Expose every approved derived feature and its per-model status in one table."""
-    rows = []
-    for feature, spec in FEATURES.items():
-        row = asdict(spec)
-        row["feature"] = feature
-        row["models"] = ", ".join(spec.models)
-        row["model_status"] = "; ".join(f"{model}: {status}" for model, status in spec.model_status)
-        rows.append(row)
-    return pd.DataFrame(rows)
 
 
 def postponed_example(

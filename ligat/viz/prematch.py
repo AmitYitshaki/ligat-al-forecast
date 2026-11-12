@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd  # type: ignore[import-untyped]
 import plotly.express as px  # type: ignore[import-untyped]
 
-from ligat.viz.league_stats import GOOD_SCALE, _finish
+from ligat.viz.league_stats import _finish
 from ligat.viz.presentation import TableDisplay, display_table
 from ligat.viz.seasons import season_label, with_season_labels
 
@@ -177,29 +177,3 @@ def dead_games_chart(summary: pd.DataFrame) -> Any:
         trace.line.color = color
         trace.marker.color = color
     return figure
-
-
-def stage_end_chart(distribution: pd.DataFrame) -> Any:
-    """Show remaining-game support with numeric ascending axes and paired-row counts."""
-    frame = distribution.copy()
-    frame["stage"] = frame.stage.map(STAGES)
-    figure = px.line(
-        frame,
-        x="rounds_to_stage_end",
-        y="team_games",
-        color="stage",
-        markers=True,
-        labels={
-            "rounds_to_stage_end": "משחקים בשלב שנותרו אחרי המשחק",
-            "team_games": "שורות קבוצה×משחק",
-            "stage": "שלב",
-        },
-        category_orders={"stage": list(STAGES.values())},
-        color_discrete_sequence=[GOOD_SCALE[i] for i in (2, 5, 8, 11)],
-    )
-    figure.update_layout(
-        title="הספירה נגזרת מהפורמט ומשחקי העבר בלבד",
-        xaxis_range=[0, float(frame.rounds_to_stage_end.max())],
-        yaxis_rangemode="tozero",
-    )
-    return _finish(figure)

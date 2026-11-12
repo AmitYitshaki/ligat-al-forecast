@@ -393,20 +393,6 @@ def alignment_summary(all_teams: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def gap_explanations(review: EloReview) -> pd.DataFrame:
-    frame = review.tables["proposal_1_gaps_4plus"].copy()
-    frame["הסבר כדורגלני"] = frame.position_difference.map(
-        lambda gap: (
-            "הסיום הספורטיבי טוב מדירוג Elo: הדירוג מסתגל בהדרגה להפתעה חיובית"
-            if gap > 0
-            else "דירוג Elo טוב מהסיום הספורטיבי: משקל תוצאות קודמות מרכך עונה חלשה"
-        )
-    )
-    newcomer = frame.elo_start.eq(1450)
-    frame.loc[newcomer, "הסבר כדורגלני"] += "; עולה מתחילה ב־1450, בלי המוניטין של הוותיקות"
-    return frame
-
-
 def control_numbers(review: EloReview) -> pd.DataFrame:
     chosen = review.tables["all_rankings"].set_index("config_id").loc[E0050]
     alignment = alignment_summary(review.tables["proposal_1_all_teams"]).iloc[0]
