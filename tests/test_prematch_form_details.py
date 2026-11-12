@@ -13,7 +13,6 @@ from ligat.analysis.prematch_b_review import WORDS
 from ligat.analysis.prematch_form_details import (
     coefficient_effects,
     draw_uncertainty,
-    implied_home_advantage,
     memory_curves,
     poisson_example,
     venue_prior_calendar,
@@ -22,27 +21,6 @@ from ligat.evaluate.goal_metrics import poisson_outcomes
 from ligat.viz.prematch_b_details import decay_chart
 from ligat.viz.prematch_form import form_table
 from ligat.viz.presentation import rtl_figure
-
-
-def test_implied_home_advantage_recovers_the_known_logistic_offset() -> None:
-    home = pd.DataFrame(dict(game_id=[1, 2, 3, 4], season_id=21, elo_diff=0.0))
-    predictions = home.drop(columns="elo_diff").assign(outcome=[0, 0, 1, 2])
-    original = home.copy(deep=True)
-    result = implied_home_advantage(home, predictions)
-    assert result.iloc[0].actual_score == pytest.approx(0.625)
-    assert result.iloc[0].implied_hfa == pytest.approx(400 * np.log10(5 / 3))
-    pd.testing.assert_frame_equal(home, original)
-
-
-def test_implied_home_advantage_rejects_missing_duplicate_and_held_out_games() -> None:
-    home = pd.DataFrame(dict(game_id=[1, 2], season_id=21, elo_diff=[-20.0, 20.0]))
-    predictions = home.drop(columns="elo_diff").assign(outcome=[0, 2])
-    with pytest.raises(ValueError, match="Missing"):
-        implied_home_advantage(home.iloc[:1], predictions)
-    with pytest.raises(ValueError, match="exactly one"):
-        implied_home_advantage(pd.concat([home, home]), predictions)
-    with pytest.raises(ValueError, match="development"):
-        implied_home_advantage(home.assign(season_id=26), predictions.assign(season_id=26))
 
 
 def test_poisson_example_is_not_renormalized_after_showing_only_five_scores() -> None:

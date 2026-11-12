@@ -809,52 +809,6 @@ def build_coach_spells(team_matches: pd.DataFrame) -> pd.DataFrame:
     return frame.set_index(["team_id", "spell_number"], drop=True)
 
 
-def preview_pre_match_row(
-    tables: AnalysisTables,
-    game_id: int,
-    window: int = 10,
-) -> pd.DataFrame:
-    """Prototype features from strictly earlier games; this is not a trained model.
-
-    Both venue points rates use the same last-window games, possibly across seasons.
-    Missing/conflicting halftimes are excluded from the halftime mean, not imputed.
-    """
-    if window < 1:
-        raise ValueError("window must be positive")
-    if game_id not in tables.match_table.index:
-        raise ValueError(f"Unknown game_id={game_id}")
-    game = tables.match_table.loc[game_id]
-    row: dict[str, Any] = {}
-    for side in ("home", "away"):
-        team_id = game[f"{side}_team_id"]
-        history = tables.team_matches.xs(team_id, level="team_id")
-        history = (
-            history.loc[history.date.lt(game.date)].sort_values(["date", "game_id"]).tail(window)
-        )
-        for column in ("goals_scored", "goals_conceded", "points_earned", "ht_goals_scored"):
-            values = history[column]
-            if column == "ht_goals_scored":
-                values = values.where(~history.ht_conflict)
-            row[f"feature_{side}_{column}_mean"] = _mean(values)
-        for venue, is_home in (("home", True), ("away", False)):
-            row[f"feature_{side}_{venue}_points_per_match"] = _mean(
-                history.loc[history.is_home.eq(is_home), "points_earned"]
-            )
-        row[f"feature_{side}_prev_season_value_share"] = tables.team_seasons.loc[
-            (game.season_id, team_id), "prev_season_value_share"
-        ]
-    row.update(
-        target_home_goals=game.home_goals,
-        target_away_goals=game.away_goals,
-        target_result=game.result,
-    )
-    frame = pd.DataFrame([row], index=pd.Index([game_id], name="game_id"))
-    for column in frame:
-        if column.startswith("feature_"):
-            frame[column] = frame[column].astype("Float64")
-    return frame
-
-
 def outcome_base_rates(match_table: pd.DataFrame) -> pd.DataFrame:
     """Descriptive B0 home/draw/away rates and marginal 95% Wilson intervals.
 
@@ -1152,22 +1106,6 @@ def data_availability(tables: AnalysisTables) -> pd.DataFrame:
     result = coverage.groupby("season_id").mean() * 100
     result["season_role"] = _season_roles(pd.Series(result.index, index=result.index))
     return result
-
-
-def flag_unusual_matches(tables: AnalysisTables) -> pd.DataFrame:
-    """Flag unusual observations without dropping or changing any match."""
-    source = tables.match_table
-    flags = pd.DataFrame(index=source.index)
-    flags["seven_or_more_goals"] = source.total_goals.ge(7)
-    flags["three_or_more_red_cards"] = (source.home_red_cards + source.away_red_cards).ge(3)
-    flags["is_postponed"] = source.is_postponed
-    flags["borrowed_venue"] = ~source.is_home_venue
-    return (
-        source[["season_id", "date", "home_team_name", "away_team_name"]]
-        .join(flags)
-        .loc[flags.any(axis=1)]
-        .copy()
-    )
 
 
 def _scheduled_games(season_id: int, n_teams: int, final_stage: str) -> int:

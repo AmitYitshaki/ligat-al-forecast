@@ -4,7 +4,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
-from scipy.optimize import brentq  # type: ignore[import-untyped]
 from scipy.stats import poisson  # type: ignore[import-untyped]
 
 from ligat.analysis.prematch_b_review import WORDS
@@ -17,60 +16,6 @@ from ligat.analysis.prematch_form_review import (
     poisson_coefficients,
 )
 from ligat.evaluate.goal_metrics import poisson_outcomes
-
-
-def implied_home_advantage(home_elo: pd.DataFrame, predictions: pd.DataFrame) -> pd.DataFrame:
-    """Find the Elo offset matching observed 1/half/0 home scores; no fit or selection.
-
-    The caller supplies exactly the home rows of the saved E0050 artifact. Only
-    validation games enter, and each must match exactly one causal rating gap.
-    """
-    if home_elo.game_id.duplicated().any() or predictions.game_id.duplicated().any():
-        raise ValueError("Expected exactly one home row and prediction per game")
-    if not predictions.outcome.isin([0, 1, 2]).all():
-        raise ValueError("Outcomes must be home=0, draw=1 or away=2")
-    merged = predictions[["game_id", "season_id", "outcome"]].merge(
-        home_elo[["game_id", "season_id", "elo_diff"]],
-        on=["game_id", "season_id"],
-        validate="one_to_one",
-    )
-    if len(merged) != len(predictions) or merged.empty:
-        raise ValueError("Missing saved home Elo for validation games")
-    if not merged.season_id.between(11, 25).all():
-        raise ValueError("Only development validation seasons 11–25 are allowed")
-    if not np.isfinite(merged.elo_diff).all():
-        raise ValueError("Rating gaps must be finite")
-    rows = []
-    for label, subset in (
-        ("כל 15 עונות הוולידציה", merged),
-        ("עשר הראשונות", merged.loc[merged.season_id.lt(21)]),
-        ("חמש האחרונות", merged.loc[merged.season_id.ge(21)]),
-    ):
-        if subset.empty:
-            continue
-        actual = float(np.choose(subset.outcome, [1.0, 0.5, 0.0]).mean())
-        if not 0 < actual < 1:
-            raise ValueError("An all-win/all-loss sample has no finite implied advantage")
-        gaps = subset.elo_diff.to_numpy(float)
-        value = brentq(
-            lambda h, gaps=gaps, target=actual: (
-                float((1 / (1 + 10 ** (-(gaps + h) / 400))).mean()) - target
-            ),
-            -10000,
-            10000,
-        )
-        rows.append(
-            {
-                "תקופה": label,
-                "games": len(subset),
-                "implied_hfa": value,
-                "actual_score": actual,
-                WORDS: (
-                    f"ב־{len(subset):,} משחקים, תוספת {value:.1f} Elo משווה ניקוד צפוי לממוצע בפועל"
-                ),
-            }
-        )
-    return pd.DataFrame(rows)
 
 
 def poisson_example(rate: float = 1.5) -> pd.DataFrame:
