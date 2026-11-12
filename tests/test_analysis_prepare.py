@@ -619,6 +619,28 @@ def test_simultaneous_first_goals_preserve_uncertainty(
     assert pd.isna(teams.loc[(2, 101)].scored_first)
 
 
+def test_first_goal_missing_tie_fields_and_half_order(
+    inputs: tuple[Repository, Path, Path],
+) -> None:
+    repo = inputs[0]
+    goals = repo.read("goals")
+    tied_away = goals.game_id.eq(101) & goals.team_id.eq(2)
+    goals.loc[tied_away, ["minute", "half", "added_time", "is_first_half_stoppage"]] = [
+        46,
+        1,
+        0,
+        True,
+    ]
+    unknown_half = goals.game_id.eq(202) & goals.team_id.eq(3)
+    goals.loc[unknown_half, ["minute", "half"]] = [1, pd.NA]
+    repo.write("goals", goals)
+    frame = build(inputs)
+    assert pd.isna(frame.loc[101, "first_goal_side"])
+    assert frame.loc[101, "first_goal_minute"] == 46
+    assert frame.loc[202, "first_goal_side"] == "away"
+    assert frame.loc[202, "first_goal_minute"] == 55
+
+
 def test_indexes_and_history(inputs: tuple[Repository, Path, Path]) -> None:
     frame = build(inputs)
     teams = to_team_perspective(frame)

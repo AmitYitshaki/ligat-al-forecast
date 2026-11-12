@@ -143,25 +143,35 @@ def _goal_summary(frame: pd.DataFrame, goals: pd.DataFrame, reds: pd.DataFrame) 
     frame["first_goal_side"] = pd.Series(pd.NA, index=frame.index, dtype="string")
     frame["first_goal_minute"] = pd.Series(pd.NA, index=frame.index, dtype="Int64")
     frame.loc[frame.goals_available & frame.total_goals.eq(0), "first_goal_side"] = "none"
-    for game_id, events in goals.groupby("game_id", sort=False):
-        positions = frame.index[frame.game_id.eq(game_id)]
-        if not len(positions):
-            continue
-        position = positions[0]
-        if not frame.at[position, "goals_available"]:
-            continue
-        ordered = events.sort_values(["half", "minute", "added_time"], na_position="last")
-        first = ordered.iloc[0]
-        tied = ordered.loc[
-            ordered.half.fillna(0).eq(0 if pd.isna(first.half) else first.half)
-            & ordered.minute.eq(first.minute)
-            & ordered.added_time.fillna(0).eq(0 if pd.isna(first.added_time) else first.added_time)
-        ]
-        frame.at[position, "first_goal_minute"] = first.minute
-        if tied.team_id.nunique() == 1:
-            frame.at[position, "first_goal_side"] = (
-                "home" if first.team_id == frame.at[position, "home_team_id"] else "away"
-            )
+    ordered = goals.sort_values(
+        ["game_id", "half", "minute", "added_time"], kind="stable", na_position="last"
+    ).dropna(subset=["game_id"])
+    first = ordered.drop_duplicates("game_id").set_index("game_id")
+    event_first = first.reindex(ordered.game_id)
+    # Missing half/added_time tie with zero; minute keeps its direct NA comparison.
+    tied = (
+        ordered.half.fillna(0).eq(event_first.half.fillna(0).array)
+        & ordered.minute.eq(event_first.minute.array)
+        & ordered.added_time.fillna(0).eq(event_first.added_time.fillna(0).array)
+    )
+    teams = ordered.loc[tied].groupby("game_id", sort=False).team_id.nunique()
+    row_numbers = pd.Index(frame.game_id).get_indexer(first.index)
+    present = row_numbers >= 0
+    first = first.loc[present]
+    positions = frame.index.take(row_numbers[present])
+    available = frame.loc[positions, "goals_available"]
+    if available.isna().any():
+        raise TypeError("boolean value of NA is ambiguous")
+    usable = available.to_numpy(dtype=bool)
+    first = first.loc[usable]
+    positions = positions[usable]
+    frame.loc[positions, "first_goal_minute"] = first.minute.array
+    unambiguous = teams.reindex(first.index, fill_value=0).eq(1).to_numpy()
+    first = first.loc[unambiguous]
+    positions = positions[unambiguous]
+    is_home = first.team_id.eq(frame.loc[positions, "home_team_id"].array)
+    sides = pd.Series("away", index=first.index, dtype="string").mask(is_home, "home")
+    frame.loc[positions, "first_goal_side"] = sides.array
     frame["first_goal_side"] = frame.first_goal_side.astype(
         pd.CategoricalDtype(["home", "away", "none"])
     )
