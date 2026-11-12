@@ -36,7 +36,7 @@ from ligat.analysis.prematch_context_review import (
     value_fold_gaps,
     value_methodology_tables,
 )
-from ligat.analysis.prepare import load_analysis_tables
+from ligat.analysis.prepare import AnalysisTables
 from ligat.features.registry import SEASON_CONTEXT_COLUMNS
 from ligat.viz.league_stats import DRAW_COLOR
 from ligat.viz.prematch_context import (
@@ -251,12 +251,11 @@ def test_notebook_keeps_approved_b1_b2_sources_and_explains_every_new_code_cell(
 
 
 @pytest.fixture(scope="module")
-def saved():
+def saved(real_tables: AnalysisTables):
     if not (ROOT / "data/derived/prematch/season_context_v1.parquet").exists():
         pytest.skip("Local frozen C artifacts are unavailable")
     review = load_context_review(ROOT)
-    tables = load_analysis_tables(seasons=list(range(8, 26)))
-    return review, tables
+    return review, real_tables
 
 
 def test_actual_c1_c2_controls_anomaly_rank_and_promotions(saved):

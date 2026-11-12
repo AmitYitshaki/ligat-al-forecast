@@ -19,6 +19,7 @@ from ligat.analysis.prematch_match_review import (
     promotion_chi_example,
     venue_checks,
 )
+from ligat.analysis.prepare import AnalysisTables
 from ligat.viz.prematch_match import match_description, match_table, period_chart
 
 
@@ -219,16 +220,17 @@ def test_period_chart_has_disjoint_windows_and_prose_is_computed():
     assert "0.0400" in match_description(MatchReview(tables), "periods")
 
 
-def test_saved_development_examples_match_source_counts_without_retraining():
+def test_saved_development_examples_match_source_counts_without_retraining(
+    real_tables: AnalysisTables,
+):
     root = Path(__file__).resolve().parents[1]
     artifact = root / "data/derived/prematch/prematch_v1.parquet"
     if not artifact.exists():
         pytest.skip("Local saved prematch artifact unavailable")
-    from ligat.analysis.prepare import load_analysis_tables
     from ligat.features.table_state import game_rows
 
     frame = pd.read_parquet(artifact)
-    games, _ = match_view(frame, game_rows(load_analysis_tables(seasons=list(range(8, 26)))))
+    games, _ = match_view(frame, game_rows(real_tables))
     cells, chi = promotion_chi_example(games)
     assert cells.observed.tolist() == [1560, 997, 1138, 187, 173, 260]
     assert chi.chi2.iloc[0] == pytest.approx(39.557589, abs=1e-6)

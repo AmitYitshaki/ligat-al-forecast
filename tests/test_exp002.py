@@ -14,7 +14,7 @@ from scipy.optimize._numdiff import approx_derivative
 from scipy.special import expit
 from statsmodels.miscmodels.ordinal_model import OrderedModel
 
-from ligat.analysis.prepare import DEVELOPMENT_SEASONS, load_analysis_tables
+from ligat.analysis.prepare import AnalysisTables
 from ligat.data.repository import Repository
 from ligat.evaluate.backtest import TARGET_COLUMNS, evaluate
 from ligat.evaluate.calibration_artifacts import verify_calibration
@@ -294,22 +294,9 @@ def test_nullable_clean_keys_match_numeric_artifact_keys_but_missing_keys_fail()
 
 
 @pytest.fixture(scope="module")
-def real_prepared() -> FormExperimentInput:
-    class Guard(Repository):
-        def read(self, name: str) -> pd.DataFrame:
-            raise AssertionError("Unfiltered reads forbidden")
-
-        def read_filtered(self, name: str, filters: list) -> pd.DataFrame:
-            for column, operator, values in filters:
-                if column == "season_id":
-                    assert operator == "in" and set(values) <= set(range(7, 26))
-            frame = super().read_filtered(name, filters)
-            if "season_id" in frame:
-                assert not frame.season_id.isin([26, 27, 28]).any()
-            return frame
-
+def real_prepared(real_tables: AnalysisTables) -> FormExperimentInput:
     spec = load_form_experiment()
-    repository = Guard()
+    repository = Repository()
     artifacts = [Path(spec.raw["inputs"][key]["path"]) for key in ("form", "elo")]
     required = [
         path
@@ -332,8 +319,7 @@ def real_prepared() -> FormExperimentInput:
     if missing:
         pytest.skip("Local EXP-002 regression inputs are unavailable: " + ", ".join(missing))
     form, elo = load_form_inputs(spec)
-    tables = load_analysis_tables(repository, seasons=DEVELOPMENT_SEASONS)
-    return prepare_form_experiment(tables, form, elo)
+    return prepare_form_experiment(real_tables, form, elo)
 
 
 def test_real_b0_regression_matches_exact_stored_reference(

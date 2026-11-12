@@ -1,15 +1,42 @@
 """Session-scoped local analysis inputs and reusable heavy views; CI uses synthetic data."""
 
 from collections.abc import Iterator
+from copy import deepcopy
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pytest
 
-from ligat.analysis.league_stats import match_flow, season_course
+from ligat.analysis import league_stats
+from ligat.analysis.league_stats import course_review, match_flow, season_course
 from ligat.analysis.prepare import DEVELOPMENT_SEASONS, AnalysisTables, load_analysis_tables
 from ligat.data.repository import Repository
+
+
+def _dtype_fingerprint(dtype: Any) -> tuple[Any, ...]:
+    if isinstance(dtype, pd.CategoricalDtype):
+        return repr(dtype), tuple(dtype.categories.tolist()), dtype.ordered
+    return (repr(dtype),)
+
+
+def _frame_fingerprint(frame: pd.DataFrame) -> tuple[Any, ...]:
+    return (
+        frame.shape,
+        pd.util.hash_pandas_object(frame, index=True).to_numpy().tobytes(),
+        type(frame.columns),
+        tuple(frame.columns),
+        tuple(frame.columns.names),
+        _dtype_fingerprint(frame.columns.dtype),
+        tuple(_dtype_fingerprint(dtype) for dtype in frame.dtypes),
+        type(frame.index),
+        tuple(frame.index.names),
+        tuple(
+            _dtype_fingerprint(frame.index.get_level_values(level).dtype)
+            for level in range(frame.index.nlevels)
+        ),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -27,16 +54,27 @@ def real_tables() -> Iterator[AnalysisTables]:
 
     def filtered(name: str, filters: list[tuple[str, str, Any]]) -> pd.DataFrame:
         calls.append((name, filters))
-        for column, _, values in filters:
+        for column, operator, values in filters:
             if column == "season_id":
-                assert all(7 <= season <= 25 for season in values)
-        return original_read(name, filters)
+                assert operator == "in"
+                assert set(values) <= set(range(7, 26))
+        frame = original_read(name, filters)
+        if "season_id" in frame:
+            assert not frame.season_id.isin([26, 27, 28]).any()
+        return frame
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(repo, "read_filtered", filtered)
         patch.setattr(repo, "read", lambda _: pytest.fail("Unfiltered read"))
         tables = load_analysis_tables(repo, seasons=DEVELOPMENT_SEASONS)
     assert calls
+    snapshots = {
+        field.name: (
+            _frame_fingerprint(getattr(tables, field.name)),
+            deepcopy(getattr(tables, field.name).attrs),
+        )
+        for field in fields(tables)
+    }
     original_timeline = match_flow.game_timelines
     original_standings = season_course.standings_by_match_number
     timelines: dict[tuple[int, ...], pd.DataFrame] = {}
@@ -65,7 +103,19 @@ def real_tables() -> Iterator[AnalysisTables]:
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(match_flow, "game_timelines", timeline)
         patch.setattr(season_course, "standings_by_match_number", standing)
-        yield tables
+        patch.setattr(course_review, "standings_by_match_number", standing)
+        patch.setattr(league_stats, "game_timelines", timeline)
+        patch.setattr(league_stats, "standings_by_match_number", standing)
+        try:
+            yield tables
+        finally:
+            for name, (fingerprint, attrs) in snapshots.items():
+                frame = getattr(tables, name)
+                try:
+                    assert _frame_fingerprint(frame) == fingerprint
+                    assert frame.attrs == attrs
+                except Exception as error:
+                    raise AssertionError(f"Shared real_tables.{name} was mutated") from error
 
 
 @pytest.fixture(scope="session")

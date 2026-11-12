@@ -30,7 +30,7 @@ from ligat.analysis.prematch_final_review import (
     target_leaders,
     target_trends,
 )
-from ligat.analysis.prepare import load_analysis_tables
+from ligat.analysis.prepare import AnalysisTables
 from ligat.viz.prematch_final import (
     contrast_heatmap,
     cramers_chart,
@@ -173,10 +173,9 @@ def frozen():
 
 
 @pytest.fixture(scope="module")
-def saved(frozen):
+def saved(frozen, real_tables: AnalysisTables):
     frame, digest = frozen
-    tables = load_analysis_tables(seasons=list(range(8, 26)))
-    return analyze_final_prematch(frame, tables, digest)
+    return analyze_final_prematch(frame, real_tables, digest)
 
 
 def test_example_uses_yaml_names_and_mirrors_contrasts_and_opponent_attack(frozen):
