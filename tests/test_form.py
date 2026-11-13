@@ -147,7 +147,8 @@ def test_window_forgets_prior_and_resets_in_summer() -> None:
     assert prior.prior == pytest.approx(prior.league_mean + 0.5 * (prior.prev - prior.league_mean))
 
 
-@pytest.mark.parametrize("season", range(8, 26))
+# Debut, first promotions, two-year return, stable format, and the longest history.
+@pytest.mark.parametrize("season", [8, 9, 10, 11, 12, pytest.param(25, marks=pytest.mark.slow)])
 def test_future_and_same_day_results_cannot_change_morning_features(season: int) -> None:
     fixtures = season_fixtures(season)
     own = [f for f in fixtures if f[0] == season and (f[2] == 1 or f[3] == 1)]

@@ -241,6 +241,7 @@ def test_course_indices_input_immutability_and_holdouts(
         pd.testing.assert_frame_equal(old, new)
 
 
+@pytest.mark.slow
 def test_course_real_invariants(real_tables: AnalysisTables, real_standings: pd.DataFrame) -> None:
     sizes = load_playoff_upper_sizes()
     standings = real_standings.copy(deep=True)
@@ -940,7 +941,7 @@ def test_promoted_reference_is_previous_season_and_excludes_current_entrants(
     )
 
 
-@pytest.mark.parametrize("function", list(BOOTSTRAP_FUNCTIONS))
+@pytest.mark.parametrize("function", sorted(BOOTSTRAP_FUNCTIONS, key=lambda f: f.__name__))
 def test_bootstrap_count_is_configurable(function: Any, synthetic_tables: AnalysisTables) -> None:
     small = function(synthetic_tables, n_bootstrap=50)
     repeated = function(synthetic_tables, n_bootstrap=50)
@@ -949,6 +950,7 @@ def test_bootstrap_count_is_configurable(function: Any, synthetic_tables: Analys
         function(synthetic_tables, n_bootstrap=0)
 
 
+@pytest.mark.slow
 def test_real_counts_and_positions(real_tables: AnalysisTables) -> None:
     frame = stats.team_season_stats(real_tables)
     assert len(real_tables.match_table) == 4315
@@ -1326,7 +1328,7 @@ def test_flow_distributions_and_denominators(flow_tables: AnalysisTables) -> Non
     assert cards.xs("second_yellow", level="part").second_yellow_n.sum() == 1
 
 
-@pytest.mark.parametrize("function", list(D_BOOTSTRAP))
+@pytest.mark.parametrize("function", sorted(D_BOOTSTRAP, key=lambda f: f.__name__))
 def test_flow_bootstrap_deterministic(function: Any, flow_tables: AnalysisTables) -> None:
     pd.testing.assert_frame_equal(_run_d(function, flow_tables), _run_d(function, flow_tables))
     options = {"red_cards": _flow_cards()} if function == stats.red_card_stats else {}
@@ -1426,6 +1428,28 @@ def test_flow_same_minute_zero_duration(flow_tables: AnalysisTables) -> None:
     assert result.loc[(804, 1), "trailed_at_any_point"]
     assert result.loc[(804, 1), "equalized_within_10"]
     assert result.loc[(804, 1), "points_won_from_behind"] == 1
+
+
+def test_flow_comeback_window_and_score_mismatch(flow_tables: AnalysisTables) -> None:
+    events = flow_tables.goal_events.copy()
+    events.loc[(804, 2), "minute"] = 21
+    later = stats.game_timelines(replace(flow_tables, goal_events=events), [8])
+    assert not later.loc[(804, 1), "equalized_within_10"]
+
+    sequence = flow_tables.goal_events.loc[[804]].reset_index().iloc[[0, 0, 1, 1]].copy()
+    sequence["goal_number"] = [1, 2, 3, 4]
+    sequence["minute"] = [10, 30, 35, 40]
+    sequence["team_id"] = [2, 2, 1, 1]
+    others = flow_tables.goal_events.drop(index=804, level="game_id")
+    events = pd.concat([others, sequence.set_index(["game_id", "goal_number"])])
+    matches = flow_tables.match_table.copy()
+    matches.loc[804, ["home_goals", "away_goals", "total_goals"]] = [2, 2, 4]
+    changed = replace(flow_tables, match_table=matches, goal_events=events)
+    assert stats.game_timelines(changed, [8]).loc[(804, 1), "equalized_within_10"]
+
+    matches.loc[804, "home_goals"] = 3
+    with pytest.raises(ValueError, match=r"^Timeline score mismatch for game_id=804$"):
+        stats.game_timelines(changed, [8])
 
 
 def test_scoring_rate_exposure_and_unknown_states(flow_tables: AnalysisTables) -> None:

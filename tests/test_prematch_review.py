@@ -37,6 +37,7 @@ def test_dead_game_denominator_is_matches_not_team_rows() -> None:
         dead_game_summary(frame.assign(season_id=26))
 
 
+@pytest.mark.slow
 def test_real_place_decisions_never_cross_final_sporting_lines(real_tables: AnalysisTables) -> None:
     rules = load_season_rules()
     features = TableStateBlock(rules).compute(real_tables)

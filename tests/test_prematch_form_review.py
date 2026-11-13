@@ -356,6 +356,7 @@ def test_alternate_locations_are_restricted_to_full_exp002(relocated_review, exp
         )
 
 
+@pytest.mark.real_data
 def test_saved_controls_and_selected_coefficient_translation_without_refitting(monkeypatch):
     root = Path(__file__).resolve().parents[1]
     if not (root / "data/derived/form/form_v1.parquet").exists():
@@ -386,6 +387,7 @@ def test_saved_controls_and_selected_coefficient_translation_without_refitting(m
     assert len(coefficients) == 15
 
 
+@pytest.mark.real_data
 def test_top_ten_contrasts_keep_common_settings_verified():
     root = Path(__file__).resolve().parents[1]
     if not (root / "data/derived/elo/exp001_predictions_stage1.parquet").exists():

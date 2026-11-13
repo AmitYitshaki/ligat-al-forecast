@@ -252,15 +252,6 @@ data_availability מציג אחוזי כיסוי לכל עונה, כולל שנ�
 משויכים למאמן. is_mid_season_start נשאר דגל של תחילת רצף נצפה; בשילוב
 is_left_censored אין להסיק ממנו שהוחלף מאמן. דגלי האיכות אינם חסרים.
 
-`preview_pre_match_row(tables, game_id, window=10)` הוא אב־טיפוס בלבד,
-שנשאר בחבילה אך אינו מופעל במחברת 01 לאחר C2:
-שורה אחת באינדקס game_id, עם feature_home_* ו־feature_away_* מול
-target_home_goals, target_away_goals ו־target_result. ממוצעי שערים, ספיגה,
-נקודות ושערי מחצית משתמשים בעד window משחקים שתאריכם קטן ממש מתאריך
-המשחק, גם מעבר לגבול עונה. ממוצעי נקודות בית/חוץ מפצלים את אותו חלון.
-מחצית סותרת מוחרגת מממוצע המחצית. היסטוריה ריקה נשארת חסרה.
-prev_season_value_share הוא נתח הקבוצה בליגה של t−1, ללא השלמה לעולות.
-אין שימוש בתוצאת המשחק, במשחקים מאותו זמן או במשחקים עתידיים בפיצ׳רים.
 
 `outcome_base_rates` מחזיר scope (overall/season), season_id (חסר בשורת
 overall), outcome (home_win/draw/away_win), n_matches, n_outcomes, rate,

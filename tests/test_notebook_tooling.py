@@ -13,6 +13,8 @@ import pytest
 from jupyter_client import KernelManager
 from jupyter_client.kernelspec import KernelSpecManager
 
+pytestmark = pytest.mark.slow
+
 
 def test_venv_kernel_plotly_and_output_stripping(tmp_path: Path) -> None:
     kernels = tmp_path / "kernels"

@@ -27,7 +27,6 @@ from ligat.viz.prematch_b import (
     calibration_chart,
     confusion_chart,
     review_table,
-    time_weight_chart,
 )
 
 
@@ -89,19 +88,6 @@ def test_argmax_confusion_has_actual_rows_and_predicted_columns(predictions):
     assert matrix.loc["תיקו", "בית"] == 1
     assert matrix.to_numpy().sum() == 3
     assert np.array_equal(confusion_chart(matrix).data[0].z, matrix.to_numpy())
-
-
-def test_time_curve_connects_half_lives_in_order_even_when_saved_rows_are_ranked():
-    stage2 = pd.DataFrame(
-        {
-            "half_life": [4, np.nan, 2, 1, 4, np.nan, 2, 1],
-            "log_loss": [1.0, 1.1, 1.2, 1.3, 1.2, 1.3, 1.4, 1.5],
-            "config_id": list("abcdefgh"),
-        }
-    )
-    curve = time_weight_chart(stage2).data[0]
-    assert list(curve.x) == ["ללא", "עונה אחת", "2 עונות", "4 עונות"]
-    assert list(curve.y) == pytest.approx([1.2, 1.4, 1.3, 1.1])
 
 
 def test_alignment_denominator_is_all_team_seasons():
@@ -191,6 +177,7 @@ def test_snapshot_comparison_normalizes_only_index_integer_representation():
         assert_same_table_state(computed, saved)
 
 
+@pytest.mark.real_data
 def test_saved_controls_when_local_artifacts_exist():
     root = Path(__file__).resolve().parents[1]
     if not (root / "data/derived/elo/exp001_predictions_stage1.parquet").exists():

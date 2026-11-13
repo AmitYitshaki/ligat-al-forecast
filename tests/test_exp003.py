@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from ligat.analysis.prepare import load_analysis_tables
+from ligat.analysis.prepare import AnalysisTables
 from ligat.evaluate.backtest import DevelopmentPolicy, EvaluationResult, policy_folds, summarize
 from ligat.evaluate.calibration_artifacts import verify_calibration
 from ligat.evaluate.context_experiment import (
@@ -395,14 +395,12 @@ def test_leakage_threshold_stops_without_reporting_the_score(monkeypatch):
 
 
 @pytest.fixture(scope="module")
-def real_prepared():
+def real_prepared(real_tables: AnalysisTables):
     spec = load_context_experiment()
     if not all(Path(entry["path"]).exists() for entry in spec.raw["inputs"].values()):
         pytest.skip("Frozen EXP-003 inputs are local only")
     inputs = load_context_inputs(spec)
-    return prepare_context_experiment(
-        load_analysis_tables(seasons=list(range(8, 26))), inputs
-    ), spec
+    return prepare_context_experiment(real_tables, inputs), spec
 
 
 def test_regression_from_season_8_reproduces_exact_elo(real_prepared):

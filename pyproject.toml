@@ -45,4 +45,8 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: call time is at least five seconds in the R1 median, or a marked Form season",
+    "real_data: requires local clean data or frozen experiment artifacts",
+]

@@ -10,7 +10,6 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from ligat.analysis.season_context_review import season_position_comparison
 from ligat.data.repository import Repository
 from ligat.features.base import FeatureBlock
 from ligat.features.form import form_opening_values
@@ -331,14 +330,3 @@ def test_context_hash_covers_values_results_rules_and_excludes_official_data():
     assert baseline != season_context_input_fingerprint(
         tables, {**rules(), 8: replace(rules()[8], points_halved=True)}
     )
-
-
-def test_position_review_compares_every_season_and_rejects_held_out_officials():
-    tables = context_tables(9)
-    finals = completed_sporting_positions(tables, rules()).reset_index()
-    finals.loc[0, "position"] += 1
-    result = season_position_comparison(tables, rules(), finals).set_index("season_id")
-    assert result.teams.tolist() == [4, 4]
-    assert result.different_positions.tolist() == [1, 0]
-    with pytest.raises(ValueError, match="8–25"):
-        season_position_comparison(tables, rules(), finals.assign(season_id=26))

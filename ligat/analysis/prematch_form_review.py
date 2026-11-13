@@ -109,21 +109,6 @@ def opening_coefficients(review: FormReview) -> pd.DataFrame:
     )
 
 
-def promoted_openings(review: FormReview) -> pd.DataFrame:
-    """The actual historical-only newcomer prior in every season and stratum."""
-    frame = opening_coefficients(review)
-    return frame[
-        [
-            "season_id",
-            "metric",
-            "stratum",
-            "promoted_value",
-            "promoted_observations",
-            "promoted_fallback",
-        ]
-    ]
-
-
 def ewma_illustrations() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Pure weights: age 1 is the last completed match; prior mass is separate."""
     weights, priors = [], []

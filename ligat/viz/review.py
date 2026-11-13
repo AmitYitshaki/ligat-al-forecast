@@ -57,39 +57,3 @@ def playoff_persistence_chart(deviations: pd.DataFrame, summary: pd.DataFrame) -
         f"{summary.loc['lower', 'pearson']:.2f} בתחתון"
     )
     return _finish(figure).update_layout(height=700, margin=dict(t=140, b=145))
-
-
-def poisson_comparison_chart(comparison: pd.DataFrame) -> Any:
-    """Display held-out observed/expected rates and Wilson uncertainty on observations only."""
-    labels = ["כל התיקו" if s == "all_draws" else s for s in comparison.index]
-    figure = go.Figure()
-    figure.add_bar(
-        x=labels,
-        y=comparison.observed * 100,
-        name="נצפה",
-        marker_color=HOME_COLOR,
-        error_y=dict(
-            type="data",
-            symmetric=False,
-            array=(comparison.observed_ci_upper - comparison.observed) * 100,
-            arrayminus=(comparison.observed - comparison.observed_ci_lower) * 100,
-        ),
-        customdata=comparison.n,
-        hovertemplate="%{x}: %{y:.2f}%<br>n=%{customdata}",
-    )
-    figure.add_bar(
-        x=labels,
-        y=comparison.expected * 100,
-        name="Poisson לכל משחק, מחוץ למדגם",
-        marker_color=AWAY_COLOR,
-        hovertemplate="%{x}: %{y:.2f}%",
-    )
-    row = comparison.loc["all_draws"]
-    figure.update_layout(
-        title=f"תיקו: {row.expected:.1%} צפוי לעומת {row.observed:.1%} נצפה; "
-        "שני חצאים משלימים בתוך עונת פיתוח",
-        barmode="group",
-        yaxis_title="אחוז מכל המשחקים",
-        xaxis=dict(type="category", categoryorder="array", categoryarray=labels),
-    )
-    return _finish(figure).update_layout(height=700, margin=dict(t=140, b=120))

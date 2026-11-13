@@ -230,41 +230,6 @@ def marginal_chart(marginals: pd.DataFrame) -> Any:
     return _finish_chart(figure, height=850)
 
 
-def time_weight_chart(stage2: pd.DataFrame) -> Any:
-    data = stage2.copy()
-    data["weight"] = data.half_life.map(
-        lambda x: "ללא" if pd.isna(x) else ("עונה אחת" if x == 1 else f"{x:g} עונות")
-    )
-    summary = (
-        data.groupby("weight", sort=False)
-        .agg(loss=("log_loss", "mean"), configs=("config_id", "size"))
-        .reset_index()
-    )
-    order = ["ללא", "עונה אחת", "2 עונות", "4 עונות"]
-    summary["order"] = summary.weight.map({label: index for index, label in enumerate(order)})
-    summary = summary.sort_values("order")
-    figure = px.line(
-        summary,
-        x="weight",
-        y="loss",
-        markers=True,
-        custom_data=["configs"],
-        labels={"weight": "דעיכה — המשקל נחצה כל מספר העונות", "loss": "ממוצע log loss"},
-        title="משקלי זמן: אותם 10 בסיסי Elo — קשר תיאורי, לא סיבתי",
-    )
-    figure.update_xaxes(
-        type="category",
-        categoryorder="array",
-        categoryarray=order,
-    )
-    figure.update_traces(
-        hovertemplate=(
-            "%{x}<br>ממוצע log loss: %{y:.6f}<br>בסיסי Elo: %{customdata[0]}<extra></extra>"
-        )
-    )
-    return _finish_chart(figure)
-
-
 def season_score_chart(scores: pd.DataFrame) -> Any:
     figure = go.Figure()
     for column, title in (

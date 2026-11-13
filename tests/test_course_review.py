@@ -96,6 +96,7 @@ def test_mantel_haenszel_matches_manual_stratification():
     assert result["n_strata"] == 3  # Same season, different stages remain separate.
 
 
+@pytest.mark.slow
 def test_transition_counts_and_regions_real(real_tables):
     for split in (False, True):
         matrix, expanded = review.rank_heatmap(real_tables, at_split=split)
@@ -127,6 +128,7 @@ def test_playoff_result_cannot_change_expected_goals(real_tables):
     assert effects.loc[("lower", "excess_strength"), "mean"] == pytest.approx(0.337972, abs=1e-6)
 
 
+@pytest.mark.slow
 def test_strata_and_benchmark_results_real(real_tables):
     cells = review.draw_strata(real_tables)
     assert cells.index.is_unique and len(cells) == 36
@@ -145,6 +147,7 @@ def test_strata_and_benchmark_results_real(real_tables):
         assert settling.xs(era).spearman_ci_lower.isna().all()
 
 
+@pytest.mark.slow
 def test_review_plot_contracts(real_tables):
     import re
 

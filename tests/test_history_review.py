@@ -190,6 +190,7 @@ def test_new_diagnostics_real_data(real_tables):
     assert (len(recent), recent.best_previous.sum(), recent.top3_previous.sum()) == (12, 7, 11)
 
 
+@pytest.mark.slow
 def test_conditions_real_counts_and_inference_family(real_tables):
     original = real_tables.match_table.copy(deep=True)
     config = load_match_conditions(Path("config/match_conditions.yaml"))

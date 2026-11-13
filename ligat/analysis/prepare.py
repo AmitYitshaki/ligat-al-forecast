@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 import yaml
 from statsmodels.stats.proportion import proportion_confint  # type: ignore[import-untyped]
@@ -143,25 +144,35 @@ def _goal_summary(frame: pd.DataFrame, goals: pd.DataFrame, reds: pd.DataFrame) 
     frame["first_goal_side"] = pd.Series(pd.NA, index=frame.index, dtype="string")
     frame["first_goal_minute"] = pd.Series(pd.NA, index=frame.index, dtype="Int64")
     frame.loc[frame.goals_available & frame.total_goals.eq(0), "first_goal_side"] = "none"
-    for game_id, events in goals.groupby("game_id", sort=False):
-        positions = frame.index[frame.game_id.eq(game_id)]
-        if not len(positions):
-            continue
-        position = positions[0]
-        if not frame.at[position, "goals_available"]:
-            continue
-        ordered = events.sort_values(["half", "minute", "added_time"], na_position="last")
-        first = ordered.iloc[0]
-        tied = ordered.loc[
-            ordered.half.fillna(0).eq(0 if pd.isna(first.half) else first.half)
-            & ordered.minute.eq(first.minute)
-            & ordered.added_time.fillna(0).eq(0 if pd.isna(first.added_time) else first.added_time)
-        ]
-        frame.at[position, "first_goal_minute"] = first.minute
-        if tied.team_id.nunique() == 1:
-            frame.at[position, "first_goal_side"] = (
-                "home" if first.team_id == frame.at[position, "home_team_id"] else "away"
-            )
+    ordered = goals.sort_values(
+        ["game_id", "half", "minute", "added_time"], kind="stable", na_position="last"
+    ).dropna(subset=["game_id"])
+    first = ordered.drop_duplicates("game_id").set_index("game_id")
+    event_first = first.reindex(ordered.game_id)
+    # Missing half/added_time tie with zero; minute keeps its direct NA comparison.
+    tied = (
+        ordered.half.fillna(0).eq(event_first.half.fillna(0).array)
+        & ordered.minute.eq(event_first.minute.array)
+        & ordered.added_time.fillna(0).eq(event_first.added_time.fillna(0).array)
+    )
+    teams = ordered.loc[tied].groupby("game_id", sort=False).team_id.nunique()
+    row_numbers = pd.Index(frame.game_id).get_indexer(first.index)
+    present = row_numbers >= 0
+    first = first.loc[present]
+    positions = frame.index.take(row_numbers[present])
+    available = frame.loc[positions, "goals_available"]
+    if available.isna().any():
+        raise TypeError("boolean value of NA is ambiguous")
+    usable = available.to_numpy(dtype=bool)
+    first = first.loc[usable]
+    positions = positions[usable]
+    frame.loc[positions, "first_goal_minute"] = first.minute.array
+    unambiguous = teams.reindex(first.index, fill_value=0).eq(1).to_numpy()
+    first = first.loc[unambiguous]
+    positions = positions[unambiguous]
+    is_home = first.team_id.eq(frame.loc[positions, "home_team_id"].array)
+    sides = pd.Series("away", index=first.index, dtype="string").mask(is_home, "home")
+    frame.loc[positions, "first_goal_side"] = sides.array
     frame["first_goal_side"] = frame.first_goal_side.astype(
         pd.CategoricalDtype(["home", "away", "none"])
     )
@@ -463,26 +474,53 @@ def build_goal_events(match_table: pd.DataFrame, goals: pd.DataFrame) -> pd.Data
         ["game_id", "half", "minute", "added_time", "team_id"], kind="stable", na_position="last"
     )
     frame["goal_number"] = (frame.groupby("game_id").cumcount() + 1).astype("Int64")
+    minute = frame.minute.to_numpy(dtype="int64")
     frame["minute_bucket"] = pd.Categorical(
-        [_minute_bucket(row.half, row.minute) for row in frame.itertuples()],
+        np.select(
+            [
+                frame.half.isna().to_numpy() & (minute > 45),
+                frame.half.eq(1).fillna(False).to_numpy(dtype=bool) & (minute > 45),
+                frame.half.eq(2).fillna(False).to_numpy(dtype=bool) & (minute <= 60),
+                minute <= 15,
+                minute <= 30,
+                minute <= 45,
+                minute <= 60,
+                minute <= 75,
+                minute <= 90,
+            ],
+            [
+                pd.NA,
+                "45+ (first-half stoppage)",
+                "46-60",
+                "0-15",
+                "16-30",
+                "31-45",
+                "46-60",
+                "61-75",
+                "76-90",
+            ],
+            default="90+",
+        ),
         categories=MINUTE_BUCKETS,
         ordered=True,
     )
-    frame["score_before"] = pd.Series(pd.NA, index=frame.index, dtype="string")
-    for _, events in frame.groupby("game_id", sort=False):
-        if events.ht_conflict.any():
-            continue
-        scores = {True: 0, False: 0}
-        # The batch is a half/minute; adding explicit stoppage does not invent ordering.
-        for _, batch in events.groupby(["half", "minute"], sort=True, dropna=False):
-            if len(batch) == 1:
-                row = batch.iloc[0]
-                difference = scores[bool(row.is_home)] - scores[not bool(row.is_home)]
-                frame.at[row.name, "score_before"] = (
-                    "leading" if difference > 0 else "trailing" if difference < 0 else "level"
-                )
-            for row in batch.itertuples():
-                scores[bool(row.is_home)] += 1
+    credited = frame.is_home.astype("int64") * 2 - 1
+    balance = credited.groupby(frame.game_id, sort=False).cumsum() - credited
+    difference = balance.where(frame.is_home, -balance)
+    # The batch is a half/minute; adding explicit stoppage does not invent ordering.
+    batch_size = frame.groupby(["game_id", "half", "minute"], sort=False, dropna=False)[
+        "team_id"
+    ].transform("size")
+    state = pd.Series(
+        np.select(
+            [difference.gt(0).to_numpy(dtype=bool), difference.lt(0).to_numpy(dtype=bool)],
+            ["leading", "trailing"],
+            default="level",
+        ),
+        index=frame.index,
+        dtype="string",
+    )
+    frame["score_before"] = state.where(batch_size.eq(1) & ~frame.ht_conflict)
     frame["score_before"] = frame.score_before.astype(
         pd.CategoricalDtype(["leading", "level", "trailing"])
     )
@@ -809,52 +847,6 @@ def build_coach_spells(team_matches: pd.DataFrame) -> pd.DataFrame:
     return frame.set_index(["team_id", "spell_number"], drop=True)
 
 
-def preview_pre_match_row(
-    tables: AnalysisTables,
-    game_id: int,
-    window: int = 10,
-) -> pd.DataFrame:
-    """Prototype features from strictly earlier games; this is not a trained model.
-
-    Both venue points rates use the same last-window games, possibly across seasons.
-    Missing/conflicting halftimes are excluded from the halftime mean, not imputed.
-    """
-    if window < 1:
-        raise ValueError("window must be positive")
-    if game_id not in tables.match_table.index:
-        raise ValueError(f"Unknown game_id={game_id}")
-    game = tables.match_table.loc[game_id]
-    row: dict[str, Any] = {}
-    for side in ("home", "away"):
-        team_id = game[f"{side}_team_id"]
-        history = tables.team_matches.xs(team_id, level="team_id")
-        history = (
-            history.loc[history.date.lt(game.date)].sort_values(["date", "game_id"]).tail(window)
-        )
-        for column in ("goals_scored", "goals_conceded", "points_earned", "ht_goals_scored"):
-            values = history[column]
-            if column == "ht_goals_scored":
-                values = values.where(~history.ht_conflict)
-            row[f"feature_{side}_{column}_mean"] = _mean(values)
-        for venue, is_home in (("home", True), ("away", False)):
-            row[f"feature_{side}_{venue}_points_per_match"] = _mean(
-                history.loc[history.is_home.eq(is_home), "points_earned"]
-            )
-        row[f"feature_{side}_prev_season_value_share"] = tables.team_seasons.loc[
-            (game.season_id, team_id), "prev_season_value_share"
-        ]
-    row.update(
-        target_home_goals=game.home_goals,
-        target_away_goals=game.away_goals,
-        target_result=game.result,
-    )
-    frame = pd.DataFrame([row], index=pd.Index([game_id], name="game_id"))
-    for column in frame:
-        if column.startswith("feature_"):
-            frame[column] = frame[column].astype("Float64")
-    return frame
-
-
 def outcome_base_rates(match_table: pd.DataFrame) -> pd.DataFrame:
     """Descriptive B0 home/draw/away rates and marginal 95% Wilson intervals.
 
@@ -1152,22 +1144,6 @@ def data_availability(tables: AnalysisTables) -> pd.DataFrame:
     result = coverage.groupby("season_id").mean() * 100
     result["season_role"] = _season_roles(pd.Series(result.index, index=result.index))
     return result
-
-
-def flag_unusual_matches(tables: AnalysisTables) -> pd.DataFrame:
-    """Flag unusual observations without dropping or changing any match."""
-    source = tables.match_table
-    flags = pd.DataFrame(index=source.index)
-    flags["seven_or_more_goals"] = source.total_goals.ge(7)
-    flags["three_or_more_red_cards"] = (source.home_red_cards + source.away_red_cards).ge(3)
-    flags["is_postponed"] = source.is_postponed
-    flags["borrowed_venue"] = ~source.is_home_venue
-    return (
-        source[["season_id", "date", "home_team_name", "away_team_name"]]
-        .join(flags)
-        .loc[flags.any(axis=1)]
-        .copy()
-    )
 
 
 def _scheduled_games(season_id: int, n_teams: int, final_stage: str) -> int:

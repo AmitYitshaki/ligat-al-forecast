@@ -115,6 +115,7 @@ def test_one_percent_gate_counts_only_intermediate_rows() -> None:
         _check_display_order_limit(pd.concat([checks, finals], ignore_index=True))
 
 
+@pytest.mark.slow
 def test_all_development_tables_and_verified_artifact_pattern(real_tables: AnalysisTables) -> None:
     repo = Repository()
     seasons = list(DEVELOPMENT_SEASONS)

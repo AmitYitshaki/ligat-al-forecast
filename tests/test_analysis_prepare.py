@@ -20,10 +20,8 @@ from ligat.analysis.prepare import (
     check_analysis_tables,
     data_availability,
     describe_missing_values,
-    flag_unusual_matches,
     load_analysis_tables,
     outcome_base_rates,
-    preview_pre_match_row,
     team_history,
     team_profile,
     teams_overview,
@@ -157,9 +155,14 @@ def test_goal_order_states_and_buckets(inputs: tuple[Repository, Path, Path]) ->
     assert events.loc[(103, 1), "team_id"] == 3  # Own goal already credited to beneficiary.
     goals.loc[goals.game_id.eq(104), "minute"] = 47
     assert build_goal_events(matches, goals).loc[104].minute_bucket.isna().all()
+    goals.loc[goals.game_id.eq(104), "minute"] = 45
+    assert build_goal_events(matches, goals).loc[104].minute_bucket.eq("31-45").all()
     goals.loc[goals.game_id.eq(101), "minute"] = 46
     goals.loc[goals.game_id.eq(101), "half"] = 1
     assert build_goal_events(matches, goals).loc[101].score_before.isna().all()
+    tied = goals.loc[goals.game_id.eq(101)].iloc[:2].copy()
+    tied["added_time"] = pd.array([0, 2], dtype="Int64")
+    assert build_goal_events(matches, tied).score_before.isna().all()
 
 
 @pytest.mark.parametrize(
@@ -346,8 +349,6 @@ def test_alias_warning_and_flags(healthy_analysis: tuple[AnalysisTables, Path, P
     assert any(
         "aliases" in warning for warning in check_analysis_tables(tables, formats, overrides, teams)
     )
-    tables.match_table.iloc[0, tables.match_table.columns.get_loc("is_postponed")] = True
-    assert len(flag_unusual_matches(tables)) == 1
     missing = describe_missing_values(tables)
     assert missing.loc[missing.column.eq("first_goal_minute"), "reason"].notna().all()
 
@@ -623,6 +624,28 @@ def test_simultaneous_first_goals_preserve_uncertainty(
     assert pd.isna(teams.loc[(2, 101)].scored_first)
 
 
+def test_first_goal_missing_tie_fields_and_half_order(
+    inputs: tuple[Repository, Path, Path],
+) -> None:
+    repo = inputs[0]
+    goals = repo.read("goals")
+    tied_away = goals.game_id.eq(101) & goals.team_id.eq(2)
+    goals.loc[tied_away, ["minute", "half", "added_time", "is_first_half_stoppage"]] = [
+        46,
+        1,
+        0,
+        True,
+    ]
+    unknown_half = goals.game_id.eq(202) & goals.team_id.eq(3)
+    goals.loc[unknown_half, ["minute", "half"]] = [1, pd.NA]
+    repo.write("goals", goals)
+    frame = build(inputs)
+    assert pd.isna(frame.loc[101, "first_goal_side"])
+    assert frame.loc[101, "first_goal_minute"] == 46
+    assert frame.loc[202, "first_goal_side"] == "away"
+    assert frame.loc[202, "first_goal_minute"] == 55
+
+
 def test_indexes_and_history(inputs: tuple[Repository, Path, Path]) -> None:
     frame = build(inputs)
     teams = to_team_perspective(frame)
@@ -752,42 +775,6 @@ def test_load_all_tables_uses_scoped_reads(
     assert ("final_tables", [("season_id", "in", [8, 9])]) in calls
     assert calls[-1] == ("squad_values", [("season_id", "in", [7, 8, 9])])
     assert ("goals", [("game_id", "in", tables.match_table.index.tolist())]) in calls
-
-
-def test_preview_features_use_strict_past_and_do_not_leak(
-    healthy_analysis: tuple[AnalysisTables, Path, Path, Path],
-) -> None:
-    tables, *_ = healthy_analysis
-    game_id = tables.match_table.index[-1]
-    before = preview_pre_match_row(tables, game_id, window=2)
-    matches = tables.match_table.copy()
-    matches.loc[game_id, ["home_goals", "away_goals", "total_goals", "goal_difference"]] = [
-        5,
-        0,
-        5,
-        5,
-    ]
-    matches.loc[game_id, "result"] = "home_win"
-    changed = replace(tables, match_table=matches, team_matches=to_team_perspective(matches))
-    after = preview_pre_match_row(changed, game_id, window=2)
-    columns = before.filter(like="feature_").columns
-    pd.testing.assert_frame_equal(before[columns], after[columns])
-    assert after.iloc[0].target_home_goals == 5
-    assert before.iloc[0].feature_home_points_earned_mean == 1
-    team = tables.match_table.loc[game_id, "home_team_id"]
-    history = tables.team_matches.loc[team].sort_values(["date", "game_id"])
-    previous = history.index[-2]
-    history_view = tables.team_matches.copy()
-    history_view.loc[(team, previous), "date"] = tables.match_table.loc[game_id, "date"]
-    history_view.loc[(team, previous), "goals_scored"] = 100
-    simultaneous = preview_pre_match_row(
-        replace(tables, team_matches=history_view), game_id, window=2
-    )
-    assert simultaneous.iloc[0].feature_home_goals_scored_mean == 0
-    first = preview_pre_match_row(tables, tables.match_table.index[0])
-    assert first.filter(like="feature_").isna().all().all()
-    with pytest.raises(ValueError, match="positive"):
-        preview_pre_match_row(tables, game_id, window=0)
 
 
 def test_b0_rates_and_wilson_intervals(
