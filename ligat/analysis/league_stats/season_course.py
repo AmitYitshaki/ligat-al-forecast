@@ -24,15 +24,6 @@ from .core import (
 STAGES = ("regular", "upper", "middle", "lower")
 
 
-def _rank_table(frame: pd.DataFrame) -> pd.DataFrame:
-    frame = frame.sort_values(["points", "goal_difference", "goals_scored"], ascending=False)
-    frame["rank"] = np.arange(1, len(frame) + 1, dtype=float)
-    frame["rank"] = frame.groupby(["points", "goal_difference", "goals_scored"], observed=True)[
-        "rank"
-    ].transform("mean")
-    return frame
-
-
 def standings_by_match_number(
     tables: AnalysisTables,
     seasons: Iterable[int] = DEVELOPMENT_SEASONS,
@@ -55,20 +46,6 @@ def standings_by_match_number(
     games["points"] = grouped.points_earned.cumsum()
     games["goals_scored"] = grouped.goals_scored.cumsum()
     games["goal_difference"] = grouped.goal_difference.cumsum()
-    rows = []
-    for season, group in games.groupby("season_id", observed=True):
-        teams = sorted(group.team_id.unique())
-        maximum = int(group.k.max())
-        for k in range(1, maximum + 1):
-            snapshot = group.loc[group.k.le(k)].groupby("team_id", observed=True).tail(1)
-            snapshot = snapshot.set_index("team_id", drop=True).reindex(teams)
-            snapshot = snapshot[["k", "points", "goal_difference", "goals_scored"]].rename(
-                columns={"k": "games_played"}
-            )
-            snapshot["games_short"] = snapshot.games_played.lt(k)
-            snapshot = _rank_table(snapshot)
-            snapshot["season_id"], snapshot["k"] = season, k
-            rows.append(snapshot.reset_index())
     columns = [
         "season_id",
         "k",
@@ -80,7 +57,36 @@ def standings_by_match_number(
         "games_short",
         "rank",
     ]
-    frame = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=columns)
+    if games.empty:
+        frame = pd.DataFrame(columns=columns)
+    else:
+        counts = (
+            games.groupby(["season_id", "team_id"], observed=True).k.max().rename("n").reset_index()
+        )
+        repeats = counts.groupby("season_id", observed=True).n.transform("max").to_numpy()
+        frame = counts.loc[counts.index.repeat(repeats)].reset_index(drop=True)
+        starts = np.repeat(np.cumsum(repeats) - repeats, repeats)
+        frame["k"] = np.arange(len(frame)) - starts + 1
+        # Each team's k values are consecutive from 1, so its last row is min(k, n).
+        frame["games_played"] = np.minimum(frame.k.to_numpy(), frame.n.to_numpy())
+        history = games[
+            ["season_id", "team_id", "k", "points", "goal_difference", "goals_scored"]
+        ].rename(columns={"k": "games_played"})
+        frame = frame.merge(
+            history, on=["season_id", "team_id", "games_played"], validate="many_to_one"
+        ).drop(columns="n")
+        frame["games_short"] = frame.games_played.lt(frame.k)
+        frame = frame.sort_values(
+            ["season_id", "k", "points", "goal_difference", "goals_scored"],
+            ascending=[True, True, False, False, False],
+        )
+        frame["rank"] = (frame.groupby(["season_id", "k"], observed=True).cumcount() + 1).astype(
+            float
+        )
+        frame["rank"] = frame.groupby(
+            ["season_id", "k", "points", "goal_difference", "goals_scored"], observed=True
+        )["rank"].transform("mean")
+        frame.attrs = games.attrs.copy()
     for column in ("season_id", "k", "team_id"):
         frame[column] = frame[column].astype("Int64")
     return frame.set_index(["season_id", "k", "team_id"], drop=True).sort_index()
