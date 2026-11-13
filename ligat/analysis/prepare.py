@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 import yaml
 from statsmodels.stats.proportion import proportion_confint  # type: ignore[import-untyped]
@@ -473,26 +474,53 @@ def build_goal_events(match_table: pd.DataFrame, goals: pd.DataFrame) -> pd.Data
         ["game_id", "half", "minute", "added_time", "team_id"], kind="stable", na_position="last"
     )
     frame["goal_number"] = (frame.groupby("game_id").cumcount() + 1).astype("Int64")
+    minute = frame.minute.to_numpy(dtype="int64")
     frame["minute_bucket"] = pd.Categorical(
-        [_minute_bucket(row.half, row.minute) for row in frame.itertuples()],
+        np.select(
+            [
+                frame.half.isna().to_numpy() & (minute > 45),
+                frame.half.eq(1).fillna(False).to_numpy(dtype=bool) & (minute > 45),
+                frame.half.eq(2).fillna(False).to_numpy(dtype=bool) & (minute <= 60),
+                minute <= 15,
+                minute <= 30,
+                minute <= 45,
+                minute <= 60,
+                minute <= 75,
+                minute <= 90,
+            ],
+            [
+                pd.NA,
+                "45+ (first-half stoppage)",
+                "46-60",
+                "0-15",
+                "16-30",
+                "31-45",
+                "46-60",
+                "61-75",
+                "76-90",
+            ],
+            default="90+",
+        ),
         categories=MINUTE_BUCKETS,
         ordered=True,
     )
-    frame["score_before"] = pd.Series(pd.NA, index=frame.index, dtype="string")
-    for _, events in frame.groupby("game_id", sort=False):
-        if events.ht_conflict.any():
-            continue
-        scores = {True: 0, False: 0}
-        # The batch is a half/minute; adding explicit stoppage does not invent ordering.
-        for _, batch in events.groupby(["half", "minute"], sort=True, dropna=False):
-            if len(batch) == 1:
-                row = batch.iloc[0]
-                difference = scores[bool(row.is_home)] - scores[not bool(row.is_home)]
-                frame.at[row.name, "score_before"] = (
-                    "leading" if difference > 0 else "trailing" if difference < 0 else "level"
-                )
-            for row in batch.itertuples():
-                scores[bool(row.is_home)] += 1
+    credited = frame.is_home.astype("int64") * 2 - 1
+    balance = credited.groupby(frame.game_id, sort=False).cumsum() - credited
+    difference = balance.where(frame.is_home, -balance)
+    # The batch is a half/minute; adding explicit stoppage does not invent ordering.
+    batch_size = frame.groupby(["game_id", "half", "minute"], sort=False, dropna=False)[
+        "team_id"
+    ].transform("size")
+    state = pd.Series(
+        np.select(
+            [difference.gt(0).to_numpy(dtype=bool), difference.lt(0).to_numpy(dtype=bool)],
+            ["leading", "trailing"],
+            default="level",
+        ),
+        index=frame.index,
+        dtype="string",
+    )
+    frame["score_before"] = state.where(batch_size.eq(1) & ~frame.ht_conflict)
     frame["score_before"] = frame.score_before.astype(
         pd.CategoricalDtype(["leading", "level", "trailing"])
     )

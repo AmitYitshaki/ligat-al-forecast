@@ -155,9 +155,14 @@ def test_goal_order_states_and_buckets(inputs: tuple[Repository, Path, Path]) ->
     assert events.loc[(103, 1), "team_id"] == 3  # Own goal already credited to beneficiary.
     goals.loc[goals.game_id.eq(104), "minute"] = 47
     assert build_goal_events(matches, goals).loc[104].minute_bucket.isna().all()
+    goals.loc[goals.game_id.eq(104), "minute"] = 45
+    assert build_goal_events(matches, goals).loc[104].minute_bucket.eq("31-45").all()
     goals.loc[goals.game_id.eq(101), "minute"] = 46
     goals.loc[goals.game_id.eq(101), "half"] = 1
     assert build_goal_events(matches, goals).loc[101].score_before.isna().all()
+    tied = goals.loc[goals.game_id.eq(101)].iloc[:2].copy()
+    tied["added_time"] = pd.array([0, 2], dtype="Int64")
+    assert build_goal_events(matches, tied).score_before.isna().all()
 
 
 @pytest.mark.parametrize(
