@@ -1430,6 +1430,28 @@ def test_flow_same_minute_zero_duration(flow_tables: AnalysisTables) -> None:
     assert result.loc[(804, 1), "points_won_from_behind"] == 1
 
 
+def test_flow_comeback_window_and_score_mismatch(flow_tables: AnalysisTables) -> None:
+    events = flow_tables.goal_events.copy()
+    events.loc[(804, 2), "minute"] = 21
+    later = stats.game_timelines(replace(flow_tables, goal_events=events), [8])
+    assert not later.loc[(804, 1), "equalized_within_10"]
+
+    sequence = flow_tables.goal_events.loc[[804]].reset_index().iloc[[0, 0, 1, 1]].copy()
+    sequence["goal_number"] = [1, 2, 3, 4]
+    sequence["minute"] = [10, 30, 35, 40]
+    sequence["team_id"] = [2, 2, 1, 1]
+    others = flow_tables.goal_events.drop(index=804, level="game_id")
+    events = pd.concat([others, sequence.set_index(["game_id", "goal_number"])])
+    matches = flow_tables.match_table.copy()
+    matches.loc[804, ["home_goals", "away_goals", "total_goals"]] = [2, 2, 4]
+    changed = replace(flow_tables, match_table=matches, goal_events=events)
+    assert stats.game_timelines(changed, [8]).loc[(804, 1), "equalized_within_10"]
+
+    matches.loc[804, "home_goals"] = 3
+    with pytest.raises(ValueError, match=r"^Timeline score mismatch for game_id=804$"):
+        stats.game_timelines(changed, [8])
+
+
 def test_scoring_rate_exposure_and_unknown_states(flow_tables: AnalysisTables) -> None:
     matches = flow_tables.match_table.loc[[803]]
     teams = flow_tables.team_matches.loc[

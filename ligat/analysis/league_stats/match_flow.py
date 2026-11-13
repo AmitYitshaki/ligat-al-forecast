@@ -361,11 +361,39 @@ def game_timelines(
     """
     selected = _selection(seasons)
     games, goals = _eligible(tables, selected)
-    groups = dict(tuple(goals.groupby("game_id", sort=False)))
+    totals = (
+        goals.assign(
+            late_goal=(goals.half.eq(2) & goals.minute.gt(90)).fillna(False).astype("int64"),
+            stoppage_goal=goals.is_first_half_stoppage.fillna(False).astype("int64"),
+        )
+        .groupby(["game_id", "team_id"], sort=False)[["late_goal", "stoppage_goal"]]
+        .sum()
+    )
+    game_ids = games.index.to_numpy(dtype="int64").tolist()
+    home_ids = games.home_team_id.to_numpy(dtype="int64").tolist()
+    away_ids = games.away_team_id.to_numpy(dtype="int64").tolist()
+    season_ids = games.season_id.to_numpy(dtype="int64").tolist()
+    home_goals = games.home_goals.to_numpy(dtype="int64").tolist()
+    away_goals = games.away_goals.to_numpy(dtype="int64").tolist()
+    keys = pd.MultiIndex.from_arrays(
+        [np.repeat(game_ids, 2), np.column_stack([home_ids, away_ids]).ravel()]
+    )
+    counts = (
+        totals.reindex(keys, fill_value=0)
+        .to_numpy(dtype="int64")
+        .reshape(len(games), 2, 2)
+        .tolist()
+    )
+    event_games = goals.game_id.to_numpy(dtype="int64")
+    starts = np.searchsorted(event_games, game_ids, side="left").tolist()
+    stops = np.searchsorted(event_games, game_ids, side="right").tolist()
+    clocks = goals.clock.to_numpy(dtype="int64").tolist()
+    scorers = goals.team_id.to_numpy(dtype="int64").tolist()
+    missing = pd.NA
     rows = []
-    for game in games.itertuples():
-        home, away = int(game.home_team_id), int(game.away_team_id)
-        events = groups.get(game.Index, goals.iloc[:0])
+    # Concessions depend on event order, so the state machine stays sequential.
+    for position, game_id in enumerate(game_ids):
+        home, away = home_ids[position], away_ids[position]
         scores = {home: 0, away: 0}
         minutes = {team: dict.fromkeys(STATES, 0) for team in (home, away)}
         led = dict.fromkeys((home, away), False)
@@ -374,13 +402,12 @@ def game_timelines(
         exposed = led.copy()
         equalized = led.copy()
         last = 0
-        for event in events.itertuples():
-            clock = int(event.clock)
+        start, stop = starts[position], stops[position]
+        for clock, scorer in zip(clocks[start:stop], scorers[start:stop], strict=True):
             for team, opponent in ((home, away), (away, home)):
                 diff = scores[team] - scores[opponent]
                 state = "leading" if diff > 0 else "trailing" if diff < 0 else "level"
                 minutes[team][state] += clock - last
-            scorer = int(event.team_id)
             opponent = away if scorer == home else home
             scores[scorer] += 1
             if scores[scorer] == scores[opponent] and concessions[scorer]:
@@ -394,20 +421,18 @@ def game_timelines(
                 concessions[opponent].append(clock)
                 exposed[opponent] = True
             last = clock
-        if (scores[home], scores[away]) != (game.home_goals, game.away_goals):
-            raise ValueError(f"Timeline score mismatch for game_id={game.Index}")
-        for team, opponent in ((home, away), (away, home)):
+        if (scores[home], scores[away]) != (home_goals[position], away_goals[position]):
+            raise ValueError(f"Timeline score mismatch for game_id={game_id}")
+        for side, (team, opponent) in enumerate(((home, away), (away, home))):
             diff = scores[team] - scores[opponent]
             state = "leading" if diff > 0 else "trailing" if diff < 0 else "level"
             minutes[team][state] += 90 - last
             points = 3 if diff > 0 else 1 if diff == 0 else 0
-            own = events.loc[events.team_id.eq(team)]
-            other = events.loc[events.team_id.eq(opponent)]
             rows.append(
                 dict(
-                    game_id=game.Index,
+                    game_id=game_id,
                     team_id=team,
-                    season_id=game.season_id,
+                    season_id=season_ids[position],
                     is_home=team == home,
                     minutes_leading=minutes[team]["leading"],
                     minutes_level=minutes[team]["level"],
@@ -415,12 +440,12 @@ def game_timelines(
                     led_at_any_point=led[team],
                     trailed_at_any_point=trailed[team],
                     points_earned=points,
-                    points_dropped_from_lead=3 - points if led[team] else pd.NA,
-                    points_won_from_behind=points if trailed[team] else pd.NA,
-                    equalized_within_10=equalized[team] if exposed[team] else pd.NA,
-                    late_goal_for=int((own.half.eq(2) & own.minute.gt(90)).sum()),
-                    late_goal_against=int((other.half.eq(2) & other.minute.gt(90)).sum()),
-                    first_half_stoppage_goals=int(own.is_first_half_stoppage.sum()),
+                    points_dropped_from_lead=3 - points if led[team] else missing,
+                    points_won_from_behind=points if trailed[team] else missing,
+                    equalized_within_10=equalized[team] if exposed[team] else missing,
+                    late_goal_for=counts[position][side][0],
+                    late_goal_against=counts[position][1 - side][0],
+                    first_half_stoppage_goals=counts[position][side][1],
                 )
             )
     frame = pd.DataFrame(rows)
