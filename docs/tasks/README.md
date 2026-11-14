@@ -19,6 +19,7 @@
 | T-010 | [מחברת 03: `prematch` (M0)](T-010-prematch.md) | Codex + Claude Code | מחברת 02 | `rules.py`, טבלה לפי as_of, דגל "אין על מה לשחק", Elo מכויל, כושר, הקשר t−1, `prematch_v1` | ✅ PR #20, #21 |
 | T-011 | [סנכרון מסמכי האפיון](T-011-spec-sync.md) | Claude Code + Codex | T-010 | מסמכים מסונכרנים | ✅ PR #22 |
 | T-012 | [ניקוי הריפו והאצת הטסטים](T-012-cleanup-and-speed.md) | Codex + Claude Code | T-011 | ריפו בלי קבצים מיותרים, טסטים מהירים עם כיסוי שמור | ✅ PR #23 |
+| T-013 | [מחברת 04: `motivation` (M1)](T-013-motivation.md) | Codex + Claude Code | T-010, T-012 | החשיבות התחרותית, `motivation_v1`, EXP-004 והכרעת פ-1 | 🔄 פעימה A |
 
 **רשימת המתנה (הצעות, בלי קובץ משימה עדיין):**
 - **דגלי `seasons.yaml`:** לעדכן ל-`verified: true` את העונות שנבדקו ב-T-010 §4 (T-007).
