@@ -78,12 +78,24 @@ def test_raw_negative_effect_is_retained_and_only_score_is_clipped(synthetic_inp
     frame.loc[
         key, ["title_p_win", "title_p_draw", "title_p_loss", "title_lev_raw", "title_lev"]
     ] = [0.0, 0.1, 0.25, -0.25, 0.0]
-    frame["leverage_max"] = frame[
-        [f"{t}_lev" for t in ("title", "cut", "survival", "survival_direct")]
-    ].max(axis=1)
+    frame["leverage_max"] = frame[[f"{t}_lev" for t in ("title", "cut", "survival")]].max(axis=1)
     validate_motivation_frame(frame)
     assert frame.loc[key, "title_lev_raw"] == -0.25
     assert frame.loc[key, "title_lev"] == 0
+
+
+def test_validator_rejects_score_including_diagnostic_direct_survival(synthetic_inputs):
+    frame = build(synthetic_inputs).features.iloc[:2].copy()
+    frame["season_id"] = 11
+    for target in ("title", "survival", "survival_direct"):
+        for suffix in ("p_win", "p_draw", "p_loss", "lev_raw", "lev", "mc_se"):
+            frame[f"{target}_{suffix}"] = 0.0
+    frame[["survival_direct_p_win", "survival_direct_lev_raw", "survival_direct_lev"]] = 1.0
+    frame["leverage_max"] = 0.0
+    validate_motivation_frame(frame)
+    frame["leverage_max"] = 1.0
+    with pytest.raises(ValueError, match="Invalid maximum leverage"):
+        validate_motivation_frame(frame)
 
 
 @pytest.mark.parametrize("column", ["title_p_win", "N", "nothing_to_play", "survival_mc_se"])

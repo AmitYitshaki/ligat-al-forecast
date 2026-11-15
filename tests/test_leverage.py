@@ -117,6 +117,66 @@ def test_playoff_slots_and_no_playoff_seasons():
     assert not no_playoff.features.before_split.any()
 
 
+@pytest.mark.parametrize("sid", [11, 12])
+def test_survival_direct_is_retained_but_excluded_from_score(monkeypatch, sid):
+    rows, elo, rules = snapshot_inputs()
+    snapshot = snapshot_as_of(rows, elo, rules, 8, morning(8))
+    rule = replace(snapshot.rules, season_id=sid, relegation_playoff_position=3)
+    snapshot = replace(snapshot, season_id=sid, rules=rule)
+    template = synthetic_simulator()
+    simulator = SeasonSimulator(snapshot, template.fit, template.pools)
+    calls = 0
+
+    def terminal(state, groups, lottery):
+        # Lower-group team 3 moves between ranks 3/4, affecting only direct safety.
+        nonlocal calls
+        outcome = calls % 3
+        calls += 1
+        ranks = np.broadcast_to([1, 2, 3, 4] if outcome == 0 else [1, 2, 4, 3], (len(lottery), 4))
+        return {
+            "title": ranks <= 1,
+            "cut": ranks <= 2,
+            "survival": ranks <= 2,
+            "survival_direct": ranks <= 3,
+        }
+
+    monkeypatch.setattr(simulator.engine, "terminal", terminal)
+    row = simulator.simulate(8).features.loc[(6, 3)]
+    assert row.survival_direct_lev == 1.0
+    assert row.leverage_max == max(row.title_lev, row.survival_lev) == 0.0
+    assert np.isnan(row.cut_lev)
+    assert np.isfinite(
+        row[
+            [
+                f"survival_direct_{s}"
+                for s in ("p_win", "p_draw", "p_loss", "lev_raw", "lev", "mc_se")
+            ]
+        ].to_numpy(float)
+    ).all()
+
+
+def test_no_available_main_objective_raises_instead_of_using_diagnostic(monkeypatch):
+    template = synthetic_simulator()
+    snapshot = replace(
+        template.snapshot,
+        season_id=11,
+        rules=replace(template.snapshot.rules, season_id=11),
+    )
+    simulator = SeasonSimulator(snapshot, template.fit, template.pools)
+
+    def terminal(state, groups, lottery):
+        return {
+            "title": np.full(lottery.shape, np.nan),
+            "cut": np.full(lottery.shape, np.nan),
+            "survival": np.full(lottery.shape, np.nan),
+            "survival_direct": np.ones(lottery.shape, dtype=bool),
+        }
+
+    monkeypatch.setattr(simulator.engine, "terminal", terminal)
+    with pytest.raises(ValueError, match="No available scoring objective"):
+        simulator.simulate(8)
+
+
 def test_empirical_training_excludes_validation_scores_and_documents_warmup():
     rows, _, _ = snapshot_inputs()
     mask = rows.game_id.eq(2)

@@ -286,10 +286,11 @@ def ensure_motivation(spec: MotivationConfig) -> bool:
         "warmup_exception": (
             "Seasons 8-10 use season-11 conversion and 8-10 exact scores; training only"
         ),
-        "leverage": "max(max(P(target|win)-P(target|loss),0)); paired CRN; draw is diagnostic",
-        "commit_note": (
-            "Git HEAD at build; source_sha256 identifies working files before stage commit"
+        "leverage": (
+            "max over title, cut, survival of max(P(target|win)-P(target|loss),0); "
+            "survival_direct is a stored component only; paired CRN; draw is diagnostic"
         ),
+        "commit_note": ("Git HEAD at build; source_sha256 identifies the exact source files"),
     }
     _publish(
         result.features, target, metadata, "motivation", validate_columns=validate_motivation_frame

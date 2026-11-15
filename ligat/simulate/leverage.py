@@ -12,6 +12,8 @@ from ligat.simulate.engine import Array, LeagueEngine
 from ligat.simulate.snapshot import DEVELOPMENT_SEASONS, SeasonSnapshot
 
 TARGETS = ("title", "cut", "survival", "survival_direct")
+# Decision H-M3: the score uses these three objectives; direct survival is diagnostic.
+SCORE_TARGETS = ("title", "cut", "survival")
 E0050 = "elo-b24989debf11c0ba4af09aa247bd264ad754349b8d0db4ba88e9c440fd00e950"
 SIMULATOR_VERSION = "1"
 DEFAULT_SEED = 14112026
@@ -67,7 +69,7 @@ def empirical_scores(rows: pd.DataFrame, season_id: int) -> dict[int, Array]:
 
 @dataclass(frozen=True)
 class LeverageResult:
-    """One morning's paired estimates and independently auditable rank counters."""
+    """Paired target estimates, the three-objective score and auditable rank counters."""
 
     features: pd.DataFrame
     tie_counts: Mapping[str, int]
@@ -153,7 +155,11 @@ class SeasonSimulator:
         return slots
 
     def simulate(self, paths: int = 2000, seed: int = DEFAULT_SEED) -> LeverageResult:
-        """Draw once for the morning, then force each focal H/D/A with identical CRN."""
+        """Force focal H/D/A with CRN; score title/cut/survival, retaining diagnostics.
+
+        The score is the maximum nonnegative effect among available SCORE_TARGETS.
+        Direct survival remains a component and never enters that maximum.
+        """
         if paths < 2 or seed < 0:
             raise ValueError("At least two paths and a nonnegative seed are required")
         snapshot, engine = self.snapshot, self.engine
@@ -247,9 +253,14 @@ class SeasonSimulator:
                             f"{target}_mc_se": se,
                         }
                     )
-                record["leverage_max"] = max(
-                    float(record[f"{t}_lev"]) for t in TARGETS if np.isfinite(record[f"{t}_lev"])
-                )
+                scores = [
+                    float(record[f"{t}_lev"])
+                    for t in SCORE_TARGETS
+                    if np.isfinite(record[f"{t}_lev"])
+                ]
+                if not scores:
+                    raise ValueError("No available scoring objective for a focal participant")
+                record["leverage_max"] = max(scores)
                 records.append(record)
         features = pd.DataFrame(records).set_index(["game_id", "team_id"]).sort_index()
         if not features.index.is_unique:

@@ -9,7 +9,13 @@ import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 
 from ligat.models.ordered_logit import OrderedFit
-from ligat.simulate.leverage import DEFAULT_SEED, TARGETS, SeasonSimulator, empirical_scores
+from ligat.simulate.leverage import (
+    DEFAULT_SEED,
+    SCORE_TARGETS,
+    TARGETS,
+    SeasonSimulator,
+    empirical_scores,
+)
 from ligat.simulate.rules import SeasonRules
 from ligat.simulate.snapshot import DEVELOPMENT_SEASONS, season_snapshots
 
@@ -33,7 +39,7 @@ class MotivationResult:
 
 
 def validate_motivation_frame(frame: pd.DataFrame) -> None:
-    """Reject malformed identities, missing applicable estimates or altered raw effects."""
+    """Validate all components; the score is max(title, cut, survival), ignoring NaN."""
     if (
         tuple(frame.columns) != MOTIVATION_COLUMNS
         or frame.index.names != ["game_id", "team_id"]
@@ -81,7 +87,7 @@ def validate_motivation_frame(frame: pd.DataFrame) -> None:
             or not part[f"{target}_mc_se"].ge(0).all()
         ):
             raise ValueError("Raw effects, clipping or paired standard errors are inconsistent")
-    maximum = frame[[f"{target}_lev" for target in TARGETS]].max(axis=1)
+    maximum = frame[[f"{target}_lev" for target in SCORE_TARGETS]].max(axis=1)
     if not np.array_equal(maximum, frame.leverage_max) or not maximum.between(0, 1).all():
         raise ValueError("Invalid maximum leverage")
     dead = frame.nothing_to_play
