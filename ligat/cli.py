@@ -28,6 +28,20 @@ app.add_typer(run_app, name="run")
 ConfigOption = Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)]
 
 
+@run_app.command("motivation")
+def motivation(config: ConfigOption = Path("config/motivation.yaml")) -> None:
+    """Build M1 competitive leverage locally, or verify the immutable saved version."""
+    from ligat.motivation.artifacts import ensure_motivation, load_motivation_config
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    try:
+        created = ensure_motivation(load_motivation_config(config))
+        typer.echo(f"motivation: {'created' if created else 'up to date'}")
+    except (ValueError, OSError, KeyError, AssertionError) as exc:
+        logging.getLogger(__name__).error("Motivation stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
+
+
 @run_app.command("prematch")
 def prematch(config: ConfigOption = Path("config/prematch.yaml")) -> None:
     """Assemble frozen M0 blocks locally; validate an existing version without overwriting."""
