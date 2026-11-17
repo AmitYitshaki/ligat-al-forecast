@@ -132,9 +132,12 @@ def rtl_figure(figure: Any, *, labels: Mapping[str, str] | None = None) -> Any:
                 )
         if trace.legendgrouptitle.text:
             trace.legendgrouptitle.text = rtl_text(trace.legendgrouptitle.text)
-        colorbar = getattr(trace, "colorbar", None)
-        if colorbar is not None and colorbar.title.text:
-            colorbar.title.text = rtl_text(colorbar.title.text)
+        for colorbar in (
+            getattr(trace, "colorbar", None),
+            getattr(getattr(trace, "marker", None), "colorbar", None),
+        ):
+            if colorbar is not None and colorbar.title.text:
+                colorbar.title.text = rtl_text(colorbar.title.text)
     return figure
 
 

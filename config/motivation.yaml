@@ -1,0 +1,12 @@
+# T-013 A4: immutable M1 build. Warm-up seasons 8-10 are training-only.
+seed: 14112026
+N: 2000
+seasons: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+inputs:
+  matches: data/clean/matches.parquet
+  elo: data/derived/elo/elo_E0050_prematch.parquet
+  fold_scores: reports/experiments/EXP-001/combined/fold_scores.csv
+  prematch: data/derived/prematch/prematch_v1.parquet
+  rules: config/seasons.yaml
+output: data/derived/motivation
+checkpoints: data/reports/T-013/motivation_checkpoints

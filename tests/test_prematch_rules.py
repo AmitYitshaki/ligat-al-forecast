@@ -5,6 +5,7 @@ from itertools import product
 
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal
 
 from ligat.simulate.rules import (
     PlayoffGroup,
@@ -13,6 +14,7 @@ from ligat.simulate.rules import (
     objective_flags,
     rank_table,
     split_playoffs,
+    sporting_table,
 )
 
 
@@ -204,3 +206,162 @@ def test_before_split_only_exclusion_from_upper_settles_place_lines(season: int)
     assert flags.places_decided.equals(flags.title_decided)
     assert not flags.iloc[:upper].places_decided.any()
     assert flags.iloc[upper:].places_decided.all()
+
+
+@pytest.fixture
+def a1_boundary_table() -> pd.DataFrame:
+    """Teams 90 and 20 share sixth place after every sporting criterion."""
+    return pd.DataFrame(
+        {
+            "points": [60, 50, 40, 30, 20, 10, 10, 0],
+            "goal_difference": 0,
+            "wins": 0,
+            "goals_for": 0,
+        },
+        index=[1, 2, 3, 4, 5, 90, 20, 8],
+    )
+
+
+@pytest.mark.parametrize("promoted_previous", [None, float("nan")], ids=["missing", "nan"])
+def test_a1_veteran_precedes_promoted_at_split(
+    a1_boundary_table: pd.DataFrame, promoted_previous: float | None
+) -> None:
+    rules = replace(
+        load_season_rules()[14],
+        n_teams=8,
+        groups=(PlayoffGroup("upper", 6, 10), PlayoffGroup("lower", 2, 1)),
+    )
+    previous = {90: 8.0}
+    if promoted_previous is not None:
+        previous[20] = promoted_previous
+    ranked = rank_table(a1_boundary_table, rules, previous_positions=previous)
+    assert ranked.loc[[90, 20], "position"].tolist() == [6.0, 7.0]
+    groups = split_playoffs(a1_boundary_table, rules, previous_positions=previous)
+    assert groups[90] == "upper" and groups[20] == "lower"
+
+
+def test_a1_two_promoted_need_lottery_at_split(a1_boundary_table: pd.DataFrame) -> None:
+    rules = replace(
+        load_season_rules()[14],
+        n_teams=8,
+        groups=(PlayoffGroup("upper", 6, 10), PlayoffGroup("lower", 2, 1)),
+    )
+    previous = {90: float("nan")}
+    with pytest.raises(ValueError, match="Unresolved tie"):
+        split_playoffs(a1_boundary_table, rules, previous_positions=previous)
+    keys = {int(team): float(i) for i, team in enumerate(a1_boundary_table.index)}
+    groups = split_playoffs(
+        a1_boundary_table, rules, previous_positions=previous, lottery_keys=keys
+    )
+    assert groups[90] == "upper" and groups[20] == "lower"
+    keys[90], keys[20] = keys[20], keys[90]
+    swapped = split_playoffs(
+        a1_boundary_table, rules, previous_positions=previous, lottery_keys=keys
+    )
+    assert swapped[20] == "upper" and swapped[90] == "lower"
+
+
+def test_a1_veteran_then_two_promoted_form_separate_tie_groups() -> None:
+    table = pd.DataFrame(
+        {"points": 0, "goal_difference": 0, "wins": 0, "goals_for": 0}, index=[90, 30, 20]
+    )
+    rules = load_season_rules()[14]
+    previous = {90: 8.0, 30: float("nan")}
+    partial = rank_table(table, rules, previous_positions=previous)
+    assert partial.loc[[90, 30, 20], "position"].tolist() == [1.0, 2.5, 2.5]
+    ranked = rank_table(
+        table, rules, previous_positions=previous, lottery_keys={90: 0.9, 30: 0.1, 20: 0.2}
+    )
+    assert ranked.index.tolist() == [90, 30, 20]
+    assert ranked.position.tolist() == [1.0, 2.0, 3.0]
+
+
+def test_a1_head_to_head_precedes_previous_position_and_lottery() -> None:
+    table = pd.DataFrame(
+        {"points": 30, "goal_difference": 5, "wins": 8, "goals_for": 30}, index=[1, 2]
+    )
+    games = pd.DataFrame(
+        {"team_id": [1, 2], "opponent_id": [2, 1], "goals_scored": [0, 1], "goals_conceded": [1, 0]}
+    )
+    ranked = rank_table(
+        table,
+        load_season_rules()[25],
+        games,
+        previous_positions={1: 1.0, 2: 9.0},
+        lottery_keys={1: 0.1, 2: 0.9},
+    )
+    assert ranked.index.tolist() == [2, 1]
+
+
+def test_a1_lottery_is_deterministic_and_does_not_mutate_inputs() -> None:
+    table = pd.DataFrame(
+        {"points": 0, "goal_difference": 0, "wins": 0, "goals_for": 0}, index=[1, 2, 3]
+    )
+    before = table.copy(deep=True)
+    keys = {1: 0.8, 2: 0.5, 3: 0.1}
+    first = rank_table(table, load_season_rules()[8], lottery_keys=keys)
+    second = rank_table(table, load_season_rules()[8], lottery_keys=keys)
+    assert first.index.tolist() == [3, 2, 1]
+    assert_frame_equal(first, second, check_exact=True)
+    assert_frame_equal(table, before, check_exact=True)
+    assert keys == {1: 0.8, 2: 0.5, 3: 0.1}
+
+
+@pytest.mark.parametrize("grouped", [False, True], ids=["overall", "playoff_groups"])
+def test_a1_sporting_table_resolves_title_and_safety_ties(grouped: bool) -> None:
+    rules = replace(
+        load_season_rules()[14],
+        n_teams=4,
+        relegated=1,
+        groups=(PlayoffGroup("upper", 2, 2), PlayoffGroup("lower", 2, 1)),
+    )
+    # Each pair's drawn match leaves a full tie in both playoff groups.
+    games = pd.DataFrame(
+        {
+            "team_id": [1, 2, 3, 4],
+            "opponent_id": [2, 1, 4, 3],
+            "goals_scored": 0,
+            "goals_conceded": 0,
+            "stage": ["upper", "upper", "lower", "lower"],
+        }
+    )
+    groups = {1: "upper", 2: "upper", 3: "lower", 4: "lower"} if grouped else None
+    baseline = sporting_table(games, [1, 2, 3, 4], rules, groups=groups)
+    assert baseline.position.tolist() == ([1.5, 1.5, 3.5, 3.5] if grouped else [2.5] * 4)
+    result = sporting_table(
+        games, [1, 2, 3, 4], rules, groups=groups, lottery_keys={1: 0.9, 2: 0.8, 3: 0.7, 4: 0.6}
+    )
+    assert result.position.tolist() == [1.0, 2.0, 3.0, 4.0]
+    assert result.position.eq(1).sum() == 1
+    assert result.position.le(rules.last_safe_position).sum() == rules.last_safe_position
+    assert result.index.tolist() == ([2, 1, 4, 3] if grouped else [4, 3, 2, 1])
+    assert list(result.columns) == list(baseline.columns)
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [{1: 0.1}, {1: 0.1, 2: float("nan")}, {1: float("inf"), 2: 0.2}, {1: 0.3, 2: 0.3}],
+    ids=["missing", "nan", "infinite", "duplicate_tied"],
+)
+def test_a1_invalid_lottery_keys_fail(keys: dict[int, float]) -> None:
+    table = pd.DataFrame(
+        {"points": 0, "goal_difference": 0, "wins": 0, "goals_for": 0}, index=[1, 2]
+    )
+    with pytest.raises(ValueError, match="lottery"):
+        rank_table(table, load_season_rules()[25], lottery_keys=keys)
+
+
+def test_a1_missing_key_fails_even_for_an_untied_team() -> None:
+    table = pd.DataFrame(
+        {"points": [3, 0], "goal_difference": 0, "wins": 0, "goals_for": 0}, index=[1, 2]
+    )
+    with pytest.raises(ValueError, match="lottery"):
+        rank_table(table, load_season_rules()[25], lottery_keys={1: 0.1})
+
+
+def test_a1_equal_keys_do_not_override_resolved_sporting_order() -> None:
+    table = pd.DataFrame(
+        {"points": [3, 0], "goal_difference": 0, "wins": 0, "goals_for": 0}, index=[1, 2]
+    )
+    result = rank_table(table, load_season_rules()[25], lottery_keys={1: 0.1, 2: 0.1})
+    assert result.index.tolist() == [1, 2]

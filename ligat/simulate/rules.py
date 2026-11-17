@@ -124,18 +124,35 @@ def _totals(games: pd.DataFrame, roster: Sequence[int]) -> pd.DataFrame:
     return table
 
 
+def _validated_lottery_keys(table: pd.DataFrame, lottery_keys: Mapping[int, float]) -> pd.Series:
+    """Require a finite caller-supplied decider key for every participant."""
+    keys = pd.Series({team: lottery_keys.get(team, np.nan) for team in table.index}, dtype=float)
+    if not np.isfinite(keys).all():
+        raise ValueError("Every team needs a finite lottery key")
+    return keys
+
+
 def rank_table(
     table: pd.DataFrame,
     rules: SeasonRules,
     games: pd.DataFrame | None = None,
     *,
     previous_positions: Mapping[int, float] | None = None,
+    lottery_keys: Mapping[int, float] | None = None,
 ) -> pd.DataFrame:
-    """Rank by era, then head-to-head; complete ties share their average rank.
+    """Rank by sporting criteria, optional previous positions, then decider keys.
 
-    Previous-season positions are supplied only at the playoff split. Team IDs
-    never resolve a sporting tie. ``games`` contains one row per participant.
+    Previous positions apply only at the playoff split. Missing/NaN positions
+    denote promoted teams, below every incumbent: an approved interpretation of
+    R-003 rule 6', not verified regulation wording. Season 8 has no season-7
+    data, so all previous positions are unknown during that warm-up season.
+
+    Remaining ties use lower caller-supplied lottery keys first, approximating
+    R-003 rule 6's deciding match. Without keys they retain average ranks. Keys
+    must be finite for every team and distinct within each remaining tie. Team
+    IDs never resolve a sporting tie. ``games`` has one row per participant.
     """
+    lottery = None if lottery_keys is None else _validated_lottery_keys(table, lottery_keys)
     keys = [key for key in rules.tiebreak_rules if key != "head_to_head"]
     ranked = table.sort_values(keys, ascending=False).copy()
     ranked["position"] = np.nan
@@ -148,18 +165,25 @@ def rank_table(
         else:
             subgroups = [tied.index]
         for indices in subgroups:
+            previous_groups = [indices]
             if len(indices) > 1 and previous_positions is not None:
                 previous = pd.Series(
-                    {team: previous_positions.get(team, np.nan) for team in indices}
-                )
-                if previous.notna().all() and previous.is_unique:
-                    indices = previous.sort_values().index
-                    for team in indices:
+                    {team: previous_positions.get(team, np.nan) for team in indices}, dtype=float
+                ).sort_values(kind="stable", na_position="last")
+                previous_groups = [
+                    part.index for _, part in previous.groupby(previous, sort=False, dropna=False)
+                ]
+            for group in previous_groups:
+                if len(group) > 1 and lottery is not None:
+                    group_keys = lottery.loc[group]
+                    if not group_keys.is_unique:
+                        raise ValueError("Tied teams need distinct lottery keys")
+                    for team in group_keys.sort_values().index:
                         ranked.at[team, "position"] = float(start)
                         start += 1
-                    continue
-            ranked.loc[indices, "position"] = start + (len(indices) - 1) / 2
-            start += len(indices)
+                else:
+                    ranked.loc[group, "position"] = start + (len(group) - 1) / 2
+                    start += len(group)
     return ranked.sort_values("position", kind="stable")
 
 
@@ -169,11 +193,22 @@ def split_playoffs(
     games: pd.DataFrame | None = None,
     *,
     previous_positions: Mapping[int, float] | None = None,
+    lottery_keys: Mapping[int, float] | None = None,
 ) -> dict[int, str]:
-    """Split a sporting path; refuse to invent an assignment across an unresolved tie."""
+    """Split by rank_table's rules; refuse unresolved ties across group boundaries."""
     if not rules.groups:
+        if lottery_keys is not None:
+            rank_table(
+                table,
+                rules,
+                games,
+                previous_positions=previous_positions,
+                lottery_keys=lottery_keys,
+            )
         return {int(team): "regular" for team in table.index}
-    ranked = rank_table(table, rules, games, previous_positions=previous_positions)
+    ranked = rank_table(
+        table, rules, games, previous_positions=previous_positions, lottery_keys=lottery_keys
+    )
     assignments: dict[int, str] = {}
     offset = 0
     for group in rules.groups:
@@ -191,14 +226,18 @@ def sporting_table(
     rules: SeasonRules,
     *,
     groups: Mapping[int, str] | None = None,
+    lottery_keys: Mapping[int, float] | None = None,
 ) -> pd.DataFrame:
-    """Aggregate supplied past results; fixed groups imply the split has occurred."""
+    """Aggregate past results; apply decider keys globally or within fixed groups.
+
+    Fixed groups imply the playoff split has already occurred.
+    """
     table = _totals(games, roster)
     if groups is not None and rules.points_halved:
         regular = _totals(games.loc[games.stage.eq("regular")], roster).points
         table["points"] += (regular + 1) // 2 - regular
     if groups is None:
-        table = rank_table(table, rules, games)
+        table = rank_table(table, rules, games, lottery_keys=lottery_keys)
         table["group_position"] = table.position
         table["table_group"] = "regular"
     else:
@@ -209,7 +248,7 @@ def sporting_table(
             ids = [team for team in roster if groups[team] == group.name]
             if len(ids) != group.teams:
                 raise ValueError(f"Invalid size for playoff group {group.name}")
-            part = rank_table(table.loc[ids], rules, games)
+            part = rank_table(table.loc[ids], rules, games, lottery_keys=lottery_keys)
             part["group_position"] = part.position
             part["position"] += rules.offset(group.name)
             part["table_group"] = group.name
