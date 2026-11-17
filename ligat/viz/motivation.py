@@ -1,6 +1,5 @@
 """Notebook-04 presentation: Tailwind palette, explicit Hebrew labels and named clubs."""
 
-import re
 from collections.abc import Mapping, Sequence
 from textwrap import wrap
 from typing import Any
@@ -8,8 +7,11 @@ from typing import Any
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 import plotly.graph_objects as go  # type: ignore[import-untyped]
+from plotly.basedatatypes import BasePlotlyType  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
+from ligat.viz.motivation_style import normalize_minus as normalize_minus
+from ligat.viz.motivation_style import two_se
 from ligat.viz.presentation import TableDisplay, display_table, rtl_figure
 from ligat.viz.seasons import season_label
 
@@ -211,7 +213,7 @@ VALUES.update(
         "yes": "כן",
         "no": "לא",
         "unclear": "לא ברור",
-        "near_zero_alive": "L5=0.25, זהה ל-L3=0.5",
+        "near_zero_alive": "L5=0.25 (זהה ל-L3=0.5)",
         "near_zero_vs_dead": "כמעט כלום מול מתות בלבד",
         "all_games": "כל המשחקים",
         "live_games": "שתי הקבוצות חיות",
@@ -231,6 +233,10 @@ VALUES.update(
 )
 LABELS.update(
     {
+        "comparisons": "השוואות מתוכננות",
+        "estimated": "אומדנים מחושבים",
+        "estimable": "השוואות כשירות",
+        "beyond_two_se": "מעבר לפעמיים SE",
         "comparison_id": "השוואה",
         "predictor": "משתנה",
         "centered_corr": "מתאם לאחר מרכוז",
@@ -346,7 +352,9 @@ def table(
             data[column] = data[column].map(lambda v: "∞" if pd.notna(v) and np.isinf(v) else v)
     for column in ("split_rate", "final_rate"):
         if column in data:
-            data[column] = data[column].map(lambda value: f"{value:.5%}")
+            data[column] = data[column].map(
+                lambda value: "אין פיצול" if pd.isna(value) else f"{value:.5%}"
+            )
     if "stratum" in data:
         data["stratum"] = data.stratum.map(
             lambda value: (
@@ -360,7 +368,25 @@ def table(
                 .replace("4-6", "4–6")
             )
         )
-    return display_table(
+    for column in columns:
+        if column in data and (
+            column.startswith("n_")
+            or column in {"n", "N", "checked_rows", "checked_games", "checked_seasons"}
+        ):
+            numeric = pd.to_numeric(data[column], errors="coerce")
+            if numeric.notna().all() and (numeric % 1 == 0).all():
+                data[column] = numeric.astype(int)
+        if column in data and (column.endswith("_error") or column == "error"):
+            data[column] = data[column].map(
+                lambda value: (
+                    "0 (בדיוק המחשב)"
+                    if isinstance(value, (float, int)) and abs(value) < 1e-12
+                    else value
+                )
+            )
+    if "season_id" in data:
+        data = data.sort_values("season_id", kind="stable")
+    rendered = display_table(
         data,
         dict(LABELS)
         | {
@@ -375,7 +401,19 @@ def table(
         values=VALUES,
         show_index=False,
         precision={
-            c: 0 if c == "elo_pre" or (c.startswith("n_") and not c.endswith("pct")) else 4
+            c: 0
+            if c
+            in {
+                "elo_pre",
+                "compared_rows",
+                "excluded_rows",
+                "comparisons",
+                "estimated",
+                "estimable",
+                "beyond_two_se",
+            }
+            or (c.startswith("n_") and not c.endswith("pct"))
+            else 4
             for c in columns
             if c
             not in (
@@ -432,6 +470,7 @@ def table(
         },
         unicode_minus=tuple(columns),
     )
+    return rendered
 
 
 def _finish(fig: Any, title: str, *, height: int = 550) -> Any:
@@ -443,10 +482,53 @@ def _finish(fig: Any, title: str, *, height: int = 550) -> Any:
         font=dict(family="Arial", size=14),
         title=dict(text=title, x=0.97, xanchor="right"),
         height=height,
-        margin=dict(t=135, b=110, l=105, r=45),
-        legend=dict(title_text="", orientation="h", y=-0.22),
+        margin=dict(t=135, b=170, l=105, r=45),
+        legend=dict(title_text="", orientation="h", y=-125 / max(height - 305, 100)),
     )
-    return rtl_figure(fig)
+    has_errors = False
+    for trace in fig.data:
+        for axis in ("error_x", "error_y"):
+            error = getattr(trace, axis, None)
+            if error is not None and error.array is not None:
+                has_errors = True
+                if not isinstance(trace.meta, dict) or axis[-1] not in trace.meta.get("two_se", []):
+                    raise ValueError(f"{axis}: estimate bars must be built with two_se()")
+    if has_errors:
+        fig.update_layout(legend_title_text="פס = פעמיים SE", showlegend=True)
+        if not any(trace.showlegend is not False for trace in fig.data):
+            fig.data[0].showlegend = True
+            fig.data[0].name = "אומדנים"
+
+    def clean(value: Any, *, format_numbers: bool = True) -> Any:
+        if isinstance(value, str):
+            # Keep the shared RTL embeddings, season formatting and hover policy.
+            # Only boundary marks expressly forbidden in this notebook are omitted.
+            text = normalize_minus(value) if format_numbers and "\u202b" not in value else value
+            return text.replace("\u200e", "").replace("\u200f", "")
+        if isinstance(value, BasePlotlyType):
+            for key in value.to_plotly_json():
+                item = value[key]
+                if item is not None:
+                    value[key] = clean(item, format_numbers=format_numbers)
+            return value
+        if isinstance(value, dict):
+            return {key: clean(item, format_numbers=format_numbers) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [clean(item, format_numbers=format_numbers) for item in value]
+        if isinstance(value, np.ndarray) and value.dtype.kind in "UOS":
+            return [clean(item, format_numbers=format_numbers) for item in value.tolist()]
+        return value
+
+    clean(fig.layout)
+    for trace in fig.data:
+        clean(trace)
+    rtl_figure(fig)
+    clean(fig.layout, format_numbers=False)
+    for trace in fig.data:
+        clean(trace, format_numbers=False)
+    if has_errors:
+        fig.layout.legend.title.text = "פס = פעמיים SE"
+    return fig
 
 
 def importance_histogram(frame: pd.DataFrame, summary: pd.DataFrame) -> Any:
@@ -464,7 +546,7 @@ def importance_histogram(frame: pd.DataFrame, summary: pd.DataFrame) -> Any:
     fig.update_yaxes(title="שורות קבוצה–משחק", rangemode="tozero")
     return _finish(
         fig,
-        f"ציון אפס ב-{s.zero_fraction:.1%} מהשורות<br>"
+        f"{s.zero_fraction:.1%} מהשורות: ציון אפס<br>"
         f"n={int(s.n):,}; משחקים={int(s.n_games):,}; עונות={int(s.n_seasons)}",
     )
 
@@ -538,7 +620,7 @@ def gap_scatter(frame: pd.DataFrame, *, names: Mapping[int, str]) -> Any:
 
 
 def residual_forest(
-    frame: pd.DataFrame, title: str = "אותם ייצוגים נבדקים באותן שכבות — אומדן ± SE"
+    frame: pd.DataFrame, title: str = "אותם ייצוגים נבדקים באותן שכבות — אומדן ±2SE"
 ) -> Any:
     """Show all category contrasts and their season-bootstrap SE, without significance claims."""
     data = frame.loc[frame.method.eq("contrast")].copy()
@@ -546,13 +628,19 @@ def residual_forest(
         rows=1, cols=3, shared_yaxes=True, subplot_titles=["נקודות", "הבקעה", "ספיגה"]
     )
     labels = [
-        f"{r.representation}: {VALUES.get(str(r.category), str(r.category))}"
+        VALUES[str(r.category)]
+        if r.category == "near_zero_alive"
+        else f"{VALUES.get(r.representation, r.representation)}: "
+        f"{VALUES.get(str(r.category), str(r.category))}"
         for r in data.drop_duplicates(["representation", "category"]).itertuples()
     ]
     for col, metric in enumerate(("res_pts", "res_gf", "res_ga"), 1):
         part = data.loc[data.metric.eq(metric)]
         ticks = [
-            f"{r.representation}: {VALUES.get(str(r.category), str(r.category))}"
+            VALUES[str(r.category)]
+            if r.category == "near_zero_alive"
+            else f"{VALUES.get(r.representation, r.representation)}: "
+            f"{VALUES.get(str(r.category), str(r.category))}"
             for r in part.itertuples()
         ]
         fig.add_trace(
@@ -561,7 +649,7 @@ def residual_forest(
                 y=ticks,
                 mode="markers",
                 marker=dict(color=BLUE, size=7),
-                error_x=dict(type="data", array=part.se),
+                **two_se(part.se, axis="x"),
                 showlegend=False,
                 customdata=part[["n", "n_used", "n_excluded", "n_games", "n_seasons"]],
                 hovertemplate="%{y}<br>אומדן=%{x:+.3f}<br>n=%{customdata[0]}<br>בהשוואה=%{customdata[1]}<br>הוחרגו=%{customdata[2]}<br>משחקים=%{customdata[3]}<br>עונות=%{customdata[4]}<extra></extra>",
@@ -572,7 +660,7 @@ def residual_forest(
         fig.add_vline(x=0, line_dash="dash", line_color=GRAY, row=1, col=col)
         fig.update_xaxes(title_text="הפרש בתוך שכבות", row=1, col=col)
     fig.update_yaxes(categoryorder="array", categoryarray=labels[::-1])
-    return _finish(fig, title, height=850)
+    return _finish(fig, title, height=550 if len(labels) < 4 else 850)
 
 
 def title_timeline(frame: pd.DataFrame, team_name: str) -> Any:
@@ -658,7 +746,7 @@ def block_estimates(frame: pd.DataFrame) -> Any:
                 y=part.estimate,
                 mode="markers",
                 marker=dict(color=color, size=9),
-                error_y=dict(type="data", array=part.se),
+                **two_se(part.se),
                 customdata=np.column_stack(
                     [part.block.map(VALUES), part[["n", "n_used", "n_games", "n_seasons"]]]
                 ),
@@ -720,11 +808,6 @@ def summary_words(frame: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-def normalize_minus(text: str) -> str:
-    """Use a mathematical minus for generated numerical prose, including exponents."""
-    return re.sub(r"-(?=\d)", "−", text)
-
-
 def decomposition_plot(frame: pd.DataFrame) -> Any:
     """Matched dead/control residual means, with the same season-bootstrap SE."""
     data = frame.loc[frame.scope.isin(["B1", "B2", "B3"]) & frame.metric.eq("res_pts")]
@@ -735,9 +818,9 @@ def decomposition_plot(frame: pd.DataFrame) -> Any:
     ):
         fig.add_trace(
             go.Scatter(
-                x=[f"בלוק {i}" for i in range(1, 4)],
+                x=[VALUES[key] for key in ("B1", "B2", "B3")],
                 y=data[field],
-                error_y=dict(type="data", array=data[f"{field}_se"], visible=True),
+                **two_se(data[f"{field}_se"]),
                 mode="markers",
                 marker=dict(color=color, size=12),
                 name=label,
@@ -748,7 +831,11 @@ def decomposition_plot(frame: pd.DataFrame) -> Any:
             )
         )
     fig.add_hline(y=0, line_color=GRAY, line_dash="dash")
-    fig.update_yaxes(title="שארית נקודות מול E0050, ממוצע ± SE")
+    recent = data.loc[data.scope.eq("B3")].iloc[0]
+    fig.add_annotation(
+        x=VALUES["B3"], y=float(recent.dead_mean), text="המתות על קו Elo", showarrow=True, ay=-65
+    )
+    fig.update_yaxes(title="שארית נקודות מול E0050, ממוצע ±2SE")
     fig.update_xaxes(title="בלוקים קבועים של חמש עונות; הטווחים בטבלה")
     return _finish(fig, "מי זזה מול Elo: המתות או קבוצות ההשוואה?")
 
@@ -781,7 +868,7 @@ def stage_residual_plot(frame: pd.DataFrame) -> Any:
                     size=11,
                     symbol=["circle-open" if n < 30 else "circle" for n in data.n_games],
                 ),
-                error_y=dict(type="data", array=data.goals_se, visible=True),
+                **two_se(data.goals_se),
                 customdata=data[["n_games", "n_seasons"]],
                 text=[
                     "לא מספיק משחקים" if n < 30 else "כיסוי של שלושים משחקים ומעלה"
@@ -793,7 +880,7 @@ def stage_residual_plot(frame: pd.DataFrame) -> Any:
         )
     fig.add_hline(y=0, line_dash="dash", line_color=GRAY)
     fig.update_xaxes(title="שלב העונה")
-    fig.update_yaxes(title="בפועל פחות λ בית וחוץ יחד (שערים למשחק), ± SE")
+    fig.update_yaxes(title="בפועל פחות λ בית וחוץ יחד (שערים למשחק), ±2SE")
     return _finish(fig, "האם מודל השערים מפספס בפלייאוף גם בלי מתות ומאבקי הישארות?")
 
 
@@ -839,7 +926,7 @@ def chapter4_takeaways(
             f"ל-{both.res_draw:+.2f} (SE {both.res_draw_se:.2f})."
             "<br><b>מבט כדורגלני:</b> כשקבוצה כבר אינה צריכה כלום, המשחקים נראים "
             "פתוחים יותר, עם יותר שערים לשני הצדדים. זה תיאור ולא הוכחה סיבתית. "
-            "הדגל ייבדק בתוך ההשוואה המשולשת של מודל השערים במחברת 05, "
+            "הדגל ייבדק בכל מקרה בתוך ההשוואה המשולשת של מודל השערים במחברת 05 (ה-מ9), "
             "והתיקו במחברת 06.</li>"
         )
     return TableDisplay(
@@ -865,12 +952,14 @@ def chapter4_takeaways(
             f"{int(multi.get('estimated', multi.comparisons))} עם אומדן מספרי, "
             f"ומהן {int(multi.estimable)} כשירות עם SE חיובי ולפחות שלושים תצפיות שימושיות. "
             f"{int(multi.beyond_two_se)} מהכשירות עוברות |אומדן| &gt; 2·SE. "
-            "נספרים אומדני A5b הייחודיים, שני ממוצעי הפירוק בכל מדד, הרגישות, שאריות "
+            "נספרים האומדנים הייחודיים, שני ממוצעי הפירוק בכל מדד, הרגישות, שאריות "
             "המשחקים הגולמיות ובתוך שכבות מול כל שאר המשחקים ומול סוג כל השאר בלבד, "
             "שני מקדמי הספיגה המשותפים ושאריות לפי שלב ואוכלוסייה ולפי שתי התקופות "
             "של סוגי המשחקים. תאים ריקים או "
             "עם פחות משלושים תצפיות אינם כשירים לפירוש. בלוקים, עונות "
-            "בודדות, הצגה חוזרת וכפל במרחק טיפוסי אינם נספרים שוב. "
+            "בודדות והצגה חוזרת אינן נספרות שוב. בספירה המורחבת כאן נכללים גם "
+            "שמונת אומדני המדרגות ושבעת התרגומים לפער טיפוסי; האחרונים הם "
+            "שינוי יחידות של אותם שיפועים, ולא ראיות נפרדות. "
             "<br><b>מבט כדורגלני:</b> ההשוואות תלויות; התיאור אינו מסקנה סיבתית "
             "ואינו בדיקת חיזוי. אף ייצוג לא נכנס היא תוצאה לגיטימית בחלק B.</li></ul></div>"
         )
@@ -892,20 +981,20 @@ def walk_forward(plan: pd.DataFrame) -> Any:
             zmin=0,
             zmax=2,
             colorscale=[[0, "#DBEAFE"], [0.5, "#60A5FA"], [1, "#1E3A8A"]],
-            colorbar=dict(
-                tickvals=[0, 1, 2],
-                ticktext=["טרם נראה", "אימון", "ולידציה"],
-                orientation="h",
-                y=-0.2,
-                yanchor="top",
-                x=0.5,
-                xanchor="center",
-                len=0.65,
-                thickness=12,
-            ),
+            showscale=False,
             hovertemplate="%{x}<br>%{y}<extra></extra>",
         )
     )
+    for label, color in (("טרם נראה", "#DBEAFE"), ("אימון", "#60A5FA"), ("ולידציה", "#1E3A8A")):
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                name=label,
+                marker=dict(symbol="square", size=14, color=color),
+            )
+        )
     fig.update_xaxes(title="עונת הנתונים", tickangle=-45)
     fig.update_yaxes(title="קיפול והעומק שלו", autorange="reversed")
     return _finish(fig, "בכל קיפול לומדים רק מהעבר ובודקים בעונה הבאה", height=1150)

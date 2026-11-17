@@ -289,10 +289,12 @@ def within_strata_contrast(
     repeats: int = 2000,
     seed: int = 14112026,
     years: Sequence[int] | None = None,
+    include_selected_in_reference: bool = False,
 ) -> dict[str, Any]:
     """Category-minus-complement means, weighted by usable category counts per stratum."""
     data = frame.loc[frame[metric].notna()]
     selected = mask.reindex(data.index).to_numpy(bool)
+    reference = np.ones_like(selected) if include_selected_in_reference else ~selected
     seasons = sorted(int(s) for s in frame.season_id.unique()) if years is None else list(years)
     strata = pd.Categorical(data.stratum)
     width = len(strata.categories)
@@ -311,8 +313,8 @@ def within_strata_contrast(
             for w in (
                 selected.astype(float),
                 values * selected,
-                (~selected).astype(float),
-                values * (~selected),
+                reference.astype(float),
+                values * reference,
             )
         ],
         axis=2,

@@ -140,8 +140,8 @@ def test_local_dates_have_unpadded_day_month_and_correct_israel_dst():
 
 def test_generated_numeric_prose_uses_mathematical_minus():
     result = normalize_minus("אפקט -0.36, SE 0.1, סף 1e-9; EXP-004")
-    assert "−0.36" in result and "1e−9" in result and "EXP−004" in result
-    assert not re.search(r"-\d", result)
+    assert "−0.36" in result and "1e−9" in result and "EXP-004" in result
+    assert not re.search(r"(?<![\w])-(?=\d)", result)
     assert not re.search(r"-\d", timing_line(0.2, computed_at="2026-11-15")._repr_html_())
 
 
