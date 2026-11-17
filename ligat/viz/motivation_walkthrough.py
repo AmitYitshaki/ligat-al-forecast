@@ -74,7 +74,17 @@ def survival_profile(frame: pd.DataFrame) -> Any:
                 "<br>רבעונים %{customdata[1]:.2f}–%{customdata[2]:.2f}<extra></extra>",
             )
         )
-    fig.update_xaxes(title="מעל הקו ← פער חתום → מתחת לקו", range=[-12, 15])
+    fig.update_xaxes(title="פער מקו ההישארות, בנקודות", range=[-12, 15])
+    for value, label, anchor in ((-12, "מעל הקו", "left"), (15, "מתחת לקו", "right")):
+        fig.add_annotation(
+            x=value,
+            y=1.09,
+            xref="x",
+            yref="paper",
+            text=label,
+            xanchor=anchor,
+            showarrow=False,
+        )
     fig.update_yaxes(title="חשיבות להישארות בלבד", range=[0, 1])
     return mv._finish(fig, "אותו פער מקו ההישארות חשוב אחרת כשנותרו פחות משחקים")
 
@@ -102,9 +112,20 @@ def contribution_plot(layers: pd.DataFrame) -> Any:
             row=col,
             col=1,
         )
+        total = float(p.contribution.sum())
         fig.add_vline(
-            x=float(p.contribution.sum()), line_dash="dash", line_color=mv.GRAY, row=col, col=1
+            x=total,
+            line_dash="dash",
+            line_color=mv.GRAY,
+            row=col,
+            col=1,
+            annotation_text=f"הפער הכולל: {total:+.2f}",
+            annotation_position="top right",
         )
+        low = min(0.0, total, float(p.contribution.min()))
+        high = max(0.0, total, float(p.contribution.max()))
+        padding = 0.08 * (high - low or 1.0)
+        fig.update_xaxes(range=[low - padding, high + padding], row=col, col=1)
         if col == 3:
             fig.update_xaxes(title_text="תרומה לפער בנקודות", row=col, col=1)
         if block == "B3":
@@ -230,15 +251,15 @@ def period_plot(frame: pd.DataFrame) -> Any:
         "one_dead": "צד מת יחיד ללא מאבק הישארות",
         "other": "כל השאר",
     }
-    for period, label, color in (
-        ("first10", "2009/2010–2018/2019", mv.GRAY),
-        ("last5", "2019/2020–2023/2024", mv.BLUE),
+    for period, label, color, offset in (
+        ("first10", "2009/2010–2018/2019", mv.GRAY, -0.09),
+        ("last5", "2019/2020–2023/2024", mv.BLUE, 0.09),
     ):
         p = frame.loc[frame.period.eq(period)]
         for col, metric in enumerate(("res_total_goals", "res_draw"), 1):
             fig.add_trace(
                 go.Scatter(
-                    x=p.game_type.map(kinds),
+                    x=p.game_type.map({kind: i for i, kind in enumerate(kinds)}) + offset,
                     y=p[metric],
                     **two_se(p[f"{metric}_se"]),
                     mode="markers",
@@ -250,8 +271,8 @@ def period_plot(frame: pd.DataFrame) -> Any:
                         size=9,
                         symbol=["circle-open" if n < 30 else "circle" for n in p.n_games],
                     ),
-                    customdata=p[["n_games"]],
-                    hovertemplate="%{x}<br>שארית %{y:.3f}"
+                    customdata=list(zip(p.n_games, p.game_type.map(kinds), strict=True)),
+                    hovertemplate="%{customdata[1]}<br>שארית %{y:.3f}"
                     "<br>משחקים %{customdata[0]}<extra></extra>",
                 ),
                 row=1,
@@ -261,16 +282,19 @@ def period_plot(frame: pd.DataFrame) -> Any:
         fig.add_hline(y=0, line_dash="dash", line_color=mv.GRAY, row=1, col=col)
     fig.update_yaxes(title_text="שערים למשחק", row=1, col=1)
     fig.update_yaxes(title_text="הפרש הסתברות תיקו", row=1, col=2)
-    fig.update_xaxes(tickangle=-25)
+    fig.update_xaxes(
+        tickangle=-25, tickvals=list(range(4)), ticktext=list(kinds.values()), range=[-0.4, 3.4]
+    )
     return mv._finish(fig, "משחקי מתות: עודף השערים גדל בחמש האחרונות", height=850)
 
 
 def stage_plot(frame: pd.DataFrame) -> Any:
     """All/recent clean/all populations; omit middle's tiny sample from the graph only."""
     fig = go.Figure()
-    for prefix, period, symbol in (
-        ("", "כל 15 העונות", "circle"),
-        ("last5_", "חמש העונות האחרונות", "diamond"),
+    stages = {"regular": 0, "upper": 1, "lower": 2}
+    for prefix, period, symbol, period_offset in (
+        ("", "כל 15 העונות", "circle", -0.12),
+        ("last5_", "חמש העונות האחרונות", "diamond", 0.12),
     ):
         for pop, label, color in (
             ("clean", "נקיים", mv.BLUE),
@@ -279,17 +303,28 @@ def stage_plot(frame: pd.DataFrame) -> Any:
             p = frame.loc[frame.population.eq(pop) & frame.stage.ne("middle")]
             fig.add_trace(
                 go.Scatter(
-                    x=p.stage.map(mv.VALUES),
+                    x=p.stage.map(stages) + period_offset + (-0.05 if pop == "clean" else 0.05),
                     y=p[f"{prefix}goals_residual"],
                     **two_se(p[f"{prefix}goals_se"]),
                     mode="markers",
                     name=f"{period}: {label}",
-                    marker=dict(color=color, size=10, symbol=symbol),
-                    customdata=p[[f"{prefix}n_games"]],
-                    hovertemplate="%{x}<br>שארית %{y:.3f}"
+                    marker=dict(
+                        color=color,
+                        size=10,
+                        symbol=[
+                            symbol + "-open" if n < 30 else symbol for n in p[f"{prefix}n_games"]
+                        ],
+                    ),
+                    customdata=list(
+                        zip(p[f"{prefix}n_games"], p.stage.map(mv.VALUES), strict=True)
+                    ),
+                    hovertemplate="%{customdata[1]}<br>שארית %{y:.3f}"
                     "<br>משחקים %{customdata[0]}<extra></extra>",
                 )
             )
     fig.add_hline(y=0, line_dash="dash", line_color=mv.GRAY)
+    fig.update_xaxes(
+        tickvals=list(stages.values()), ticktext=[mv.VALUES[k] for k in stages], range=[-0.4, 2.4]
+    )
     fig.update_yaxes(title="שערים בפועל פחות הצפי")
     return mv._finish(fig, "בחמש האחרונות אין עודף ברור בפלייאוף הנקי; בתחתון מדגם קטן", height=850)

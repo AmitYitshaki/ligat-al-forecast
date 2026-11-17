@@ -7,8 +7,9 @@ import pytest
 
 from ligat.analysis import motivation_review as mr
 from ligat.analysis import motivation_walkthrough as mw
+from ligat.viz import motivation_walkthrough as wv
 from ligat.viz.motivation import _finish, normalize_minus
-from ligat.viz.motivation_style import two_se
+from ligat.viz.motivation_style import two_se, verify_rtl_labels
 
 
 @pytest.mark.parametrize("text", ["בכ-30", "ה-0.36", "−0.20", "EXP-004", "T-013", "E0050"])
@@ -25,7 +26,8 @@ def test_two_se_is_explicit_and_finalization_is_idempotent():
     second = _finish(first, "בכ-30 EXP-004")
     np.testing.assert_array_equal(first.data[0].error_y.array, [0.2])
     np.testing.assert_array_equal(second.data[0].error_y.array, [0.2])
-    assert "פס = פעמיים SE" in second.layout.legend.title.text
+    assert second.layout.legend.title.text.startswith("\u202b")
+    assert "פס = פעמיים" in second.layout.legend.title.text
     assert not any(c in second.to_json() for c in ("\u200e", "\u200f"))
     assert "-30" in second.layout.title.text and "EXP-004" in second.layout.title.text
     assert second.layout.xaxis.automargin is None  # no axis title was supplied
@@ -156,6 +158,111 @@ def test_visible_scanner_finds_real_terms_without_rewriting_and_ignores_code_css
     assert mw.visible_text_violations(notebook) == []
     notebook["cells"][-1]["outputs"][0]["data"]["text/html"] += "<p>A5</p>"
     assert [v["term"] for v in mw.visible_text_violations(notebook)] == ["A5"]
+
+
+def test_all_hebrew_graph_labels_require_rtl_including_legend_and_annotations():
+    fig = go.Figure(go.Scatter(x=[1], y=[2], name="קבוצה", **two_se([0.1])))
+    fig.update_xaxes(title="ציר", tickvals=[1], ticktext=["קטגוריה"])
+    fig.data[0].marker = dict(color=[1], colorbar=dict(title="סרגל צבע"))
+    fig.add_annotation(x=1, y=2, text="הערה")
+    fig = _finish(fig, "כותרת")
+    verify_rtl_labels(fig.to_plotly_json())
+    fig.layout.legend.title.text = "פס = פעמיים SE"
+    with pytest.raises(ValueError, match="layout.legend.title.text"):
+        verify_rtl_labels(fig.to_plotly_json())
+    verify_rtl_labels(_finish(fig, "כותרת").to_plotly_json())
+
+
+def test_visible_scanner_rejects_clean_and_single_se_without_new_exceptions():
+    notebook = {"cells": [dict(cell_type="markdown", source="clean; SE אחד")]}
+    assert {r["term"] for r in mw.visible_text_violations(notebook)} == {"clean", "SE אחד"}
+
+
+def test_survival_axis_annotations_match_numeric_direction():
+    frame = pd.DataFrame(
+        dict(
+            gap_to_safety=[-12, 15],
+            remaining_bin=["≤1", "≤1"],
+            median=[0.1, 0.7],
+            q25=[0.0, 0.6],
+            q75=[0.2, 0.8],
+            n=[5, 6],
+        )
+    )
+    fig = wv.survival_profile(frame)
+    annotations = sorted(fig.layout.annotations, key=lambda a: a.x)
+    assert [a.x for a in annotations] == [-12, 15]
+    assert "מעל הקו" in annotations[0].text and "מתחת לקו" in annotations[1].text
+    assert not any(arrow in fig.layout.xaxis.title.text for arrow in ["←", "→"])
+    verify_rtl_labels(fig.to_plotly_json())
+
+
+def test_each_contribution_total_has_visible_line_and_label():
+    layers = pd.DataFrame(
+        [
+            dict(
+                scope=scope,
+                included=True,
+                stratum="lower / <=1",
+                contribution=value,
+                n_dead=36,
+                n_control=4,
+            )
+            for scope, value in zip(mw.PERIODS, [-0.55, -0.35, -0.41], strict=True)
+        ]
+    )
+    fig = wv.contribution_plot(layers)
+    assert len(fig.layout.shapes) == 3
+    for index, shape in enumerate(fig.layout.shapes, 1):
+        axis = fig.layout["xaxis" if index == 1 else f"xaxis{index}"]
+        assert axis.range[0] < shape.x0 < axis.range[1]
+        assert shape.x0 == shape.x1 and shape.line.dash == "dash"
+    assert sum("הפער הכולל" in a.text for a in fig.layout.annotations) == 3
+    verify_rtl_labels(fig.to_plotly_json())
+
+
+def test_period_and_stage_offsets_separate_points_without_changing_estimates():
+    periods = pd.DataFrame(
+        [
+            dict(
+                period=period,
+                game_type=kind,
+                n_games=20,
+                res_total_goals=0.3,
+                res_total_goals_se=0.1,
+                res_draw=-0.1,
+                res_draw_se=0.02,
+            )
+            for period in ["first10", "last5"]
+            for kind in ["relegation_alive", "both_dead", "one_dead", "other"]
+        ]
+    )
+    fig = wv.period_plot(periods)
+    assert all(a != b for a, b in zip(fig.data[0].x, fig.data[2].x, strict=True))
+    np.testing.assert_array_equal(fig.data[0].y, [0.3] * 4)
+    np.testing.assert_allclose(fig.data[0].error_y.array, [0.2] * 4)
+    stages = pd.DataFrame(
+        [
+            dict(
+                stage=stage,
+                population=pop,
+                n_games=40,
+                last5_n_games=17,
+                goals_residual=0.2,
+                goals_se=0.1,
+                last5_goals_residual=0.3,
+                last5_goals_se=0.2,
+            )
+            for pop in ["clean", "all_games"]
+            for stage in ["regular", "upper", "lower"]
+        ]
+    )
+    fig = wv.stage_plot(stages)
+    assert len({float(t.x[0]) for t in fig.data}) == 4
+    assert fig.data[2].marker.symbol[0] == "diamond-open"
+    np.testing.assert_array_equal(fig.data[2].y, [0.3] * 3)
+    np.testing.assert_allclose(fig.data[2].error_y.array, [0.4] * 3)
+    verify_rtl_labels(fig.to_plotly_json())
 
 
 @pytest.mark.parametrize("extra", [" 17", " (0.2)"])

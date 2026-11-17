@@ -11,7 +11,7 @@ from plotly.basedatatypes import BasePlotlyType  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
 from ligat.viz.motivation_style import normalize_minus as normalize_minus
-from ligat.viz.motivation_style import two_se
+from ligat.viz.motivation_style import two_se, verify_rtl_labels
 from ligat.viz.presentation import TableDisplay, display_table, rtl_figure
 from ligat.viz.seasons import season_label
 
@@ -526,8 +526,7 @@ def _finish(fig: Any, title: str, *, height: int = 550) -> Any:
     clean(fig.layout, format_numbers=False)
     for trace in fig.data:
         clean(trace, format_numbers=False)
-    if has_errors:
-        fig.layout.legend.title.text = "פס = פעמיים SE"
+    verify_rtl_labels(fig.to_plotly_json())
     return fig
 
 
@@ -934,12 +933,12 @@ def chapter4_takeaways(
             '<div dir="rtl"><p><b>התשובה בקצרה:</b> כנראה שאין כאן מדד מוטיבציה '
             "שמוסיף יכולת חיזוי של בית/תיקו/חוץ מעל Elo; EXP-004 יכריע בחלק B.</p>"
             "<ul><li><b>מבט מדעי הנתונים:</b> הדגל ברמת המשחק חזק בעשור הראשון, חלש ולא "
-            "ודאי בחמש העונות האחרונות. במתה מול חיה בבלוק האחרון: "
+            "ודאי בחמש העונות האחרונות. במתה מול חיה בעונות 2019/2020–2023/2024: "
             f"{recent.estimate:+.2f} נקודות, SE {recent.se:.2f}, {int(recent.n)} משחקים. "
             "<br><b>מבט כדורגלני:</b> רק כשצד אחד כבר סיים את מטרותיו מתקבל פער בדגל "
             "בית פחות חוץ; כששתיהן חיות או שתיהן מתות, הפער מתאפס.</li>"
             "<li><b>מבט מדעי הנתונים:</b> הפירוק מפריד בין שארית המתות לשארית החיות "
-            "באותם משקלים; בבלוק האחרון ההשוואה רגישה לשכבות קטנות. "
+            "באותם משקלים; בעונות 2019/2020–2023/2024 ההשוואה רגישה לשכבות קטנות. "
             "<br><b>מבט כדורגלני:</b> קבוצות חיות במחזור הסיום נלחמות על הישארות; "
             "ארבע שורות אינן בסיס יציב לייחס את כל ההפרש לוויתור של היריבה.</li>"
             "<li><b>מבט מדעי הנתונים:</b> מעבר לדגל אין יתרון נקודות ברור; בספיגה "
