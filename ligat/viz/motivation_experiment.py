@@ -261,6 +261,13 @@ def recent_scatter(review: ExperimentReview) -> Any:
     """Deep versus recent improvement, with separate labels for nearby observations."""
     s = review.frames["summary"].iloc[2:]
     fig = go.Figure()
+    colors = {
+        "L2": "#0072B2",
+        "L3": "#E69F00",
+        "L5": "#009E73",
+        "Lc": "#CC79A7",
+        "Comp": "#D55E00",
+    }
     # Pixel offsets move only labels; the three nearby observations keep exact coordinates.
     label_offsets = {
         "Lc-diff": (110, 8),
@@ -276,7 +283,12 @@ def recent_scatter(review: ExperimentReview) -> Any:
                 mode="markers" if r.config_id in label_offsets else "markers+text",
                 text=None if r.config_id in label_offsets else [r.config_id],
                 textposition=["top center" if i % 2 else "bottom center"],
-                marker_size=9,
+                marker=dict(
+                    size=10,
+                    color=colors[r.config_id.split("-")[0]],
+                    symbol="circle-open" if r.config_id.endswith("-hl4") else "circle",
+                ),
+                showlegend=False,
             )
         )
         if r.config_id in label_offsets:
@@ -297,7 +309,7 @@ def recent_scatter(review: ExperimentReview) -> Any:
     fig.update_xaxes(title="ממוצע שיפור בעמוקים × אלף")
     fig.update_yaxes(title="ממוצע שיפור בחמש האחרונות × אלף")
     fig = _finalize(fig, "6.5 — שיפור בעבר אינו מבטיח שיפור בליגה העכשווית", height=1000)
-    fig.update_layout(legend=dict(orientation="v", x=1.02, y=1), margin_r=440)
+    fig.update_layout(showlegend=False, margin_r=60)
     return fig
 
 

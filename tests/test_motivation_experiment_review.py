@@ -235,6 +235,11 @@ def test_all_new_plots_have_rtl_hebrew_legends_annotations_and_season_axes(exper
     np.testing.assert_array_equal(figures[1].data[0].z, 1000 * matrix.to_numpy())
     assert "2009/2010" in " ".join(figures[1].layout.xaxis.ticktext)
     scatter = figures[2]
+    assert scatter.layout.showlegend is False
+    assert len({trace.marker.color for trace in scatter.data}) == 5
+    for trace, configuration in zip(scatter.data, motivation_configurations()[2:], strict=True):
+        assert trace.showlegend is False
+        assert trace.marker.symbol == ("circle-open" if configuration.half_life else "circle")
     coordinates = experiment_review.frames["summary"].set_index("config_id")
     for annotation in scatter.layout.annotations:
         assert annotation.x == 1000 * coordinates.loc[annotation.text, "log_loss_mean_improvement"]
@@ -242,7 +247,7 @@ def test_all_new_plots_have_rtl_hebrew_legends_annotations_and_season_axes(exper
 
 
 @pytest.mark.real_data
-def test_notebook_fixed_quote_preserved_references_remapped_and_no_cells_deleted():
+def test_notebook_fixed_quote_preserved_references_remapped_and_no_cells_deleted(real_tables):
     import subprocess
 
     path = "notebooks/explore/04_motivation.ipynb"
