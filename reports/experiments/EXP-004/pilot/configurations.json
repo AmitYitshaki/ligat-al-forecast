@@ -1,0 +1,27 @@
+[
+  {
+    "name": "C0",
+    "half_life": null,
+    "config_id": "C0"
+  },
+  {
+    "name": "C0",
+    "half_life": 4,
+    "config_id": "C0-hl4"
+  },
+  {
+    "name": "L2-diff",
+    "half_life": null,
+    "config_id": "L2-diff"
+  },
+  {
+    "name": "Lc-sides",
+    "half_life": null,
+    "config_id": "Lc-sides"
+  },
+  {
+    "name": "Comp",
+    "half_life": 4,
+    "config_id": "Comp-hl4"
+  }
+]

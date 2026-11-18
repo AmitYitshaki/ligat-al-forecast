@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "paired_rows": 8630,
+  "flag_mismatches": 0,
+  "importance_as_of_mismatches": 0,
+  "dead_rows_checked": 334,
+  "timing_mismatches": 0,
+  "one_dead_games": 25,
+  "snapshot_dates": 14,
+  "objectives_all_decided": true,
+  "inputs_sha256": {
+    "data\\derived\\prematch\\prematch_v1.parquet": "246a638d7754609b2efecf77120857857b471d03a1d42c7420fd96a327d69e17",
+    "data\\derived\\prematch\\table_state_v2.parquet": "791179dd391eb0b9b9dee3c6f903ed0a3b835435145f9671a9a5ff59e8d91d6c"
+  }
+}

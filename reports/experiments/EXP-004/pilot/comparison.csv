@@ -1,0 +1,6 @@
+config_id,reference,status
+C0,C0,not_evaluated_blind_pilot
+C0-hl4,C0,not_evaluated_blind_pilot
+L2-diff,C0,not_evaluated_blind_pilot
+Lc-sides,C0,not_evaluated_blind_pilot
+Comp-hl4,C0-hl4,not_evaluated_blind_pilot

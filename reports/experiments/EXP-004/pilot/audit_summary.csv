@@ -1,0 +1,2 @@
+config_id,passed,zero_column_max_error,timing_passed,seconds,iterations,seed,mean_improvement,percentile95,maximum,above_threshold,observed,below_observed,at_least_observed,empirical_percentile
+L2-diff,True,2.2204460492503131e-16,True,43.885428599896841,200,14112026,-0.00016405621419100073,0.0011495235340922422,0.0017704264458230951,0,0.0087257203274846429,200,0,100
