@@ -1,0 +1,17 @@
+{
+  "config_id": "L2-diff",
+  "passed": true,
+  "zero_column_max_error": 2.220446049250313e-16,
+  "timing_passed": true,
+  "seconds": 43.88542859989684,
+  "iterations": 200,
+  "seed": 14112026,
+  "mean_improvement": -0.00016405621419100073,
+  "percentile95": 0.0011495235340922422,
+  "maximum": 0.001770426445823095,
+  "above_threshold": 0,
+  "observed": 0.008725720327484643,
+  "below_observed": 200,
+  "at_least_observed": 0,
+  "empirical_percentile": 100.0
+}
