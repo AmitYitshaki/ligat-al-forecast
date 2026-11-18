@@ -1,0 +1,73 @@
+experiment_id: EXP-004  # Preregistered in EXPERIMENTS before fitting.
+inputs:  # All four frozen files are verified before any Parquet read.
+  motivation:  # Importance and flags computed by pulse A.
+    path: data/derived/motivation/motivation_v1.parquet  # Never recompute the simulator here.
+    sha256: 890e58d33b2f50ded50a254e4b88d05cf226cd5bd56c94e16601dcaf941f17f4  # Pinned input bytes.
+  motivation_metadata:  # Frozen pulse-A provenance.
+    path: data/derived/motivation/motivation_v1.metadata.json  # Includes development-only seasons.
+    sha256: da15d684277739b573265d1cbfa83a2b02ea6b0dc88a906496629cd8b8bd2e3d  # Pinned sidecar bytes.
+  elo:  # E0050 prematch ratings, without refitting Elo.
+    path: data/derived/elo/elo_E0050_prematch.parquet  # The common frozen baseline.
+    sha256: 759b9b830b617b9dec9c519242544c733ffa068e4cd503f9603851cb25857d9f  # Pinned input bytes.
+  elo_metadata:  # Identifies E0050 independently of observed scores.
+    path: data/derived/elo/elo_E0050_prematch.metadata.json  # Original Elo provenance.
+    sha256: 83e926b1381fcf575412d6264413993b24589b367d2e58cd66aa19a7bdcd30bf  # Pinned sidecar bytes.
+configurations:  # Representation simplicity first; no decay before decay within each identity.
+  - {config_id: C0, name: C0, half_life: null}  # Elo-only control, unchanged converter.
+  - {config_id: C0-hl4, name: C0, half_life: 4}  # Control for weighted representations.
+  - {config_id: L2-diff, name: L2-diff, half_life: null}  # One flag-difference coefficient.
+  - {config_id: L2-diff-hl4, name: L2-diff, half_life: 4}  # Same design with time weighting.
+  - {config_id: L2-sides, name: L2-sides, half_life: null}  # Separate home and away flag coefficients.
+  - {config_id: L2-sides-hl4, name: L2-sides, half_life: 4}  # Same design with time weighting.
+  - {config_id: L3-diff, name: L3-diff, half_life: null}  # Shared three-level representation.
+  - {config_id: L3-diff-hl4, name: L3-diff, half_life: 4}  # Same design with time weighting.
+  - {config_id: L3-sides, name: L3-sides, half_life: null}  # Three-level home and away coefficients.
+  - {config_id: L3-sides-hl4, name: L3-sides, half_life: 4}  # Same design with time weighting.
+  - {config_id: L5-diff, name: L5-diff, half_life: null}  # Shared five-level representation.
+  - {config_id: L5-diff-hl4, name: L5-diff, half_life: 4}  # Same design with time weighting.
+  - {config_id: L5-sides, name: L5-sides, half_life: null}  # Five-level home and away coefficients.
+  - {config_id: L5-sides-hl4, name: L5-sides, half_life: 4}  # Same design with time weighting.
+  - {config_id: Lc-diff, name: Lc-diff, half_life: null}  # Continuous importance difference.
+  - {config_id: Lc-diff-hl4, name: Lc-diff, half_life: 4}  # Same design with time weighting.
+  - {config_id: Lc-sides, name: Lc-sides, half_life: null}  # Continuous home and away importance.
+  - {config_id: Lc-sides-hl4, name: Lc-sides, half_life: 4}  # Same design with time weighting.
+  - {config_id: Comp, name: Comp, half_life: null}  # Three objective differences; direct survival excluded.
+  - {config_id: Comp-hl4, name: Comp, half_life: 4}  # Three objective differences with time weighting.
+evaluation:  # Original EXP-001 chronological policy; never LOSO.
+  training_start: 8  # Three warmup seasons are training-only.
+  validation_seasons: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]  # All fifteen reported.
+  deep_seasons: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]  # Rule 8 excludes the shallow first fold.
+  last5_seasons: [21, 22, 23, 24, 25]  # Rule 6 contemporary-league check.
+  minimum_training_seasons: 4  # Fixed before the experiment, per rule 8.
+  loso: false  # Forbidden by decision H-K20.
+comparisons:  # Match decay so improvement measures motivation rather than time weighting.
+  C0-hl4: C0  # Separate weighting comparison, per rule 7.
+  L2-diff: C0  # Unweighted reference.
+  L2-diff-hl4: C0-hl4  # Weighted reference.
+  L2-sides: C0  # Unweighted reference.
+  L2-sides-hl4: C0-hl4  # Weighted reference.
+  L3-diff: C0  # Unweighted reference.
+  L3-diff-hl4: C0-hl4  # Weighted reference.
+  L3-sides: C0  # Unweighted reference.
+  L3-sides-hl4: C0-hl4  # Weighted reference.
+  L5-diff: C0  # Unweighted reference.
+  L5-diff-hl4: C0-hl4  # Weighted reference.
+  L5-sides: C0  # Unweighted reference.
+  L5-sides-hl4: C0-hl4  # Weighted reference.
+  Lc-diff: C0  # Unweighted reference.
+  Lc-diff-hl4: C0-hl4  # Weighted reference.
+  Lc-sides: C0  # Unweighted reference.
+  Lc-sides-hl4: C0-hl4  # Weighted reference.
+  Comp: C0  # Unweighted reference.
+  Comp-hl4: C0-hl4  # Weighted reference.
+leakage:  # Breaches stop without printing observed scores.
+  log_loss_below: 0.98  # Suspicion threshold, never an optimization target.
+audit:  # H-K22 (18.11.2026): large paired improvement triggers audits, not a stop.
+  improvement_above: 0.005  # Keep the original threshold as an automatic audit flag.
+  placebo_permutations: 200  # Fixed null distribution, within season and stage.
+  placebo_seed: 14112026  # Reproduce the authorized B1a audit.
+  zero_column_tolerance: 1.0e-8  # A failed zero-column control remains a hard stop.
+pilot:  # Engineering-only blind QA, not model selection.
+  validation_seasons: [12, 18, 25]  # Three predeclared development folds.
+  configurations: [C0, C0-hl4, L2-diff, Lc-sides, Comp-hl4]  # Includes weights and three added coefficients.
+seed: null  # Deterministic ordinal maximum likelihood; no simulation or randomness.

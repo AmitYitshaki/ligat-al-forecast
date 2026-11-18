@@ -1,0 +1,258 @@
+{
+  "experiment_id": "EXP-004",
+  "stage": "full",
+  "completed": true,
+  "created_at_utc": "2026-11-18T10:02:51.315818+00:00",
+  "commit": "ac4e73f45e2245774aed2b55805eda437a1f9ee1",
+  "input_sha256": "1d1dcbc1d53bba2e6df702776da14d8c0cd55d84dda401cae80a243d2d8e3b24",
+  "source_sha256": {
+    "ligat/cli.py": "185b3b310ddaad78a9e4d5f3d9a05dbe486d51dd14d1b5595b2087ed239af7b4",
+    "ligat/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/analysis/motivation_checks.py": "b59772001e2bd2a60e8da1596760c678b3d7ad4da7abd18d7625a5375c0566ea",
+    "ligat/analysis/motivation_review.py": "1856de826774dc9d227a4b301ab7361c11b21414f34e7a05f9a0ff34b2cf14a3",
+    "ligat/analysis/motivation_walkthrough.py": "47f96e6797d558b98393f11dd1adfdadd8fe2ee5e2c7d3eab5ff1ee1adad5962",
+    "ligat/analysis/prematch_b_details.py": "599267a40030b9f66d54d623ffac501c2edb8fcd4e8cd3e62ca2affeefbf56d6",
+    "ligat/analysis/prematch_b_review.py": "7dd20d7a85d534d6d536470ddb7b417cc3b55680fbe069de712d9c5a49180105",
+    "ligat/analysis/prematch_catalog.py": "e1455068d1f14a593d612a0445782f8906c2b45122abf2cf28d405c5f174ee17",
+    "ligat/analysis/prematch_context_details.py": "cbc61d3b7156c7fb99f2e9e3e1d43e8550ce685c2e80b0350bd34e54bd19807d",
+    "ligat/analysis/prematch_context_review.py": "21a14ac219a762324725fb7750928ec41d2c1f511add87e30aa4bd9f6f1338b2",
+    "ligat/analysis/prematch_correlations.py": "66d144e06372deb3b8162af4f130d6fac76f1be404e1cdc6e6111bc825bb76f8",
+    "ligat/analysis/prematch_final_review.py": "6a39849a96596cdb1c1da177f32ed12565ded87ba63d5a251f609aa4d951e205",
+    "ligat/analysis/prematch_form_details.py": "ed33d2b98fee5c8497e5f11654cb1f4c3c0dd6f0a24d16aaa8f4f6616ea92e93",
+    "ligat/analysis/prematch_form_review.py": "c5447c1939ee5f43decb74cbbb865e6ee5b1e85bfbed6a00ad48c8e52b38a1d1",
+    "ligat/analysis/prematch_match_review.py": "81688dccaec49854d84e5e767aff43eb5aaf769717ef95458f9a8f665ad5274e",
+    "ligat/analysis/prematch_review.py": "88372de92f13c8c51fd8910be13e80cfd53d7c7882ca9be73ed2db3c9f5df5c5",
+    "ligat/analysis/prematch_validation.py": "fceb380a5a27a133c1af9d70deafba98f994c0ee34e9c99228f24f464a6fd7c0",
+    "ligat/analysis/prepare.py": "f394637e079e427bfdd68f565d59ec8e2a6f6538e8c6dadcd57539e4620ef020",
+    "ligat/analysis/score_cache.py": "68aaee72f813f14e9fe8e0958fc7aa4382de4718cbbe48af5c589deeee66988b",
+    "ligat/analysis/value_methodology.py": "db7dac54056adb6232fa52a9e51dd40b00be38d69ec0ff73e9f5f79af28668ec",
+    "ligat/analysis/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/data/build.py": "d2230cd7be3eb5d0a78e83f1e8783b02139b8e38e8bb3fe0e384cd8787828891",
+    "ligat/data/details.py": "3271c85cd2f918a7eb5a864ffa6fb27e9a657b4b1e767a24e06d30988ea962ae",
+    "ligat/data/export.py": "cd7aaf7fe9d861562741976279afb604264d89565191e8a9da67e9acd82105e8",
+    "ligat/data/game_pages.py": "bed5d27de3d25b5537eda5f324404572363c2e1d273479ba47c4aa12b17aabf0",
+    "ligat/data/parse.py": "6f13174012ff14a4b2b6e86041c9f4d4248fe72781e4c3046b6c4fe4aa11f39f",
+    "ligat/data/repository.py": "5fdfc7d7d18e30dd5ed683c382279d708dcecf43af420b602f37d05992d35a63",
+    "ligat/data/schemas.py": "53118e28a98512e90285b2892fe79066072e6d0262fe74ed18bdf4a16f4ebd7d",
+    "ligat/data/squad_values.py": "656ec6b1c558019eba5eac91f6659d67a8bbb7934a4c632591a03d7dd511dbb9",
+    "ligat/data/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/evaluate/backtest.py": "eacbb6868af5968439b50349cbf855c545d30043268a2badd54f18fa5ae00896",
+    "ligat/evaluate/calibration_artifacts.py": "a226a06b224eb420ffe73f6f44ff3570e43c0307d626b4793406d20b820ae8bb",
+    "ligat/evaluate/comparison.py": "55c693f737bc758646a640ea2d520a330fe1ad69b6fb70b6c0bb5adf5356580a",
+    "ligat/evaluate/context_experiment.py": "9ac0857df0716978e9142b83f6be2404c4708e25df8f00bb67029e7f9632578d",
+    "ligat/evaluate/context_experiment_artifacts.py": "d05f6b09475fccd5859b8e8758f49ee9503cdc89311690ad7494b7632e56488e",
+    "ligat/evaluate/elo_calibration.py": "e8126695575cbae600bd5c19370beb833dc988bb2c5947ba05abb5e9e5d0d21e",
+    "ligat/evaluate/form_experiment.py": "1d26e5f91a6aab1d762345e6251ca4214ac4668e44120028dfb4b41354be09c6",
+    "ligat/evaluate/form_experiment_artifacts.py": "34d3cc720f0efd443d4dfdc2591da5d68964b4a4f2a8eca45d893279228680f3",
+    "ligat/evaluate/goal_backtest.py": "5d9232b88f69e369485ad624e0ca3799ab4b49ddc73d2dc7b931f10be0a97047",
+    "ligat/evaluate/goal_metrics.py": "96f2d3f84343a3f000b18da426d1ac0eef6d4e41a868c86fee755e839bd67da9",
+    "ligat/evaluate/metrics.py": "c26a861a1ed4d9179e352e5ce2bfd1e4ce8aee4d959d0bb7ce55e1b26d6f172e",
+    "ligat/evaluate/motivation_experiment.py": "974e05ea47680cc45a1e4d6dadb61305f47a348ce3799648d86ab4c05f88c30e",
+    "ligat/evaluate/motivation_experiment_artifacts.py": "a9ac218c71f20f08b3366afa3c48f36cade3c67a86f9da0a2f6abb6a85cde8c3",
+    "ligat/evaluate/splits.py": "005cee0a0625a054e862baea36429e57a8cc858c090c447f79cc08c24eacacb9",
+    "ligat/evaluate/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/features/artifacts.py": "1e2718466851e51e7c9aba0ce41c25cf35329505756cc79f86df73fbd2a03fac",
+    "ligat/features/base.py": "a98163b124ec0b48effb1e6bfee690fd71cf7f242a3f5fb1d25625c067f298de",
+    "ligat/features/elo.py": "334e12fdc46a9c60adc544405b1c7c41443c4de569b26eb0bdbef515795b6988",
+    "ligat/features/form.py": "bfc86c4f986b69564baccc83a67df2e8d9c9009d622bf51186226b5692237996",
+    "ligat/features/form_artifacts.py": "10dc6ab49aa3748901997cba7b190588bb5447c55015817f7e1b914cc5cfd362",
+    "ligat/features/pipeline.py": "f5fa54755c992125db5918651f138c01b72692a617d6e21383c3b55745b2d5d5",
+    "ligat/features/prematch_artifacts.py": "293a39e6554e22bb17647449f82631e3eacd2f726b62bdc385dc1557e9733e32",
+    "ligat/features/registry.py": "797bdf9a32ff67690add315400ab97691316e001d464f4d34527d8cf375e15b9",
+    "ligat/features/season_context.py": "e15ae4cb586f3e13a689a4f14530ef61c8c221c4fe432201059aea6ba2d6ed48",
+    "ligat/features/season_context_artifacts.py": "719838634facb04e9a4e40ce2db471db441a9c079f2a5ea92aeab91b26e0dfa2",
+    "ligat/features/table_state.py": "bd3eb35cd2b80c33507e2c6d4ef69d2ad6685d1d2d307507189a454c928eaf5d",
+    "ligat/features/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/models/base.py": "8d1f99b91bc61b972d8902bbbf19b9ce8776e0e242df064681ff04ea2d0e6491",
+    "ligat/models/baselines.py": "fa4c380e53f18a0d3baa31b5899256a479b906246bfe090032b27afde9cc3556",
+    "ligat/models/form_models.py": "33aac8a1699a15aa5392b37e3426b71b55da8fb1540fc19a40fe2b9a577c42cd",
+    "ligat/models/ordered_logit.py": "686c31e4fa97a26c1513f2620c4af11e18c70c0a25cabe14dd86991199d66737",
+    "ligat/models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/motivation/artifacts.py": "9602d9a6f489e79b65f2c28271fc1ab6429c650c67f68105c707e3b1ce285844",
+    "ligat/motivation/pipeline.py": "00a688c75820d14ad81b6cf7c98266a20df50e9f43e0e7f066cc8a0253cdacb3",
+    "ligat/motivation/representations.py": "8725ae32cfb288a2e083849ac70b68d48a0a7aee53efd3429bcfa6790eeea696",
+    "ligat/motivation/__init__.py": "55b4f42426733e367a3df24d531f7c94ef0c76564a0e2a64ad3178694e6db035",
+    "ligat/scrape/base.py": "69ea7f35802306b4dc7bff8d88820cbbd5a27f5c7261cca20227162ad653e51b",
+    "ligat/scrape/games.py": "a8d6ff2b2ccf8936daf82fb6cfa082bb6106c3122b57b7565f93e647a1f8ff9a",
+    "ligat/scrape/ifa.py": "452b5b3f7841617ffbd4e7a6f855c31a624fe3fb5e2b69c62b55f2981079a3a8",
+    "ligat/scrape/transfermarkt.py": "ba2390fda931b778f98be1cac319efae4a375850bb6f245b24ecc1dc1f97962a",
+    "ligat/scrape/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/simulate/engine.py": "a4560a0d0ca36b9cefd150170c8a1846303faf1972c0af8b93ba700947405e0d",
+    "ligat/simulate/leverage.py": "7607a90a8fe3401aa900d4a23613792ee8fe171837cf2350b09f68bbf7a4fb97",
+    "ligat/simulate/rules.py": "4b96c59d3b29fe0a6f79ba744bb619c3465f0fce8bab2aa359cb631a603b9716",
+    "ligat/simulate/snapshot.py": "34e0d1b9bb1068808d834ac76d748272e95a8cbc7e37b155965a0b9d911023b2",
+    "ligat/simulate/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/viz/context.py": "632ab3cb6e9259e7ec14bf3f8aa8d6cf3682c2b3e8b25eb0532d6ee17b98eb02",
+    "ligat/viz/course_review.py": "ad07e55e03b6c61276467065eb9c5ad063cf4fe19a25870c3659722178fcafa4",
+    "ligat/viz/league_history.py": "362dad7f1060e142ecf076cd57e527d5d0d2a50f71ddcd3a2034b25821281efb",
+    "ligat/viz/league_stats.py": "3b69532e9ab80680fc3908601d52b5e4e7750eab648a9b5709d65f41c7e2f364",
+    "ligat/viz/match_flow.py": "ee77c7ef9cbd04fc8f1900b41a5e4f2a379420a3dcebed8fa4cc6c4da6887cdf",
+    "ligat/viz/motivation.py": "de318565f273e953798380274fea59399d4427e2e2d20227beb6d5337db7cf95",
+    "ligat/viz/motivation_style.py": "9f16cc99a554b6024e5c9d95dda08eb700e730de10b5b2e523c0995b03bca4e9",
+    "ligat/viz/motivation_walkthrough.py": "f517f019989aa0e0c72a176df95179306e9d2d8bd5b6475197fff348805ad6ba",
+    "ligat/viz/notebook02.py": "0a138c79d0571223dbdddf794ddef8d263f2197c781c85509f25df33cdcc7e05",
+    "ligat/viz/prematch.py": "1b9443aa66f4ff8c8b29e11578c0839a2322fe1dcc4bb484bae6651f77b63060",
+    "ligat/viz/prematch_b.py": "215ce86ec706dd604ed4700160720e781d7e97dca7bfdbf80f73aa62383da781",
+    "ligat/viz/prematch_b_details.py": "fbe15658c27a83a73a17168ad43c9e55a34ebdcc6e021361125131fb9ce03580",
+    "ligat/viz/prematch_context.py": "40c0d6c383cc641b49cf4969454f889fc07fff4083fa05716e2422b554d4b2ed",
+    "ligat/viz/prematch_final.py": "2f71ad4151c9d2ad0365004740bdb65b48e1e5971c0b233b912bdeac3f028ce6",
+    "ligat/viz/prematch_form.py": "9bf9cfc2553edf354de2f750794b98eda91db883c3c0d4fc6e5eef99d9a6b36d",
+    "ligat/viz/prematch_match.py": "0f4c2af0dfe527025a773cdbcfd58af7f3b348fa83fb01ef740969c2e4268194",
+    "ligat/viz/presentation.py": "b24df551031f931b2222d86fc0053e3a44f2c19915164d5704681423e357b04a",
+    "ligat/viz/review.py": "0543e233e8d2e4eef90fd55c3671481138ff70459d6362b4157a019c25d797bb",
+    "ligat/viz/score_review.py": "7918d9d48092b55a63db02383825e66f6643df73c8318e44e175a46b94115e5e",
+    "ligat/viz/seasons.py": "26239e6afa2145f19745c6de039353911cee2096c6556e0710644f42a973c9b2",
+    "ligat/viz/season_course.py": "2bcd0bfe7174cd5662d3b0d22daccf1bb43f561386661ff1115a49d1a7de5ce7",
+    "ligat/viz/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ligat/analysis/league_stats/chapter_a.py": "6b4f1da59f8c963abf710e6f9fde04e5618322959ff311e48b415b6f9800c5d2",
+    "ligat/analysis/league_stats/conditions.py": "59c1bbaf3df7cf38d2e994acba1dbbd02ea995c0119631da0ea3edd30717d54f",
+    "ligat/analysis/league_stats/context.py": "1b6feb0bcc905227cde573e25438dfdce982c2cd2651bba0a324d0b359ac37e4",
+    "ligat/analysis/league_stats/core.py": "1177f30540584bab6a20b7f66e9684812cb1371aee86cc8c60b8f0fdb3a763b2",
+    "ligat/analysis/league_stats/course_review.py": "30cfe20a84a32ea4004b6ac07f453a2f6ce047f00b9cef6dde9272a8164eec65",
+    "ligat/analysis/league_stats/history_review.py": "7d54ad0f5bd352ee1927266d5e33fb3bdd30090dc5f239c9c2a0f24c31a89816",
+    "ligat/analysis/league_stats/match_flow.py": "f6a59991206ec926c8bdd6f6ad7e5b0153d8615aa5ffa6e1df6041254d5aa3c5",
+    "ligat/analysis/league_stats/poisson_check.py": "138588be1298216a561e6ae656897325670dc0e92ac9e4bd8fccecec9614ee25",
+    "ligat/analysis/league_stats/score_review.py": "4e03feb021f19d3434c8f67f4250c4f25cf895229e7da9974b649f1e94e6dd78",
+    "ligat/analysis/league_stats/season_course.py": "572715600acb0c68f55d249cc8e3a4cbe1fd3a1180f7d5953300d1a0f0737176",
+    "ligat/analysis/league_stats/__init__.py": "d5c04e76c18e893b3aa1ca34fc79d5fe5df9f657a1091819ffc7105247c44db8",
+    "config/exp004.yaml": "ec18a198a9c0d9bf34b67801246e8d49282aaa8cebdf16370aeb729d0b889890",
+    "tests/test_exp004.py": "82b78ed659560d4e4503c9f41ef8e95b08a480fdd8a8ababa41a7e634773ee07",
+    "data/reports/T-013/run_B1b.py": "a58a7527596529925f0fecc0bca6f016b243553452ba2d27d3001f08976f5a87"
+  },
+  "experiment_sha256": "ec18a198a9c0d9bf34b67801246e8d49282aaa8cebdf16370aeb729d0b889890",
+  "inputs": {
+    "motivation": {
+      "path": "data/derived/motivation/motivation_v1.parquet",
+      "sha256": "890e58d33b2f50ded50a254e4b88d05cf226cd5bd56c94e16601dcaf941f17f4"
+    },
+    "motivation_metadata": {
+      "path": "data/derived/motivation/motivation_v1.metadata.json",
+      "sha256": "da15d684277739b573265d1cbfa83a2b02ea6b0dc88a906496629cd8b8bd2e3d"
+    },
+    "elo": {
+      "path": "data/derived/elo/elo_E0050_prematch.parquet",
+      "sha256": "759b9b830b617b9dec9c519242544c733ffa068e4cd503f9603851cb25857d9f"
+    },
+    "elo_metadata": {
+      "path": "data/derived/elo/elo_E0050_prematch.metadata.json",
+      "sha256": "83e926b1381fcf575412d6264413993b24589b367d2e58cd66aa19a7bdcd30bf"
+    }
+  },
+  "baseline_verification": {
+    "passed": true,
+    "controls": {
+      "C0": {
+        "log_loss": 1.0204238473251461,
+        "exp001_config_id": "elo-b24989debf11c0ba4af09aa247bd264ad754349b8d0db4ba88e9c440fd00e950",
+        "probabilities_available": true,
+        "max_probability_error": 0.0,
+        "max_fit_error": 0.0,
+        "games": 3721,
+        "folds": 15
+      },
+      "C0-hl4": {
+        "log_loss": 1.0203732464078874,
+        "exp001_config_id": "elo-time-84dae2825ef962202c5a177dd60c79a69a35c96fb9552502b5073bb2cda1ec06",
+        "probabilities_available": true,
+        "max_probability_error": 0.0,
+        "max_fit_error": 0.0,
+        "games": 3721,
+        "folds": 15
+      }
+    }
+  },
+  "seed": null,
+  "randomness": "None: deterministic ordinal maximum likelihood",
+  "training_start": 8,
+  "loso": false,
+  "pilot_blind": false,
+  "warmup_note": "2006/07-2008/09 importance uses the first fold converter fitted on those seasons; these seasons are training-only, never validation.",
+  "coefficient_order": "beta=Elo/400, additional_betas in configuration.columns order, theta1, delta; theta2=theta1+exp(delta)",
+  "paired_difference": "Matching-decay C0 loss minus representation loss; positive is improvement",
+  "selection": "Proposals only; Amit approves the decision",
+  "configurations": 20,
+  "fold_rows": 300,
+  "seconds": {
+    "C0": 0.41772829997353256,
+    "C0-hl4": 0.4550896999426186,
+    "L2-diff": 0.5874739999417216,
+    "L2-diff-hl4": 0.577486400026828,
+    "L2-sides": 0.7159505999879912,
+    "L2-sides-hl4": 0.7502051000483334,
+    "L3-diff": 0.7490901999408379,
+    "L3-diff-hl4": 0.9443308000918478,
+    "L3-sides": 1.1394052000250667,
+    "L3-sides-hl4": 0.9212028000038117,
+    "L5-diff": 0.625914000091143,
+    "L5-diff-hl4": 0.6781617999076843,
+    "L5-sides": 0.9815678000450134,
+    "L5-sides-hl4": 0.843928899965249,
+    "Lc-diff": 0.6974245000164956,
+    "Lc-diff-hl4": 0.604545500013046,
+    "Lc-sides": 0.7935753999045119,
+    "Lc-sides-hl4": 0.9235605999128893,
+    "Comp": 1.3264995000790805,
+    "Comp-hl4": 0.9655414000153542
+  },
+  "audit_configurations": [],
+  "audit_settings": {
+    "improvement_above": 0.005,
+    "placebo_permutations": 200,
+    "placebo_seed": 14112026,
+    "zero_column_tolerance": 1e-08
+  },
+  "files": {
+    "experiment.yaml": {
+      "sha256": "ec18a198a9c0d9bf34b67801246e8d49282aaa8cebdf16370aeb729d0b889890",
+      "rows": null
+    },
+    "configurations.json": {
+      "sha256": "346c15f7680633922b424de9d24fcd7b4a67f22fcaeae178c6d0547598fa5373",
+      "rows": null
+    },
+    "fold_scores.parquet": {
+      "sha256": "3d8e64b34bbb7e19c2e86176fef3a2be2a0d35f14b928ec2397ce3ad82db6dbc",
+      "rows": 300
+    },
+    "fits.parquet": {
+      "sha256": "a0b47011275108c9daf1960b620407558d473185cacb9da707ead05bdf8164a7",
+      "rows": 300
+    },
+    "coefficients.parquet": {
+      "sha256": "4ea488b9649df3e1cb0bc606b028c937cbdce2b8347e605a8930fff739ea5522",
+      "rows": 1650
+    },
+    "convergence.csv": {
+      "sha256": "7e153336b3837b09686b06780531f9e5622171a0036a1de73eae62a0d94307e9",
+      "rows": 300
+    },
+    "predictions.parquet": {
+      "sha256": "da52164a8047515a8e5d5328ff37e943ddf54dfdd25344a1cd31079f02123cae",
+      "rows": 74420
+    },
+    "comparison.csv": {
+      "sha256": "53b1b615ab1a152843e9d102b1228b05640c621a512d2a1dd18b2b9c882ba852",
+      "rows": 76
+    },
+    "review.json": {
+      "sha256": "95db77e0165cb43ca18f9c086358fa2db69e6a9289256cbfcfcd8c4ba0046996",
+      "rows": null
+    },
+    "involved_games.csv": {
+      "sha256": "549c50a2ea204f2647a30954029727eca5e36ae4cde81c95da0cd2c81e8d9696",
+      "rows": 300
+    },
+    "expected_points.csv": {
+      "sha256": "6dd96f539d08bdc282e3cb09ac1485cac714bb9da542e9a7cbb3e890c6790432",
+      "rows": 176
+    },
+    "summary.csv": {
+      "sha256": "5455464b19eb8c334f1a92eadf2facd40ffd33262c0d6a3692e3bafd51a59542",
+      "rows": 20
+    },
+    "shallow_fold.csv": {
+      "sha256": "4974d51c7dad8aa48910615e0b6c02c2068759c73f48fcd2005a6866cc44d611",
+      "rows": 20
+    }
+  }
+}

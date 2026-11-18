@@ -1,0 +1,102 @@
+[
+  {
+    "name": "C0",
+    "half_life": null,
+    "config_id": "C0"
+  },
+  {
+    "name": "C0",
+    "half_life": 4,
+    "config_id": "C0-hl4"
+  },
+  {
+    "name": "L2-diff",
+    "half_life": null,
+    "config_id": "L2-diff"
+  },
+  {
+    "name": "L2-diff",
+    "half_life": 4,
+    "config_id": "L2-diff-hl4"
+  },
+  {
+    "name": "L2-sides",
+    "half_life": null,
+    "config_id": "L2-sides"
+  },
+  {
+    "name": "L2-sides",
+    "half_life": 4,
+    "config_id": "L2-sides-hl4"
+  },
+  {
+    "name": "L3-diff",
+    "half_life": null,
+    "config_id": "L3-diff"
+  },
+  {
+    "name": "L3-diff",
+    "half_life": 4,
+    "config_id": "L3-diff-hl4"
+  },
+  {
+    "name": "L3-sides",
+    "half_life": null,
+    "config_id": "L3-sides"
+  },
+  {
+    "name": "L3-sides",
+    "half_life": 4,
+    "config_id": "L3-sides-hl4"
+  },
+  {
+    "name": "L5-diff",
+    "half_life": null,
+    "config_id": "L5-diff"
+  },
+  {
+    "name": "L5-diff",
+    "half_life": 4,
+    "config_id": "L5-diff-hl4"
+  },
+  {
+    "name": "L5-sides",
+    "half_life": null,
+    "config_id": "L5-sides"
+  },
+  {
+    "name": "L5-sides",
+    "half_life": 4,
+    "config_id": "L5-sides-hl4"
+  },
+  {
+    "name": "Lc-diff",
+    "half_life": null,
+    "config_id": "Lc-diff"
+  },
+  {
+    "name": "Lc-diff",
+    "half_life": 4,
+    "config_id": "Lc-diff-hl4"
+  },
+  {
+    "name": "Lc-sides",
+    "half_life": null,
+    "config_id": "Lc-sides"
+  },
+  {
+    "name": "Lc-sides",
+    "half_life": 4,
+    "config_id": "Lc-sides-hl4"
+  },
+  {
+    "name": "Comp",
+    "half_life": null,
+    "config_id": "Comp"
+  },
+  {
+    "name": "Comp",
+    "half_life": 4,
+    "config_id": "Comp-hl4"
+  }
+]

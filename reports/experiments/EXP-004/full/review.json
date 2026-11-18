@@ -1,0 +1,141 @@
+{
+  "rankings": {
+    "log_loss": {
+      "winners": [
+        "L3-diff-hl4"
+      ],
+      "close": [
+        "L2-diff",
+        "L2-diff-hl4",
+        "L3-diff",
+        "L3-diff-hl4",
+        "Comp",
+        "Comp-hl4"
+      ],
+      "scores": {
+        "C0": 1.0224660169858377,
+        "C0-hl4": 1.0224160832836051,
+        "L2-diff": 1.0214947306019668,
+        "L2-diff-hl4": 1.0212293439459694,
+        "L2-sides": 1.02220336229391,
+        "L2-sides-hl4": 1.0221660842488784,
+        "L3-diff": 1.0203266579941055,
+        "L3-diff-hl4": 1.020005401259958,
+        "L3-sides": 1.0205986248725416,
+        "L3-sides-hl4": 1.0204629383078871,
+        "L5-diff": 1.0213459730706331,
+        "L5-diff-hl4": 1.0211810626830173,
+        "L5-sides": 1.0216930570345562,
+        "L5-sides-hl4": 1.0215575487639696,
+        "Lc-diff": 1.0222153775628142,
+        "Lc-diff-hl4": 1.022157720310877,
+        "Lc-sides": 1.0226024356404653,
+        "Lc-sides-hl4": 1.022497480246489,
+        "Comp": 1.0209269667359653,
+        "Comp-hl4": 1.021099942605785
+      }
+    },
+    "rps": {
+      "winners": [
+        "L3-diff-hl4"
+      ],
+      "close": [
+        "L2-diff",
+        "L2-diff-hl4",
+        "L3-diff",
+        "L3-diff-hl4",
+        "Comp",
+        "Comp-hl4"
+      ],
+      "scores": {
+        "C0": 0.2091989955929998,
+        "C0-hl4": 0.20916687127508532,
+        "L2-diff": 0.20877096990100116,
+        "L2-diff-hl4": 0.20868677329557742,
+        "L2-sides": 0.20902601831201928,
+        "L2-sides-hl4": 0.20902125516969366,
+        "L3-diff": 0.20841723639445472,
+        "L3-diff-hl4": 0.2083180269903853,
+        "L3-sides": 0.20851193204555882,
+        "L3-sides-hl4": 0.2084794514850858,
+        "L5-diff": 0.20876294050039318,
+        "L5-diff-hl4": 0.2087071358872374,
+        "L5-sides": 0.2088694274994115,
+        "L5-sides-hl4": 0.20883060656794455,
+        "Lc-diff": 0.20908413692150898,
+        "Lc-diff-hl4": 0.20904985717471758,
+        "Lc-sides": 0.20919446569783848,
+        "Lc-sides-hl4": 0.20914777915809593,
+        "Comp": 0.20864730464200223,
+        "Comp-hl4": 0.20867582422464354
+      }
+    }
+  },
+  "last5_ranking": {
+    "winners": [
+      "Comp-hl4"
+    ],
+    "close": [],
+    "scores": {
+      "C0": 1.0113334789747332,
+      "C0-hl4": 1.0107450371346598,
+      "L2-diff": 1.0121189545745037,
+      "L2-diff-hl4": 1.011069712129725,
+      "L2-sides": 1.0122424851483067,
+      "L2-sides-hl4": 1.0109392261521262,
+      "L3-diff": 1.01339650850757,
+      "L3-diff-hl4": 1.0119393579750307,
+      "L3-sides": 1.0134416068399583,
+      "L3-sides-hl4": 1.0120564545892847,
+      "L5-diff": 1.0124429225363698,
+      "L5-diff-hl4": 1.01135367080655,
+      "L5-sides": 1.0126426547309353,
+      "L5-sides-hl4": 1.011584896055739,
+      "Lc-diff": 1.0114057092548074,
+      "Lc-diff-hl4": 1.0107856598012175,
+      "Lc-sides": 1.0117069477023737,
+      "Lc-sides-hl4": 1.0109646038149007,
+      "Comp": 1.0103495967252487,
+      "Comp-hl4": 1.0102584857461903
+    }
+  },
+  "rule4_proposals": {
+    "log_loss": null,
+    "rps": null
+  },
+  "rule4_rankings": {
+    "log_loss": {
+      "winners": [],
+      "close": []
+    },
+    "rps": {
+      "winners": [],
+      "close": []
+    }
+  },
+  "rule6": true,
+  "rule10_entry": {
+    "C0-hl4": false,
+    "L2-diff": false,
+    "L2-diff-hl4": false,
+    "L2-sides": false,
+    "L2-sides-hl4": false,
+    "L3-diff": false,
+    "L3-diff-hl4": false,
+    "L3-sides": false,
+    "L3-sides-hl4": false,
+    "L5-diff": false,
+    "L5-diff-hl4": false,
+    "L5-sides": false,
+    "L5-sides-hl4": false,
+    "Lc-diff": false,
+    "Lc-diff-hl4": false,
+    "Lc-sides": false,
+    "Lc-sides-hl4": false,
+    "Comp": false,
+    "Comp-hl4": false
+  },
+  "rule10_selection": false,
+  "status": "מחכה לעמית",
+  "selected_configuration": null
+}
