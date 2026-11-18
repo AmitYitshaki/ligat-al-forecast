@@ -26,6 +26,7 @@ FORBIDDEN = (
     r"אינדקס מתחיל באפס",
     r"\bclean\b",
     r"SE אחד",
+    r"nothing_to_play",
 )
 
 
@@ -103,7 +104,7 @@ def visible_blocks(notebook: Mapping[str, Any]) -> list[tuple[int, str]]:
             source = "".join(cell["source"])
             heading = BeautifulSoup(source, "html.parser").find("h2")
             if heading is not None:
-                checking_claims = heading.get_text().startswith("6.10")
+                checking_claims = heading.get_text().startswith(("6.10", "א.10"))
             blocks.append((i, source))
         for output in cell.get("outputs", []):
             data = output.get("data", {})
