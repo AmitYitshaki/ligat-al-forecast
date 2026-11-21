@@ -52,6 +52,7 @@ def _predict_batch(
     refit_policy: RefitPolicy,
     validation_season: int,
     half_life: float | None,
+    blind: bool,
 ) -> pd.DataFrame:
     train_context = data.context.loc[training]
     val_context = data.context.loc[validation]
@@ -93,12 +94,14 @@ def _predict_batch(
             "Goal predict must return a numeric Series in the exact requested key order"
         )
     values = rates.to_numpy(dtype=float, na_value=np.nan)
-    scores = poisson_nll(data.y.loc[validation].to_numpy(float), values)
+    if not np.isfinite(values).all() or (values <= 0).any():
+        raise ValueError("Goal predict must return positive finite rates")
     result = val_context.drop(columns=["game_id", "team_id"]).copy()
     result["fold"] = fold
-    result["goals_scored"] = data.y.loc[validation]
     result["lambda"] = values
-    result["poisson_nll"] = scores
+    if not blind:
+        result["goals_scored"] = data.y.loc[validation]
+        result["poisson_nll"] = poisson_nll(data.y.loc[validation].to_numpy(float), values)
     seasons = tuple(sorted(int(s) for s in train_context.season_id.unique()))
     result["train_seasons"] = [seasons] * len(result)
     result["train_max_date"] = maximum
@@ -117,6 +120,7 @@ def evaluate_team_goals(
     policy: DevelopmentPolicy | None = None,
     half_life: float | None = None,
     sample_weight: pd.Series | None = None,
+    blind: bool = False,
 ) -> TeamGoalEvaluation:
     """Predict seasons 11-25 from allowed history, fitting a fresh model per batch.
 
@@ -128,9 +132,13 @@ def evaluate_team_goals(
     half_life=None), without changing their scale. Daily models receive None
     weights and must implement their own declared day-decay in their adapter.
     External observation weights are forbidden: select half_life instead.
+    blind=True produces predictions and provenance only: no validation scores
+    are calculated, no targets are attached, and no reporting layer is invoked.
     """
     if sample_weight is not None:
         raise ValueError("sample_weight is computed by the judge; select half_life instead")
+    if not isinstance(blind, bool):
+        raise ValueError("blind must be an explicit boolean")
     if half_life is not None and (
         isinstance(half_life, (bool, np.bool_))
         or not isinstance(half_life, (int, float, np.integer, np.floating))
@@ -194,38 +202,38 @@ def evaluate_team_goals(
                     refit_policy=declared,
                     validation_season=int(row.validation_season),
                     half_life=half_life,
+                    blind=blind,
                 )
             )
         scored = pd.concat(fold_parts)
         # Each game has two equally weighted team rows; averaging game means
         # explicitly gives the required game-weighted fold and overall NLL.
-        game_scores = scored.groupby(level="game_id").poisson_nll.mean()
-        fold_records.append(
-            {
-                "fold": int(row.fold),
-                "season_id": int(row.validation_season),
-                "train_seasons": tuple(row.train_seasons),
-                "deep_fold": deep,
-                "games": len(game_scores),
-                "rows": len(scored),
-                "poisson_nll": float(game_scores.mean()),
-                "fits": len(batches),
-                "half_life": half_life,
-            }
-        )
+        record = {
+            "fold": int(row.fold),
+            "season_id": int(row.validation_season),
+            "train_seasons": tuple(row.train_seasons),
+            "deep_fold": deep,
+            "games": scored.index.get_level_values("game_id").nunique(),
+            "rows": len(scored),
+            "fits": len(batches),
+            "half_life": half_life,
+        }
+        if not blind:
+            record["poisson_nll"] = float(scored.groupby(level="game_id").poisson_nll.mean().mean())
+        fold_records.append(record)
         parts.append(scored)
     per_team = pd.concat(parts).sort_index()
     expected = data.X.index[data.context.season_id.isin(plan.validation_season)]
     if not per_team.index.is_unique or not per_team.index.equals(expected.sort_values()):
         raise ValueError("Goal OOF coverage must contain each requested team-game key exactly once")
     per_fold = pd.DataFrame(fold_records)
-    summary = pd.Series(
-        {
-            "games": int(per_fold.games.sum()),
-            "rows": len(per_team),
-            "folds": len(per_fold),
-            "poisson_nll": float(np.average(per_fold.poisson_nll, weights=per_fold.games)),
-        }
-    )
+    totals: dict[str, int | float] = {
+        "games": int(per_fold.games.sum()),
+        "rows": len(per_team),
+        "folds": len(per_fold),
+    }
+    if not blind:
+        totals["poisson_nll"] = float(np.average(per_fold.poisson_nll, weights=per_fold.games))
+    summary = pd.Series(totals)
     assert declared is not None
     return TeamGoalEvaluation(per_team, per_fold, summary, declared)

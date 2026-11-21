@@ -384,6 +384,7 @@ def test_one_real_fold_reports_time_lambda_range_and_training_goal_mean_without_
         data,
         feature_columns=M2_BASE_COLUMNS,
         policy=DevelopmentPolicy(training_start=8, validation_seasons=(15,)),
+        blind=True,
     )
     rates = result.per_team["lambda"]
     assert len(reports) == 1 and reports[0]["fit_seconds"] > 0

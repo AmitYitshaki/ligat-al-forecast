@@ -50,6 +50,19 @@ def factory_with_history(policy):
     return factory, created
 
 
+def test_blind_judge_never_calls_scores_or_attaches_validation_goals(goal_sources, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Blind judge called a scoring function")
+
+    monkeypatch.setattr("ligat.evaluate.team_goal_backtest.poisson_nll", forbidden)
+    data = prepare(goal_sources)
+    result = evaluate_team_goals(MeanGoalSpy, data, feature_columns=("elo_diff",), blind=True)
+    assert result.per_team["lambda"].gt(0).all()
+    assert "goals_scored" not in result.per_team and "poisson_nll" not in result.per_team
+    assert "poisson_nll" not in result.per_fold and "poisson_nll" not in result.summary
+    assert result.summary["rows"] == len(result.per_team)
+
+
 @pytest.mark.parametrize("refit_policy", ["per_fold", "per_matchday"])
 def test_spy_proves_target_separation_chronology_pairs_and_provenance(goal_sources, refit_policy):
     """Every fresh fit sees exactly allowed history, and predict receives no current targets."""
