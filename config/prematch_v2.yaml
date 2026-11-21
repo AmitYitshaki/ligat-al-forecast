@@ -1,0 +1,9 @@
+inputs:  # Existing frozen artifacts; v2 never rebuilds its sources.
+  prematch:  # Preserve all 51 columns, including their original missing values.
+    path: data/derived/prematch/prematch_v1.parquet  # Independent of table_state_v2.
+    sha256: 246a638d7754609b2efecf77120857857b471d03a1d42c7420fd96a327d69e17
+    metadata_sha256: be5780bdaf79d45627c3e41d6f173e06953c0e7348e3b239c4951ee190a68b64
+  form:  # Copy selected existing columns and mirror the opponent's own venue row.
+    path: data/derived/form/form_v1.parquet
+    sha256: 3d67321b77d2edc8e2dd525a98fcaaeeb740bbb7b3da11a173ec7bfa7df2c77a
+    metadata_sha256: b3f7a38f40d5db31f86695e3f1ba00788741b07422d4b6d06f993b5085c7b02c

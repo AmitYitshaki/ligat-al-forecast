@@ -288,7 +288,10 @@ def test_selected_registry_status_and_model_override_remain_explicit():
     for name in (*PREMATCH_CONTRAST_COLUMNS, *PREMATCH_OPPONENT_COLUMNS):
         assert FEATURES[name].block == "prematch" and FEATURES[name].status == "🔬"
         assert FEATURES[name].availability == ("S" if name in PREMATCH_CONTRAST_COLUMNS else "D")
-        assert FEATURES[name].decision == "ה-ת14; T-010 §9"
+        expected = "ה-ת14; T-010 §9"
+        if name == "opp_ga_venue_ewma5":
+            expected += "; ה-ש21; T-014 A2"
+        assert FEATURES[name].decision == expected
 
 
 @pytest.mark.parametrize("column", ["opp_gf_venue_ewma5", "prev_gd_diff"])

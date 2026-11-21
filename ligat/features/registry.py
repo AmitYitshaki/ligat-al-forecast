@@ -168,6 +168,49 @@ FEATURES.update(
     }
 )
 
+M2_BASE_COLUMNS = (
+    "elo_pre",
+    "elo_diff",
+    "is_home",
+    "gf_venue_ewma5",
+    "opp_ga_venue_ewma5",
+    "value_avg_log_ratio",
+    "stage",
+    "rounds_to_stage_end",
+    "promoted_in",
+    "opp_promoted_in",
+)
+
+for _column in ("elo_pre", "elo_diff", "gf_venue_ewma5", "opp_ga_venue_ewma5", "promoted_in"):
+    _spec = FEATURES[_column]
+    FEATURES[_column] = replace(
+        _spec,
+        model_status=tuple((m, s) for m, s in _spec.model_status if m != "M2") + (("M2", "✅"),),
+        decision=_spec.decision + "; ה-ש21; T-014 A2",
+    )
+
+for _column in (
+    "opp_ga_all_w5",
+    "opp_ga_venue_w5",
+    "opp_ga_all_std_m6",
+    "opp_ga_all_prev",
+    "opp_ga_all_hist",
+    "opp_pts_venue_ewma5",
+    "opp_points_per_game",
+    "opp_position_pct",
+    "opp_promoted_in",
+    "opp_nothing_to_play",
+    "gd_per_game",
+):
+    FEATURES[_column] = FeatureSpec(
+        "prematch",
+        "✅" if _column == "opp_promoted_in" else "🔬",
+        "S" if _column == "opp_promoted_in" else "D",
+        ("M2",),
+        "ה-ש21; ה-ש24; ה-ש25; Q26; Q31; T-014 A2",
+        (("M2", "✅"),) if _column == "opp_promoted_in" else (),
+    )
+
 
 def validate_feature_columns(frame: pd.DataFrame, block: str) -> None:
     """Reject every unregistered column, including rejected in-match/context features."""

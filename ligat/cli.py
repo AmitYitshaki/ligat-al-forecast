@@ -43,13 +43,19 @@ def motivation(config: ConfigOption = Path("config/motivation.yaml")) -> None:
 
 
 @run_app.command("prematch")
-def prematch(config: ConfigOption = Path("config/prematch.yaml")) -> None:
+def prematch(
+    config: ConfigOption = Path("config/prematch.yaml"),
+    version: Annotated[int, typer.Option("--version", min=1, max=2)] = 1,
+) -> None:
     """Assemble frozen M0 blocks locally; validate an existing version without overwriting."""
     from ligat.features.form_artifacts import FormProvenance
     from ligat.features.pipeline import build_prematch, load_prematch_config, load_prematch_inputs
     from ligat.features.prematch_artifacts import ensure_prematch
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    if version == 2:
+        _run_prematch_v2(config)
+        return
     try:
         spec = load_prematch_config(config)
         frames = load_prematch_inputs(spec)
@@ -79,6 +85,49 @@ def prematch(config: ConfigOption = Path("config/prematch.yaml")) -> None:
         typer.echo(f"prematch: {'created' if created else 'up to date'} ({len(frame)} rows)")
     except (ValueError, OSError, KeyError) as exc:
         logging.getLogger(__name__).error("Prematch stopped: %s", exc)
+        raise typer.Exit(code=1) from exc
+
+
+def _run_prematch_v2(config: Path) -> None:
+    from ligat.features.form_artifacts import FormProvenance
+    from ligat.features.pipeline import DEVELOPMENT_SEASONS
+    from ligat.features.prematch_v2 import build_prematch_v2
+    from ligat.features.prematch_v2_artifacts import (
+        ensure_prematch_v2,
+        load_prematch_v2_config,
+        load_prematch_v2_inputs,
+    )
+
+    try:
+        spec = load_prematch_v2_config(config)
+        inputs = load_prematch_v2_inputs(spec, seasons=DEVELOPMENT_SEASONS)
+        frame = build_prematch_v2(**inputs)
+        try:
+            commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        except subprocess.CalledProcessError as exc:
+            raise ValueError("Prematch v2 provenance requires a readable Git revision") from exc
+        sources = (
+            "ligat/cli.py",
+            "ligat/features/pipeline.py",
+            "ligat/features/prematch_v2.py",
+            "ligat/features/prematch_v2_artifacts.py",
+            "ligat/features/registry.py",
+            "ligat/features/form_artifacts.py",
+        )
+        provenance = FormProvenance(
+            commit,
+            spec.input_fingerprint(),
+            {
+                name: hashlib.sha256(
+                    (Path(__file__).resolve().parents[1] / name).read_bytes()
+                ).hexdigest()
+                for name in sources
+            },
+        )
+        created = ensure_prematch_v2(frame, spec, provenance)
+        typer.echo(f"prematch v2: {'created' if created else 'up to date'} ({len(frame)} rows)")
+    except (ValueError, OSError, KeyError) as exc:
+        logging.getLogger(__name__).error("Prematch v2 stopped: %s", exc)
         raise typer.Exit(code=1) from exc
 
 
