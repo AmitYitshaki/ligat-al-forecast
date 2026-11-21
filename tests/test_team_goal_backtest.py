@@ -18,15 +18,20 @@ from tests.test_goal_inputs import prepare
 class MeanGoalSpy:
     """Test-only constant model: training mean, recording every fit and prediction input."""
 
+    supports_sample_weight = True
+
     def __init__(self, refit_policy="per_fold"):
         self.refit_policy = refit_policy
         self.fit_calls, self.predict_calls = [], []
+        self.weight_calls = []
 
     def fit(self, X, y, sample_weight=None, *, context):
-        assert sample_weight is None
         assert X.index.equals(y.index) and y.index.equals(context.index)
         self.fit_calls.append((X.copy(deep=True), y.copy(deep=True), context.copy(deep=True)))
-        self.rate = float(y.mean())
+        self.weight_calls.append(None if sample_weight is None else sample_weight.copy(deep=True))
+        if sample_weight is not None:
+            assert X.index.equals(sample_weight.index)
+        self.rate = float(np.average(y, weights=sample_weight))
         return self
 
     def predict(self, X, *, context):
@@ -189,13 +194,13 @@ def test_bad_prediction_values_or_index_fail_closed(goal_sources, damage):
         evaluate_team_goals(Bad, prepare(goal_sources), feature_columns=("elo_diff",))
 
 
-def test_weights_and_excluded_seasons_are_rejected_before_fitting(goal_sources):
+def test_external_weights_and_excluded_seasons_are_rejected_before_fitting(goal_sources):
     data = prepare(goal_sources)
 
     def factory():
         pytest.fail("Premature model creation")
 
-    with pytest.raises(ValueError, match="sample_weight=None"):
+    with pytest.raises(ValueError, match="computed by the judge"):
         evaluate_team_goals(factory, data, feature_columns=("elo_diff",), sample_weight=data.y)
     with pytest.raises(ValueError, match="all preceding seasons"):
         evaluate_team_goals(

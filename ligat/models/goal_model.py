@@ -15,6 +15,11 @@ class TeamGoalModel(Protocol):
         """Declare whether the judge fits once per fold or before every matchday."""
         ...
 
+    @property
+    def supports_sample_weight(self) -> bool:
+        """Explicitly opt in to consuming every supplied observation weight."""
+        ...
+
     def fit(
         self,
         X: pd.DataFrame,
@@ -23,7 +28,7 @@ class TeamGoalModel(Protocol):
         *,
         context: pd.DataFrame,
     ) -> Self:
-        """Fit aligned past rows and return self; B1a supplies only None weights."""
+        """Fit aligned past rows; reject non-None weights if unsupported, never ignore them."""
         ...
 
     def predict(self, X: pd.DataFrame, *, context: pd.DataFrame) -> pd.Series:

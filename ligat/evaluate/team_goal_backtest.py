@@ -11,6 +11,7 @@ from ligat.evaluate.goal_inputs import GoalData, _feature_columns
 from ligat.evaluate.goal_metrics import poisson_nll
 from ligat.features.pipeline import DEVELOPMENT_SEASONS
 from ligat.models.goal_model import RefitPolicy, TeamGoalModel
+from ligat.models.ordered_logit import time_weights
 
 MIN_TRAIN_SEASONS = 4
 
@@ -49,6 +50,8 @@ def _predict_batch(
     fold: int,
     deep_fold: bool,
     refit_policy: RefitPolicy,
+    validation_season: int,
+    half_life: float | None,
 ) -> pd.DataFrame:
     train_context = data.context.loc[training]
     val_context = data.context.loc[validation]
@@ -59,10 +62,19 @@ def _predict_batch(
         raise ValueError("Goal training dates must be strictly earlier than prediction as_of")
     if training.isin(validation).any():
         raise ValueError("Goal training and prediction keys must be disjoint")
+    weights = None
+    if refit_policy == "per_fold":
+        weights = pd.Series(
+            time_weights(train_context.season_id, validation_season, half_life),
+            index=training,
+            name="sample_weight",
+        )
+        if getattr(model, "supports_sample_weight", False) is not True:
+            raise ValueError("Goal model does not declare support for sample_weight")
     fitted = model.fit(
         data.X.loc[training].copy(deep=True),
         data.y.loc[training].copy(deep=True),
-        sample_weight=None,
+        sample_weight=weights,
         context=train_context.copy(deep=True),
     )
     if fitted is not model:
@@ -93,6 +105,7 @@ def _predict_batch(
     result["train_games"] = len(training) // 2
     result["deep_fold"] = deep_fold
     result["refit_policy"] = refit_policy
+    result["half_life"] = half_life
     return result
 
 
@@ -102,6 +115,7 @@ def evaluate_team_goals(
     *,
     feature_columns: Sequence[str],
     policy: DevelopmentPolicy | None = None,
+    half_life: float | None = None,
     sample_weight: pd.Series | None = None,
 ) -> TeamGoalEvaluation:
     """Predict seasons 11-25 from allowed history, fitting a fresh model per batch.
@@ -110,10 +124,19 @@ def evaluate_team_goals(
     or restrict the reported validation seasons. per_matchday additionally uses
     already played validation fixtures, strictly before the current local day.
     Fold depth uses the initial training seasons, never the partial validation
-    season. B1a rejects weights; later metrics and selection rules are separate.
+    season. For per_fold, the judge passes raw season weights (ones when
+    half_life=None), without changing their scale. Daily models receive None
+    weights and must implement their own declared day-decay in their adapter.
+    External observation weights are forbidden: select half_life instead.
     """
     if sample_weight is not None:
-        raise ValueError("B1a accepts only sample_weight=None; time weights arrive in B1b")
+        raise ValueError("sample_weight is computed by the judge; select half_life instead")
+    if half_life is not None and (
+        isinstance(half_life, (bool, np.bool_))
+        or not isinstance(half_life, (int, float, np.integer, np.floating))
+        or half_life not in (1, 2, 4)
+    ):
+        raise ValueError("Season half_life must be None, 1, 2 or 4")
     columns = _feature_columns(feature_columns, data.X.columns)
     # Validate independent snapshots even if a caller changed a mutable frame.
     data = GoalData(
@@ -129,6 +152,8 @@ def evaluate_team_goals(
         if declared is not None and model.refit_policy != declared:
             raise ValueError("Goal model factory changed its declared refit policy")
         declared = model.refit_policy
+        if declared == "per_matchday" and half_life is not None:
+            raise ValueError("per_matchday does not accept season half_life; use day decay in C4")
         train = data.context.season_id.isin(row.train_seasons)
         val = data.context.season_id.eq(row.validation_season)
         deep = len(row.train_seasons) >= MIN_TRAIN_SEASONS
@@ -167,6 +192,8 @@ def evaluate_team_goals(
                     fold=int(row.fold),
                     deep_fold=deep,
                     refit_policy=declared,
+                    validation_season=int(row.validation_season),
+                    half_life=half_life,
                 )
             )
         scored = pd.concat(fold_parts)
@@ -183,6 +210,7 @@ def evaluate_team_goals(
                 "rows": len(scored),
                 "poisson_nll": float(game_scores.mean()),
                 "fits": len(batches),
+                "half_life": half_life,
             }
         )
         parts.append(scored)

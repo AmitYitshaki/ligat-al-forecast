@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import minimize  # type: ignore[import-untyped]
+from scipy.special import gammaln  # type: ignore[import-untyped]
 
 from ligat.evaluate.goal_metrics import poisson_nll
 from ligat.models.ordered_logit import (
@@ -18,7 +19,7 @@ from ligat.models.ordered_logit import (
 
 @dataclass(frozen=True)
 class PoissonFit:
-    """Unweighted log-link MLE diagnostics, including recomputed convergence gradient."""
+    """Log-link MLE diagnostics, including recomputed convergence gradient."""
 
     coefficients: tuple[float, ...]
     converged: bool
@@ -27,8 +28,14 @@ class PoissonFit:
     max_abs_gradient: float
 
 
-def fit_poisson(x: ArrayLike, goals: ArrayLike) -> PoissonFit:
-    """Fit an explicit design matrix (including its intercept) with no observation weights."""
+def fit_poisson(x: ArrayLike, goals: ArrayLike, weights: ArrayLike | None = None) -> PoissonFit:
+    """Fit a design matrix by mean Poisson NLL, optionally weighted by observations.
+
+    None retains the exact legacy arithmetic and initialization. Explicit weights
+    normalize only this unpenalized GLM likelihood; the judge's supplied weights
+    keep their original scale for regularized tree models. Zero-weight rows do
+    not contribute to the fit or its effective rank/positive-goal requirements.
+    """
     design, y = np.asarray(x, float), np.asarray(goals, float)
     if (
         design.ndim != 2
@@ -39,18 +46,48 @@ def fit_poisson(x: ArrayLike, goals: ArrayLike) -> PoissonFit:
     ):
         raise ValueError("Expected aligned finite Poisson design and target")
     poisson_nll(y, np.ones(len(y)))
+    normalized = None
+    log_factorial = None
+    if weights is not None:
+        raw = np.asarray(weights)
+        if raw.dtype.kind not in "biuf":
+            raise ValueError("Poisson weights must be finite nonnegative numeric values")
+        w = np.asarray(raw, float)
+        with np.errstate(over="ignore"):
+            total = float(w.sum())
+        if (
+            w.shape != y.shape
+            or not np.isfinite(w).all()
+            or (w < 0).any()
+            or not np.isfinite(total)
+            or total <= 0
+        ):
+            raise ValueError(
+                "Poisson weights must be aligned, finite, nonnegative, with positive sum"
+            )
+        positive = w > 0
+        design, y = design[positive], y[positive]
+        normalized = w[positive] / total
+        if float(normalized @ y) <= 0:
+            raise ValueError("Poisson MLE requires positive weighted goal mass")
+        log_factorial = gammaln(y + 1)
     if y.sum() <= 0 or np.linalg.matrix_rank(design) < design.shape[1]:
         raise ValueError("Poisson MLE requires positive goal mass and full-rank design")
     initial = np.zeros(design.shape[1])
     if np.array_equal(design[:, 0], np.ones(len(design))):
-        initial[0] = np.log(y.mean())
+        initial[0] = np.log(y.mean() if normalized is None else float(normalized @ y))
 
     def objective(beta: NDArray[np.float64]) -> tuple[float, NDArray[np.float64]]:
         eta = design @ beta
         with np.errstate(over="ignore", invalid="ignore"):
             lam = np.exp(eta)
-            value = float(np.mean(lam - y * eta))
-            gradient = design.T @ (lam - y) / len(y)
+            if normalized is None:
+                value = float(np.mean(lam - y * eta))
+                gradient = design.T @ (lam - y) / len(y)
+            else:
+                assert log_factorial is not None
+                value = float(normalized @ (lam - y * eta + log_factorial))
+                gradient = design.T @ (normalized * (lam - y))
         return value, gradient
 
     result = minimize(
