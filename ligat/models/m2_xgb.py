@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import ClassVar, Literal, Self
@@ -13,6 +14,7 @@ from xgboost import __version__ as XGBOOST_VERSION
 
 from ligat.evaluate.goal_metrics import poisson_nll
 from ligat.features.prematch_v2 import PREMATCH_V2_COLUMNS
+from ligat.models.m2_identity import IDENTITY_COLUMNS, TeamIdentity
 
 STAGE_DTYPE = pd.CategoricalDtype(["regular", "upper", "middle", "lower"])
 _FORMAT_VERSION = 1
@@ -115,25 +117,51 @@ class XGBGoalConfig:
             }
         )
 
+    @property
+    def label(self) -> str:
+        """Readable, unrounded parameter values; the canonical ID remains authoritative."""
+        if self.preset == "library_default":
+            label = "ברירת המחדל של XGBoost"
+            return label if self.seed == 0 else f"{label} · seed{self.seed}"
+        fields = (
+            ("d", self.max_depth),
+            ("n", self.n_estimators),
+            ("lr", self.learning_rate),
+            ("mcw", self.min_child_weight),
+            ("ss", self.subsample),
+            ("cs", self.colsample_bytree),
+            ("rl", self.reg_lambda),
+            ("seed", self.seed),
+        )
+        return " · ".join(
+            f"{name}{int(value) if float(value).is_integer() else repr(value)}"
+            for name, value in fields
+        )
 
-def _features(X: pd.DataFrame) -> tuple[pd.DataFrame, _Schema]:
+
+def _features(X: pd.DataFrame, *, with_identity: bool = False) -> tuple[pd.DataFrame, _Schema]:
     if (
         not isinstance(X, pd.DataFrame)
         or X.empty
         or not X.columns.is_unique
         or not all(isinstance(c, str) for c in X.columns)
-        or not set(X) <= set(PREMATCH_V2_COLUMNS)
-        or set(X) & {"team_id", "opponent_id"}
+        or not set(X) <= {*PREMATCH_V2_COLUMNS, "team_id"}
+        or (not with_identity and set(X) & set(IDENTITY_COLUMNS))
+        or (with_identity and not set(IDENTITY_COLUMNS) <= set(X))
         or not X.index.is_unique
         or X.index.to_frame(index=False).isna().any().any()
     ):
         raise ValueError(
-            "C1a requires distinct registered feature columns and complete unique keys; no team IDs"
+            "Distinct registered features and complete keys required; IDs require explicit opt-in"
         )
     result, schema = X.copy(deep=True), []
     for column in X:
         values = X[column]
-        if column == "stage":
+        if column in IDENTITY_COLUMNS:
+            if not isinstance(values.dtype, pd.CategoricalDtype):
+                raise ValueError("Identity columns must pass through the shared encoder")
+            schema.append((column, "category", "identity"))
+        elif column == "stage":
             if not values.dropna().isin(STAGE_DTYPE.categories).all():
                 raise ValueError("stage must be regular, upper, middle or lower")
             result[column] = values.astype(STAGE_DTYPE)
@@ -163,14 +191,21 @@ class XGBGoalModel:
     refit_policy: ClassVar[Literal["per_fold"]] = "per_fold"
     supports_sample_weight: ClassVar[bool] = True
 
-    def __init__(self, config: XGBGoalConfig) -> None:
+    def __init__(self, config: XGBGoalConfig, *, team_ids: Sequence[int] | None = None) -> None:
         self._config = config
+        self._team_ids = TeamIdentity(tuple(team_ids)).team_ids if team_ids is not None else None
+        self._identity: TeamIdentity | None = None
         self._estimator: XGBRegressor | None = None
         self._schema: _Schema | None = None
 
     @property
     def config(self) -> XGBGoalConfig:
         return self._config
+
+    @property
+    def identity(self) -> TeamIdentity | None:
+        """Fitted immutable identity history, absent when F6 was not explicitly requested."""
+        return self._identity
 
     def _new_estimator(self) -> XGBRegressor:
         parameters = asdict(self.config)
@@ -187,8 +222,13 @@ class XGBGoalModel:
         context: pd.DataFrame,
     ) -> Self:
         """Fit past rows, consuming raw aligned weights; no validation data or early stopping."""
-        self._estimator, self._schema = None, None
-        prepared, schema = _features(X)
+        self._estimator, self._schema, self._identity = None, None, None
+        identity = None
+        features = X
+        if self._team_ids is not None:
+            identity = TeamIdentity.from_context(context, team_ids=self._team_ids)
+            features = identity.transform(X, context=context)
+        prepared, schema = _features(features, with_identity=identity is not None)
         _alignment(X, context)
         if not isinstance(y, pd.Series) or not X.index.equals(y.index):
             raise ValueError("Goal targets must align with feature keys in exact order")
@@ -217,14 +257,15 @@ class XGBGoalModel:
             raise ValueError("Poisson trees require positive weighted goal mass")
         estimator = self._new_estimator()
         estimator.fit(prepared, goals, sample_weight=weights)
-        self._estimator, self._schema = estimator, schema
+        self._estimator, self._schema, self._identity = estimator, schema, identity
         return self
 
     def predict(self, X: pd.DataFrame, *, context: pd.DataFrame) -> pd.Series:
         """Return the native Poisson mean directly, preserving the requested index order."""
         if self._estimator is None or self._schema is None:
             raise RuntimeError("Fit or load the goal model before prediction")
-        prepared, schema = _features(X)
+        features = self._identity.transform(X, context=context) if self._identity is not None else X
+        prepared, schema = _features(features, with_identity=self._identity is not None)
         _alignment(X, context)
         if schema != self._schema:
             raise ValueError("Prediction columns, order or dtypes differ from the fitted schema")
@@ -248,6 +289,8 @@ class XGBGoalModel:
             "stage_categories": list(STAGE_DTYPE.categories),
             "stage_ordered": False,
         }
+        if self._identity is not None:
+            metadata["identity"] = self._identity.to_metadata()
         self._estimator.get_booster().set_attr(ligat_m2_schema_sha256=_digest(metadata))
         self._estimator.save_model(path)
         metadata["model_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -271,7 +314,7 @@ class XGBGoalModel:
             "stage_ordered",
             "model_sha256",
         }
-        if not isinstance(metadata, dict) or set(metadata) != keys:
+        if not isinstance(metadata, dict) or set(metadata) not in (keys, keys | {"identity"}):
             raise ValueError("Invalid M2 model sidecar schema")
         if metadata.pop("model_sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
             raise ValueError("Model JSON does not match its sidecar")
@@ -301,15 +344,23 @@ class XGBGoalModel:
             raise ValueError("Invalid M2 configuration in sidecar") from exc
         if metadata["config_id"] != config.config_id:
             raise ValueError("Model config_id does not match its configuration")
-        result = cls(config)
+        identity = (
+            TeamIdentity.from_metadata(metadata["identity"]) if "identity" in metadata else None
+        )
+        if {row[0] for row in schema if row[2] == "identity"} != (
+            set(IDENTITY_COLUMNS) if identity is not None else set()
+        ):
+            raise ValueError("Identity schema and saved history disagree")
+        result = cls(config, team_ids=identity.team_ids if identity is not None else None)
         estimator = result._new_estimator()
         estimator.load_model(path)
         booster = estimator.get_booster()
         if (
             booster.attr("ligat_m2_schema_sha256") != _digest(metadata)
             or booster.feature_names != [row[0] for row in schema]
-            or booster.feature_types != ["c" if row[2] == "stage" else "float" for row in schema]
+            or booster.feature_types
+            != ["c" if row[2] in ("stage", "identity") else "float" for row in schema]
         ):
             raise ValueError("Model feature schema does not match its sidecar")
-        result._estimator, result._schema = estimator, schema
+        result._estimator, result._schema, result._identity = estimator, schema, identity
         return result
