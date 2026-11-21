@@ -17,7 +17,7 @@ from ligat.evaluate.goal_metrics import poisson_nll
 from ligat.models.m2_identity import IDENTITY_COLUMNS, TeamIdentity
 from ligat.models.m2_xgb import STAGE_DTYPE, _alignment, _digest, _features, _Schema
 
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
 _FIXED = {
     "loss_function": "Poisson",
     "task_type": "CPU",
@@ -25,14 +25,14 @@ _FIXED = {
     "verbose": False,
     "allow_writing_files": False,
 }
-_TUNABLE = ("depth", "l2_leaf_reg", "iterations", "learning_rate")
+_TUNABLE = ("depth", "l2_leaf_reg", "iterations", "learning_rate", "one_hot_max_size")
 
 
 @dataclass(frozen=True)
 class CatBoostGoalConfig:
     """Explicit grid values or an explicit preset that leaves defaults to CatBoost.
 
-    None is allowed only in library_default, where all four tunable parameters
+    None is allowed only in library_default, where all five tunable parameters
     are omitted from the native constructor. Fitted defaults are recorded separately.
     """
 
@@ -42,10 +42,22 @@ class CatBoostGoalConfig:
     learning_rate: float | None
     seed: int = 0
     preset: Literal["grid", "library_default"] = "grid"
+    one_hot_max_size: int | None = 4
 
     def __post_init__(self) -> None:
         if self.preset not in ("grid", "library_default"):
             raise ValueError("An explicit supported CatBoost preset is required")
+        value = self.one_hot_max_size
+        if value is not None:
+            if (
+                isinstance(value, (bool, np.bool_))
+                or not isinstance(value, (int, np.integer))
+                or value < 1
+            ):
+                raise ValueError("one_hot_max_size must be an integer >= 1")
+            object.__setattr__(self, "one_hot_max_size", int(value))
+        elif self.preset == "grid":
+            raise ValueError("one_hot_max_size must be an integer >= 1 in grid configs")
         for name in ("seed", "depth", "iterations"):
             value = getattr(self, name)
             if value is None and name != "seed" and self.preset == "library_default":
@@ -72,11 +84,13 @@ class CatBoostGoalConfig:
         if self.preset == "library_default" and any(
             getattr(self, name) is not None for name in _TUNABLE
         ):
-            raise ValueError("library_default must omit all four tunable parameters")
+            raise ValueError("library_default must omit all five tunable parameters")
 
     @classmethod
     def library_default(cls, *, seed: int = 0) -> Self:
-        return cls(None, None, None, None, seed=seed, preset="library_default")
+        return cls(
+            None, None, None, None, seed=seed, preset="library_default", one_hot_max_size=None
+        )
 
     @property
     def config_id(self) -> str:
@@ -100,6 +114,7 @@ class CatBoostGoalConfig:
             ("l2=", self.l2_leaf_reg),
             ("it", self.iterations),
             ("lr", self.learning_rate),
+            ("oh", self.one_hot_max_size),
             ("seed", self.seed),
         )
         return "catboost · " + " · ".join(
@@ -266,9 +281,13 @@ class CatBoostGoalModel:
             raise ValueError("Invalid M2 CatBoost sidecar schema")
         if metadata.pop("model_sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
             raise ValueError("Model CBM does not match its sidecar")
+        if metadata["format_version"] != _FORMAT_VERSION:
+            raise ValueError(
+                f"Unsupported CatBoost sidecar format_version {metadata['format_version']}; "
+                f"expected {_FORMAT_VERSION}. Retrain with the explicit categorical encoding."
+            )
         if (
-            metadata["format_version"] != _FORMAT_VERSION
-            or metadata["catboost_version"] != CATBOOST_VERSION
+            metadata["catboost_version"] != CATBOOST_VERSION
             or metadata["stage_categories"] != list(STAGE_DTYPE.categories)
             or metadata["stage_ordered"] is not False
         ):

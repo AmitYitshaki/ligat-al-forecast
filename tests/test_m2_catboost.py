@@ -58,6 +58,7 @@ def test_native_poisson_parity_categories_boolean_and_numeric_nan(tmp_path):
         l2_leaf_reg=3,
         iterations=32,
         learning_rate=0.1,
+        one_hot_max_size=4,
         random_seed=0,
         loss_function="Poisson",
         task_type="CPU",
@@ -135,7 +136,7 @@ def test_library_default_omits_tunables_and_records_complete_actual_parameters(t
     X, y, context = sample(128)
     X = X.drop(columns="stage")
     model = CatBoostGoalModel(CatBoostGoalConfig.library_default())
-    assert not {"depth", "l2_leaf_reg", "iterations", "learning_rate"} & set(
+    assert not {"depth", "l2_leaf_reg", "iterations", "learning_rate", "one_hot_max_size"} & set(
         model._new_estimator().get_params()
     )
     model.fit(X, y, context=context)
@@ -190,7 +191,7 @@ def test_config_ids_labels_normalization_and_frozen_state():
     assert cfg.config_id != replace(cfg, seed=1).config_id
     assert cfg.config_id != XGBGoalConfig.library_default().config_id
     assert cfg.config_id.startswith("catboost-grid-")
-    assert cfg.label == "catboost · d2 · l2=3 · it32 · lr0.1 · seed0"
+    assert cfg.label == "catboost · d2 · l2=3 · it32 · lr0.1 · oh4 · seed0"
     assert CatBoostGoalConfig.library_default().label == "ברירת המחדל של CatBoost"
     assert CatBoostGoalConfig.library_default(seed=2).label.endswith("seed2")
     assert cfg.label != replace(cfg, learning_rate=0.10000000001).label
@@ -201,6 +202,58 @@ def test_config_ids_labels_normalization_and_frozen_state():
     assert subprocess.check_output([sys.executable, "-c", code], text=True).strip() == cfg.config_id
     with pytest.raises(FrozenInstanceError):
         cfg.depth = 3
+
+
+@pytest.mark.parametrize("one_hot_max_size", [1, 4])
+def test_grid_one_hot_parameter_is_recorded_and_round_trips(tmp_path, one_hot_max_size):
+    X, y, context = sample(128)
+    cfg = config(one_hot_max_size=one_hot_max_size)
+    model = CatBoostGoalModel(cfg).fit(X, y, context=context)
+    assert model.actual_params["one_hot_max_size"] == one_hot_max_size
+    assert model._estimator.get_all_params()["one_hot_max_size"] == one_hot_max_size
+    path = tmp_path / "encoding.cbm"
+    model.save(path)
+    restored = CatBoostGoalModel.load(path)
+    assert restored.config == cfg and restored.actual_params == model.actual_params
+    pd.testing.assert_series_equal(
+        model.predict(X, context=context), restored.predict(X, context=context)
+    )
+
+
+def test_one_hot_setting_is_canonical_and_visible_in_id_and_label():
+    cfg = config()
+    assert cfg.one_hot_max_size == 4
+    assert cfg.config_id == config(one_hot_max_size=np.int64(4)).config_id
+    assert cfg.config_id != replace(cfg, one_hot_max_size=2).config_id
+    assert " · oh4 · " in cfg.label
+    assert " · oh2 · " in replace(cfg, one_hot_max_size=2).label
+    assert CatBoostGoalConfig.library_default().one_hot_max_size is None
+
+
+@pytest.mark.parametrize("value", [0, -1, 1.5, 4.0, True, False, np.bool_(True), None, "4"])
+def test_grid_rejects_invalid_one_hot_sizes(value):
+    with pytest.raises(ValueError, match="one_hot_max_size"):
+        config(one_hot_max_size=value)
+
+
+@pytest.mark.parametrize("value", [1, 4])
+def test_library_default_rejects_explicit_one_hot_size(value):
+    with pytest.raises(ValueError, match="library_default must omit"):
+        replace(CatBoostGoalConfig.library_default(), one_hot_max_size=value)
+
+
+def test_previous_sidecar_format_is_rejected_before_loading_old_configuration(tmp_path):
+    X, y, context = sample(128)
+    model = CatBoostGoalModel(config()).fit(X, y, context=context)
+    path = tmp_path / "old.cbm"
+    model.save(path)
+    sidecar = path.with_suffix(".metadata.json")
+    metadata = json.loads(sidecar.read_text())
+    metadata["format_version"] = 1
+    del metadata["config"]["one_hot_max_size"]
+    sidecar.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="format_version 1; expected 2"):
+        CatBoostGoalModel.load(path)
 
 
 @pytest.mark.parametrize(
