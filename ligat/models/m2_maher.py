@@ -11,17 +11,19 @@ from numpy.typing import NDArray
 from scipy.optimize import minimize  # type: ignore[import-untyped]
 from threadpoolctl import threadpool_limits  # type: ignore[import-untyped]
 
+from ligat.models.m2_maher_prior import PromotedPrior, SeasonRoster
 from ligat.models.m2_xgb import _alignment, _digest
 
 MAHER_COLUMNS = ("team_id", "opponent_id", "is_home")
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
 
 
 @dataclass(frozen=True)
 class MaherGoalConfig:
-    """No decay or promoted-team penalty in the C4a baseline."""
+    """Day half-life and optional frozen prior; None prior retains the C4a baseline."""
 
-    half_life: None = None
+    half_life: float | None = None
+    prior: PromotedPrior | None = None
 
     @property
     def config_id(self) -> str:
@@ -29,11 +31,30 @@ class MaherGoalConfig:
 
     @property
     def label(self) -> str:
-        return "Maher · בלי דעיכה"
+        label = (
+            "Maher · בלי דעיכה"
+            if self.half_life is None
+            else f"Maher · דעיכה {self.half_life:g} עונה"
+        )
+        return label if self.prior is None else label + " · עולה 6 משחקים"
 
     def __post_init__(self) -> None:
+        if isinstance(self.half_life, (bool, np.bool_)) or self.half_life not in (None, 0.5, 1, 2):
+            raise ValueError("Maher half_life must be None, 0.5, 1 or 2 seasons")
         if self.half_life is not None:
-            raise ValueError("C4a supports no decay only")
+            object.__setattr__(self, "half_life", float(self.half_life))
+        if self.prior is not None and not isinstance(self.prior, PromotedPrior):
+            raise ValueError("Maher prior must be a frozen PromotedPrior")
+
+
+def day_weights(
+    dates: pd.Series, as_of: pd.Timestamp, half_life: float | None
+) -> NDArray[np.float64]:
+    """Continuous calendar age: one season is exactly 365.25 days (Q36)."""
+    ages = (as_of - dates).dt.total_seconds().to_numpy(float) / 86400
+    if not np.isfinite(ages).all() or (ages < 0).any():
+        raise ValueError("Decay dates must not follow as_of")
+    return np.ones(len(dates)) if half_life is None else np.power(0.5, ages / (365.25 * half_life))
 
 
 def unpack_parameters(
@@ -52,6 +73,10 @@ def maher_objective(
     goals: NDArray[np.float64],
     weights: NDArray[np.float64],
     n: int,
+    promoted: NDArray[np.bool_] | None = None,
+    a_star: float = 0.0,
+    b_star: float = 0.0,
+    penalty_strength: float = 0.0,
 ) -> tuple[float, NDArray[np.float64]]:
     """Weighted training likelihood and analytic gradient in identified coordinates."""
     a, b, gamma = unpack_parameters(theta, n)
@@ -60,9 +85,17 @@ def maher_objective(
     residual = weights * (rates - goals)
     ga = np.bincount(team, weights=residual, minlength=n)
     gb = np.bincount(opponent, weights=residual, minlength=n)
+    value = float(weights @ (rates - goals * eta))
+    if promoted is not None and penalty_strength > 0:
+        da = promoted * (a - a_star)
+        db = promoted * (b - b.mean() - b_star)
+        value += 0.5 * penalty_strength * float(da @ da + db @ db)
+        ga += penalty_strength * da
+        # beta's league mean is a function of every beta, including the entrant.
+        gb += penalty_strength * (db - db.mean())
     gradient = np.r_[ga[:-1] - ga[-1], gb, residual @ home]
     mass = weights.sum()
-    return float(weights @ (rates - goals * eta) / mass), gradient / mass
+    return value / mass, gradient / mass
 
 
 def _input(X: pd.DataFrame) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.float64]]:
@@ -85,14 +118,17 @@ class MaherGoalModel:
     supports_sample_weight: ClassVar[bool] = False
     requires_as_of: ClassVar[bool] = True
 
-    def __init__(self, config: MaherGoalConfig) -> None:
+    def __init__(self, config: MaherGoalConfig, *, roster: SeasonRoster | None = None) -> None:
         self._config = config
+        self.roster = roster
         self._parameters: pd.DataFrame | None = None
         self.log_gamma: float | None = None
         self.as_of: pd.Timestamp | None = None
         self.unseen_team_rows = 0
         self.unseen_teams: tuple[int, ...] = ()
         self.iterations = 0
+        self.penalty_teams: tuple[int, ...] = ()
+        self.penalty_strength = 0.0
 
     @property
     def config(self) -> MaherGoalConfig:
@@ -136,16 +172,41 @@ class MaherGoalModel:
         ):
             raise ValueError("Maher requires nonnegative integer goals with positive mass")
         own, opp, home = _input(X)
-        teams = np.union1d(own, opp)
+        weights = day_weights(context.date, as_of, self.config.half_life)
+        promoted_teams: tuple[int, ...] = ()
+        strength = 0.0
+        prior = self.config.prior
+        if prior is not None:
+            if self.roster is None:
+                raise ValueError("Maher promoted prior requires target-free M0 season roster")
+            season = self.roster.season_for(as_of)
+            promoted_teams = self.roster.promoted(season) if season > 8 else ()
+            w0 = day_weights(pd.Series([self.roster.start(season)]), as_of, self.config.half_life)[
+                0
+            ]
+            strength = 6 * float(np.average(goals, weights=weights)) * w0
+        teams = np.union1d(np.union1d(own, opp), np.asarray(promoted_teams, dtype=np.int64))
         n = len(teams)
         ti, oi = np.searchsorted(teams, own), np.searchsorted(teams, opp)
         initial = np.zeros(2 * n)
-        initial[n - 1 : 2 * n - 1] = np.log(goals.mean())
+        initial[n - 1 : 2 * n - 1] = np.log(np.average(goals, weights=weights))
+        promoted_mask = np.isin(teams, promoted_teams)
         with threadpool_limits(limits=1):
             result = minimize(
                 maher_objective,
                 initial,
-                args=(ti, oi, home, goals, np.ones(len(y)), n),
+                args=(
+                    ti,
+                    oi,
+                    home,
+                    goals,
+                    weights,
+                    n,
+                    promoted_mask,
+                    0.0 if prior is None else prior.a_star,
+                    0.0 if prior is None else prior.b_star,
+                    strength,
+                ),
                 jac=True,
                 method="L-BFGS-B",
                 options={"maxiter": 1000, "gtol": 1e-8, "ftol": 1e-13},
@@ -157,6 +218,7 @@ class MaherGoalModel:
             {"log_alpha": a, "log_beta": b}, index=pd.Index(teams, name="team_id")
         )
         self.log_gamma, self.as_of, self.iterations = gamma, as_of, int(result.nit)
+        self.penalty_teams, self.penalty_strength = promoted_teams, strength
         return self
 
     def predict(self, X: pd.DataFrame, *, context: pd.DataFrame) -> pd.Series:
@@ -190,6 +252,9 @@ class MaherGoalModel:
             "unseen_team_rows": self.unseen_team_rows,
             "unseen_teams": self.unseen_teams,
             "iterations": self.iterations,
+            "roster": None if self.roster is None else self.roster.rows,
+            "penalty_teams": self.penalty_teams,
+            "penalty_strength": self.penalty_strength,
         }
         path.write_text(
             json.dumps({"payload": payload, "sha256": _digest(payload)}, indent=2) + "\n",
@@ -202,10 +267,18 @@ class MaherGoalModel:
         payload = saved["payload"]
         if saved["sha256"] != _digest(payload) or payload["format_version"] != _FORMAT_VERSION:
             raise ValueError("Invalid Maher signature or format version")
-        config = MaherGoalConfig(**payload["config"])
+        config_values = dict(payload["config"])
+        if config_values.get("prior") is not None:
+            config_values["prior"] = PromotedPrior(**config_values["prior"])
+        config = MaherGoalConfig(**config_values)
         if payload["config_id"] != config.config_id:
             raise ValueError("Invalid Maher configuration signature")
-        result = cls(config)
+        roster = (
+            None
+            if payload["roster"] is None
+            else SeasonRoster(tuple(tuple(row) for row in payload["roster"]))
+        )
+        result = cls(config, roster=roster)
         result._parameters = pd.DataFrame(
             {"log_alpha": payload["log_alpha"], "log_beta": payload["log_beta"]},
             index=pd.Index(payload["team_ids"], name="team_id"),
@@ -221,4 +294,6 @@ class MaherGoalModel:
         result.unseen_team_rows = int(payload["unseen_team_rows"])
         result.unseen_teams = tuple(payload["unseen_teams"])
         result.iterations = int(payload["iterations"])
+        result.penalty_teams = tuple(payload["penalty_teams"])
+        result.penalty_strength = float(payload["penalty_strength"])
         return result

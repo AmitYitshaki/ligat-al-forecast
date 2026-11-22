@@ -1,0 +1,209 @@
+format_version: 1
+prior:
+  a_star: -0.17539874284861673
+  b_star: 0.18490174268537865
+  source_sha256: d2a35934dca8ababb4f52e768740e31ac3945dc0b0795683de1c431685c72bf0
+  team_seasons: 37
+seasons:
+- season_id: 8
+  teams: 12
+  mean_log_beta: 0.056689885269039286
+  promoted: []
+  initialization_excluded: true
+- season_id: 9
+  teams: 12
+  mean_log_beta: 0.04042166013579964
+  promoted:
+  - team_id: 2182
+    log_alpha: 0.12641104742088008
+    relative_log_beta: -0.06572570326686812
+  - team_id: 4823
+    log_alpha: -0.09342784564128506
+    relative_log_beta: -0.24601841337988248
+  initialization_excluded: false
+- season_id: 10
+  teams: 12
+  mean_log_beta: -0.01775008559667769
+  promoted:
+  - team_id: 2173
+    log_alpha: -0.13307475246670641
+    relative_log_beta: 0.1617453705210169
+  - team_id: 5135
+    log_alpha: -0.2712826148583885
+    relative_log_beta: 0.24090308169141214
+  initialization_excluded: false
+- season_id: 11
+  teams: 16
+  mean_log_beta: 0.08134783477007944
+  promoted:
+  - team_id: 1844
+    log_alpha: -0.24712540884787798
+    relative_log_beta: 0.6544738648825021
+  - team_id: 2170
+    log_alpha: -0.023293151677665512
+    relative_log_beta: 0.19193001082980105
+  - team_id: 2171
+    log_alpha: 0.19785956949828581
+    relative_log_beta: 0.32776975746625486
+  - team_id: 2175
+    log_alpha: -0.2823484530366496
+    relative_log_beta: 0.15422214057485173
+  - team_id: 2184
+    log_alpha: -0.16267026326546918
+    relative_log_beta: 0.21865321265491416
+  - team_id: 2203
+    log_alpha: -0.2938368850299762
+    relative_log_beta: 0.3184410082279436
+  initialization_excluded: false
+- season_id: 12
+  teams: 16
+  mean_log_beta: 0.09658840581246331
+  promoted:
+  - team_id: 2182
+    log_alpha: 0.2877193268726482
+    relative_log_beta: -0.014588952629917606
+  - team_id: 2213
+    log_alpha: -0.27967824857221324
+    relative_log_beta: 0.4069727732602809
+  initialization_excluded: false
+- season_id: 13
+  teams: 16
+  mean_log_beta: 0.026631673411038656
+  promoted:
+  - team_id: 2194
+    log_alpha: -0.2555065913027292
+    relative_log_beta: 0.005408867266018302
+  - team_id: 2263
+    log_alpha: -0.14759163476916004
+    relative_log_beta: 0.45025799477543954
+  initialization_excluded: false
+- season_id: 14
+  teams: 14
+  mean_log_beta: 0.059155558436239715
+  promoted:
+  - team_id: 2175
+    log_alpha: -0.10687054369534697
+    relative_log_beta: 0.15196867633698177
+  initialization_excluded: false
+- season_id: 15
+  teams: 14
+  mean_log_beta: 0.08998911151878683
+  promoted:
+  - team_id: 1064
+    log_alpha: -0.002347597765964414
+    relative_log_beta: 0.39355768738035257
+  - team_id: 2203
+    log_alpha: -0.27183476757981667
+    relative_log_beta: 0.019038018085174288
+  initialization_excluded: false
+- season_id: 16
+  teams: 14
+  mean_log_beta: 0.04128308426421155
+  promoted:
+  - team_id: 1068
+    log_alpha: 0.1210616714837382
+    relative_log_beta: 0.3273347181633223
+  - team_id: 2173
+    log_alpha: 0.0770571347861322
+    relative_log_beta: 0.4031169109046634
+  initialization_excluded: false
+- season_id: 17
+  teams: 14
+  mean_log_beta: 0.00402942743811804
+  promoted:
+  - team_id: 2266
+    log_alpha: -0.466335228109507
+    relative_log_beta: 0.027501460294459597
+  - team_id: 4669
+    log_alpha: 0.02728179365720608
+    relative_log_beta: 0.21316898226598333
+  initialization_excluded: false
+- season_id: 18
+  teams: 14
+  mean_log_beta: -0.07357957990375173
+  promoted:
+  - team_id: 1198
+    log_alpha: -0.4728479144290022
+    relative_log_beta: -0.06810347335717713
+  - team_id: 2213
+    log_alpha: -0.3570492737478028
+    relative_log_beta: 0.20810604530391302
+  initialization_excluded: false
+- season_id: 19
+  teams: 14
+  mean_log_beta: 0.0798314565433573
+  promoted:
+  - team_id: 1068
+    log_alpha: 0.3618127669425895
+    relative_log_beta: 0.10745491118085629
+  - team_id: 2184
+    log_alpha: -0.3854855929506794
+    relative_log_beta: 0.4863078516761429
+  initialization_excluded: false
+- season_id: 20
+  teams: 14
+  mean_log_beta: 0.13809379974782665
+  promoted:
+  - team_id: 2176
+    log_alpha: -0.03998933135996572
+    relative_log_beta: -0.24428202180009273
+  - team_id: 2186
+    log_alpha: 0.05310669934128142
+    relative_log_beta: 0.2543355756848939
+  initialization_excluded: false
+- season_id: 21
+  teams: 14
+  mean_log_beta: -0.017828859693563813
+  promoted:
+  - team_id: 2266
+    log_alpha: -0.3224157156401033
+    relative_log_beta: 0.061427577429524656
+  - team_id: 5227
+    log_alpha: -0.5011142755318089
+    relative_log_beta: 0.24380636819368331
+  initialization_excluded: false
+- season_id: 22
+  teams: 14
+  mean_log_beta: 0.04556771286994677
+  promoted:
+  - team_id: 1064
+    log_alpha: -0.19209845152018906
+    relative_log_beta: -0.17823247058926683
+  - team_id: 4823
+    log_alpha: -0.5194814619500276
+    relative_log_beta: 0.16904019373377313
+  initialization_excluded: false
+- season_id: 23
+  teams: 14
+  mean_log_beta: 0.07618566039346762
+  promoted:
+  - team_id: 2185
+    log_alpha: -0.4501745682506012
+    relative_log_beta: 0.29357078523743324
+  - team_id: 5981
+    log_alpha: -0.4507536039078621
+    relative_log_beta: -0.014232217044747433
+  initialization_excluded: false
+- season_id: 24
+  teams: 14
+  mean_log_beta: 0.16129184736149296
+  promoted:
+  - team_id: 5227
+    log_alpha: -0.32166889954232897
+    relative_log_beta: 0.3003626526230535
+  - team_id: 5257
+    log_alpha: -0.2927424917988254
+    relative_log_beta: 0.26511577239028894
+  initialization_excluded: false
+- season_id: 25
+  teams: 14
+  mean_log_beta: 0.13059860660640696
+  promoted:
+  - team_id: 1064
+    log_alpha: 0.09073326138666021
+    relative_log_beta: 0.38578665986484706
+  - team_id: 2173
+    log_alpha: -0.4897511895402877
+    relative_log_beta: 0.23076880252717988
+  initialization_excluded: false
+method: identified unpenalized per-season Maher; season 8 initialization excluded
