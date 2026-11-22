@@ -252,7 +252,7 @@ def test_previous_sidecar_format_is_rejected_before_loading_old_configuration(tm
     metadata["format_version"] = 1
     del metadata["config"]["one_hot_max_size"]
     sidecar.write_text(json.dumps(metadata))
-    with pytest.raises(ValueError, match="format_version 1; expected 2"):
+    with pytest.raises(ValueError, match="format_version 1; expected 3"):
         CatBoostGoalModel.load(path)
 
 

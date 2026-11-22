@@ -142,5 +142,5 @@ def test_old_maher_format_is_rejected_clearly(tmp_path):
     saved = json.loads(path.read_text())
     saved["payload"]["format_version"] = 2
     path.write_text(json.dumps(saved))
-    with pytest.raises(ValueError, match="format_version 2; expected 3"):
+    with pytest.raises(ValueError, match="format_version 2; expected 4"):
         MaherGoalModel.load(path)

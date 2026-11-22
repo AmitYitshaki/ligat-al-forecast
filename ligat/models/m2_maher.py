@@ -3,6 +3,7 @@
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import ClassVar, Literal, Self
 
 import numpy as np
@@ -13,9 +14,10 @@ from threadpoolctl import threadpool_limits  # type: ignore[import-untyped]
 
 from ligat.models.m2_maher_prior import PromotedPrior, SeasonRoster
 from ligat.models.m2_xgb import _alignment, _digest
+from ligat.models.training_log import ObjectiveJournal, TrainingJournal
 
 MAHER_COLUMNS = ("team_id", "opponent_id", "is_home")
-_FORMAT_VERSION = 3
+_FORMAT_VERSION = 4
 _MAX_ITERATIONS = 20000
 
 
@@ -115,14 +117,22 @@ def _input(X: pd.DataFrame) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArr
     return X.team_id.to_numpy(np.int64), X.opponent_id.to_numpy(np.int64), home
 
 
-class MaherGoalModel:
+class MaherGoalModel(TrainingJournal):
     """Daily cold fits on judge-cut history, with an explicit prediction as_of."""
 
     refit_policy: ClassVar[Literal["per_matchday"]] = "per_matchday"
     supports_sample_weight: ClassVar[bool] = False
     requires_as_of: ClassVar[bool] = True
 
-    def __init__(self, config: MaherGoalConfig, *, roster: SeasonRoster | None = None) -> None:
+    def __init__(
+        self,
+        config: MaherGoalConfig,
+        *,
+        roster: SeasonRoster | None = None,
+        record_training_log: bool = True,
+    ) -> None:
+        self.record_training_log = record_training_log
+        self._training_log = None
         self._config = config
         self.roster = roster
         self._parameters: pd.DataFrame | None = None
@@ -154,6 +164,8 @@ class MaherGoalModel:
         as_of: pd.Timestamp | None = None,
         prediction_features: pd.DataFrame | None = None,
     ) -> Self:
+        started = perf_counter()
+        self._training_log = None
         self._parameters, self.log_gamma, self.as_of = None, None, None
         self.unseen_team_rows, self.unseen_teams = 0, ()
         if sample_weight is not None:
@@ -198,9 +210,10 @@ class MaherGoalModel:
         initial[n - 1 : 2 * n - 1] = np.log(np.average(goals, weights=weights))
         promoted_mask = np.isin(teams, promoted_teams)
         reference_mask = np.isin(teams, reference_teams)
+        journal = ObjectiveJournal(maher_objective)
         with threadpool_limits(limits=1):
             result = minimize(
-                maher_objective,
+                journal if self.record_training_log else maher_objective,
                 initial,
                 args=(
                     ti,
@@ -216,11 +229,38 @@ class MaherGoalModel:
                     reference_mask,
                 ),
                 jac=True,
+                callback=journal.callback if self.record_training_log else None,
                 method="L-BFGS-B",
                 options={"maxiter": _MAX_ITERATIONS, "gtol": 1e-8, "ftol": 1e-13},
             )
         if not result.success or not np.isfinite(result.x).all():
             raise RuntimeError(f"Maher did not converge at as_of={as_of}: {result.message}")
+        self._training_log = {
+            "model": "maher",
+            "config_id": self.config.config_id,
+            "label": self.config.label,
+            "actual_params": {
+                "method": "L-BFGS-B",
+                "gtol": 1e-8,
+                "ftol": 1e-13,
+                "maxiter": _MAX_ITERATIONS,
+                **asdict(self.config),
+            },
+            "n_rows": len(X),
+            "n_features": 2 * n,
+            "fit_seconds": perf_counter() - started,
+            "dataset": "training",
+            "metric": "weighted_poisson_without_log_factorial_plus_prior",
+            "train_loss": journal.losses,
+            "iterations": int(result.nit),
+            "converged": bool(result.success),
+            "message": str(result.message),
+            "final_loss": float(result.fun),
+            "as_of": as_of.isoformat(),
+            "penalty_strength": strength,
+            "promoted_teams": list(promoted_teams),
+            "recorded": self.record_training_log,
+        }
         a, b, gamma = unpack_parameters(result.x, n)
         self._parameters = pd.DataFrame(
             {"log_alpha": a, "log_beta": b}, index=pd.Index(teams, name="team_id")
@@ -249,6 +289,7 @@ class MaherGoalModel:
     def save(self, path: Path) -> None:
         params = self.parameters
         payload = {
+            "training_log": self.training_log,
             "format_version": _FORMAT_VERSION,
             "config": asdict(self.config),
             "config_id": self.config.config_id,
@@ -292,6 +333,7 @@ class MaherGoalModel:
             else SeasonRoster(tuple(tuple(row) for row in payload["roster"]))
         )
         result = cls(config, roster=roster)
+        result._training_log = payload["training_log"]
         result._parameters = pd.DataFrame(
             {"log_alpha": payload["log_alpha"], "log_beta": payload["log_beta"]},
             index=pd.Index(payload["team_ids"], name="team_id"),

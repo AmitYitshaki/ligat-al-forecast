@@ -5,6 +5,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import ClassVar, Literal, Self
 
 import numpy as np
@@ -15,9 +16,10 @@ from xgboost import __version__ as XGBOOST_VERSION
 from ligat.evaluate.goal_metrics import poisson_nll
 from ligat.features.prematch_v2 import PREMATCH_V2_COLUMNS
 from ligat.models.m2_identity import IDENTITY_COLUMNS, TeamIdentity
+from ligat.models.training_log import TrainingJournal
 
 STAGE_DTYPE = pd.CategoricalDtype(["regular", "upper", "middle", "lower"])
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
 _FIXED = {
     "objective": "count:poisson",
     "tree_method": "hist",
@@ -185,13 +187,21 @@ def _alignment(X: pd.DataFrame, context: pd.DataFrame) -> None:
         raise ValueError("Goal feature and context keys must align in exact order")
 
 
-class XGBGoalModel:
+class XGBGoalModel(TrainingJournal):
     """One positive lambda per team row; the judge alone supplies history and weights."""
 
     refit_policy: ClassVar[Literal["per_fold"]] = "per_fold"
     supports_sample_weight: ClassVar[bool] = True
 
-    def __init__(self, config: XGBGoalConfig, *, team_ids: Sequence[int] | None = None) -> None:
+    def __init__(
+        self,
+        config: XGBGoalConfig,
+        *,
+        team_ids: Sequence[int] | None = None,
+        record_training_log: bool = True,
+    ) -> None:
+        self.record_training_log = record_training_log
+        self._training_log = None
         self._config = config
         self._team_ids = TeamIdentity(tuple(team_ids)).team_ids if team_ids is not None else None
         self._identity: TeamIdentity | None = None
@@ -222,6 +232,8 @@ class XGBGoalModel:
         context: pd.DataFrame,
     ) -> Self:
         """Fit past rows, consuming raw aligned weights; no validation data or early stopping."""
+        started = perf_counter()
+        self._training_log = None
         self._estimator, self._schema, self._identity = None, None, None
         identity = None
         features = X
@@ -256,7 +268,36 @@ class XGBGoalModel:
         if not ((goals > 0) & (True if weights is None else weights > 0)).any():
             raise ValueError("Poisson trees require positive weighted goal mass")
         estimator = self._new_estimator()
-        estimator.fit(prepared, goals, sample_weight=weights)
+        if self.record_training_log:
+            estimator.fit(
+                prepared,
+                goals,
+                sample_weight=weights,
+                eval_set=[(prepared, goals)],
+                sample_weight_eval_set=None if weights is None else [weights],
+                verbose=False,
+            )
+        else:
+            estimator.fit(prepared, goals, sample_weight=weights)
+        metric = "poisson-nloglik"
+        losses = (
+            estimator.evals_result()["validation_0"][metric] if self.record_training_log else []
+        )
+        self._training_log = {
+            "model": "xgb",
+            "config_id": self.config.config_id,
+            "label": self.config.label,
+            "actual_params": json.loads(estimator.get_booster().save_config()),
+            "n_rows": len(X),
+            "n_features": prepared.shape[1],
+            "fit_seconds": perf_counter() - started,
+            "dataset": "training",
+            "metric": metric,
+            "train_loss": losses,
+            "iterations": estimator.get_booster().num_boosted_rounds(),
+            "converged": True,
+            "recorded": self.record_training_log,
+        }
         self._estimator, self._schema, self._identity = estimator, schema, identity
         return self
 
@@ -281,6 +322,7 @@ class XGBGoalModel:
         if path.suffix != ".json":
             raise ValueError("M2 XGBoost models require a .json path")
         metadata = {
+            "training_log": self.training_log,
             "format_version": _FORMAT_VERSION,
             "xgboost_version": XGBOOST_VERSION,
             "config": asdict(self.config),
@@ -304,7 +346,13 @@ class XGBGoalModel:
         if path.suffix != ".json":
             raise ValueError("M2 XGBoost models require a .json path")
         metadata = json.loads(path.with_suffix(".metadata.json").read_text(encoding="utf-8"))
+        if isinstance(metadata, dict) and metadata.get("format_version") != _FORMAT_VERSION:
+            raise ValueError(
+                f"Unsupported xgb format_version {metadata.get('format_version')}; "
+                f"expected {_FORMAT_VERSION}"
+            )
         keys = {
+            "training_log",
             "format_version",
             "xgboost_version",
             "config",
@@ -363,4 +411,5 @@ class XGBGoalModel:
         ):
             raise ValueError("Model feature schema does not match its sidecar")
         result._estimator, result._schema, result._identity = estimator, schema, identity
+        result._training_log = metadata["training_log"]
         return result

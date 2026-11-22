@@ -1,6 +1,9 @@
 """Blind EXP-005 units: deterministic workers, atomic signed files and exact resume."""
 
+import csv
+import gzip
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -9,9 +12,10 @@ import time
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
@@ -33,6 +37,7 @@ from ligat.models.m2_glm import GLMGoalModel
 from ligat.models.m2_maher import MaherGoalModel
 from ligat.models.m2_maher_prior import season_roster
 from ligat.models.m2_xgb import XGBGoalModel, _digest
+from ligat.models.training_log import TrainingJournal, atomic_bytes, journal_bytes
 
 ModelFactory = Callable[[GoalUnit], TeamGoalModel]
 _FORBIDDEN = {"goals_scored", "poisson_nll", "rps", "log_loss", "brier", "accuracy"}
@@ -62,6 +67,7 @@ class GoalUnitResult:
     peak_rss_mb: float
     metadata: dict[str, Any]
     cached: bool
+    training_log: list[dict[str, Any]]
 
 
 class PilotInterrupted(RuntimeError):
@@ -142,7 +148,7 @@ def _model(unit: GoalUnit, data: GoalData) -> TeamGoalModel:
 
 def _signature(unit: GoalUnit, provenance: GoalProvenance) -> str:
     return _digest(
-        {"format_version": 1, "unit": unit.identity(), "provenance": provenance.identity()}
+        {"format_version": 2, "unit": unit.identity(), "provenance": provenance.identity()}
     )
 
 
@@ -189,12 +195,13 @@ def load_goal_unit(
     if not isinstance(saved, dict) or set(saved) != {"payload", "sha256"}:
         raise ValueError("Invalid goal unit envelope")
     payload = saved["payload"]
-    if not isinstance(payload, dict) or payload.get("format_version") != 1:
+    if not isinstance(payload, dict) or payload.get("format_version") != 2:
         raise ValueError("Unsupported goal unit format")
     if saved["sha256"] != _payload_digest(payload) or payload["signature"] != _signature(
         unit, provenance
     ):
         raise ValueError("Goal unit signature mismatch; refusing to overwrite existing result")
+    logs = _read_journal(path, payload)
     rows = pd.DataFrame(payload["per_team"]).loc[:, payload["per_team_columns"]]
     if _FORBIDDEN & set(rows):
         raise ValueError("Blind goal unit contains forbidden targets or scores")
@@ -226,6 +233,7 @@ def load_goal_unit(
         payload["peak_rss_mb"],
         payload["metadata"],
         True,
+        logs,
     )
 
 
@@ -242,6 +250,9 @@ def run_goal_unit(
     path = _path(root, stage, unit)
     if path.exists():
         return load_goal_unit(path, unit, provenance, data)
+    if path.with_suffix(".trainlog.json.gz").exists():
+        raise ValueError("Orphan training journal; refusing to overwrite")
+    logs: list[dict[str, Any]] = []
     fit_times = []
     metadata: dict[str, Any] = {}
 
@@ -264,8 +275,6 @@ def run_goal_unit(
         ) -> "Timed":
             started = time.perf_counter()
             if self.requires_as_of:
-                from typing import cast
-
                 from ligat.models.goal_model import MatchdayGoalModel
 
                 cast(MatchdayGoalModel, self.model).fit(
@@ -274,6 +283,7 @@ def run_goal_unit(
             else:
                 self.model.fit(X, y, sample_weight, context=context)
             fit_times.append(time.perf_counter() - started)
+            logs.append(cast(TrainingJournal, self.model).training_log)
             if isinstance(self.model, CatBoostGoalModel):
                 metadata["actual_params"] = self.model.actual_params
             return self
@@ -298,8 +308,11 @@ def run_goal_unit(
     elapsed = time.perf_counter() - started
     memory = psutil.Process().memory_info()
     peak = float(getattr(memory, "peak_wset", memory.rss)) / (1024**2)
+    journal = journal_bytes(logs, compressed=True)
     payload = {
-        "format_version": 1,
+        "completed_at": datetime.now(UTC).isoformat(),
+        "training_log_sha256": hashlib.sha256(journal).hexdigest(),
+        "format_version": 2,
         "signature": _signature(unit, provenance),
         "unit": asdict(unit),
         "provenance": asdict(provenance),
@@ -318,8 +331,9 @@ def run_goal_unit(
         "metadata": metadata,
     }
     saved = {"payload": payload, "sha256": _payload_digest(payload)}
+    atomic_bytes(path.with_suffix(".trainlog.json.gz"), journal)
     _atomic_json(path, saved)
-    return GoalUnitResult(unit, evaluation, elapsed, sum(fit_times), peak, metadata, False)
+    return GoalUnitResult(unit, evaluation, elapsed, sum(fit_times), peak, metadata, False, logs)
 
 
 def run_goal_units(
@@ -336,6 +350,10 @@ def run_goal_units(
     """Resume verified units first; execute only pending units in single-thread loky workers."""
     if isinstance(n_jobs, bool) or not 1 <= n_jobs <= 15:
         raise ValueError("One to fifteen workers required")
+    if stop_after_units is not None and (
+        isinstance(stop_after_units, bool) or stop_after_units < 1
+    ):
+        raise ValueError("stop_after_units must be a positive count")
     unique = {u.unit_id: u for u in units}
     completed = []
     pending = []
@@ -346,14 +364,18 @@ def run_goal_units(
         else:
             pending.append(unit)
     if not pending:
+        rebuild_goal_index(root, stage=stage)
         return sorted(completed, key=lambda r: r.unit.unit_id)
     count = 0
+    # An intentional interruption waits for its finite batch to publish both
+    # files, rather than terminating another worker between journal and unit.
+    scheduled = pending if stop_after_units is None else pending[:stop_after_units]
     with parallel_config(backend="loky", inner_max_num_threads=1):
         iterator = Parallel(n_jobs=n_jobs, return_as="generator_unordered")(
             delayed(run_goal_unit)(
                 unit, data, provenance, root, stage=stage, model_factory=model_factory
             )
-            for unit in pending
+            for unit in scheduled
         )
         try:
             for result in iterator:
@@ -365,6 +387,10 @@ def run_goal_units(
                     )
         finally:
             iterator.close()
+            # The supplied sequence is one batch. Its index is a derived view;
+            # unit/journal pairs remain durable throughout the batch. Rebuilding
+            # after every unit would repeatedly parse every prior prediction.
+            rebuild_goal_index(root, stage=stage)
     return sorted(completed, key=lambda r: r.unit.unit_id)
 
 
@@ -447,3 +473,95 @@ def run_goal_pilot(
     target = spec.output / "pilot" / "engineering_report.json"
     _atomic_json(target, report)
     return report
+
+
+def _read_journal(path: Path, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    journal = path.with_suffix(".trainlog.json.gz")
+    try:
+        raw = journal.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != payload["training_log_sha256"]:
+            raise ValueError("Training journal signature mismatch")
+        logs = json.loads(gzip.decompress(raw))
+        if not isinstance(logs, list) or not logs:
+            raise ValueError("Missing training fit records")
+        for log in logs:
+            if log.get("dataset") != "training" or not log.get("train_loss"):
+                raise ValueError("Invalid training journal record")
+        return logs
+    except (OSError, KeyError, ValueError, EOFError) as exc:
+        raise ValueError(f"Invalid training journal for {path.name}: {exc}") from exc
+
+
+def rebuild_goal_index(root: Path, *, stage: str = "pilot") -> Path:
+    """Rebuild the display index from signed unit/journal pairs, without fitting."""
+    columns = [
+        "unit_id",
+        "backend",
+        "config_id",
+        "label",
+        "features",
+        "fold",
+        "fit_seconds",
+        "peak_rss_mb",
+        "iterations",
+        "first_train_loss",
+        "last_train_loss",
+        "converged",
+        "signature",
+        "completed_at",
+    ]
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=columns)
+    writer.writeheader()
+    for path in sorted((root / stage).glob("unit-*.json")):
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        payload = saved["payload"]
+        if saved["sha256"] != _payload_digest(payload):
+            raise ValueError(f"Goal unit signature mismatch: {path.name}")
+        logs = _read_journal(path, payload)
+        unit = payload["unit"]
+        writer.writerow(
+            dict(
+                zip(
+                    columns,
+                    [
+                        path.stem,
+                        unit["backend"],
+                        payload["config_id"],
+                        payload["label"],
+                        json.dumps(unit["features"]),
+                        unit["season"],
+                        payload["fit_seconds"],
+                        payload["peak_rss_mb"],
+                        sum(log["iterations"] for log in logs),
+                        logs[0]["train_loss"][0],
+                        logs[-1]["train_loss"][-1],
+                        all(log["converged"] for log in logs),
+                        saved["sha256"],
+                        payload["completed_at"],
+                    ],
+                    strict=True,
+                )
+            )
+        )
+    target = root / stage / "index.csv"
+    atomic_bytes(target, stream.getvalue().encode("utf-8"))
+    return target
+
+
+def exp005_status(config: GoalExperimentSpec) -> list[dict[str, str]]:
+    """Classify planned pilot units against current inputs, source and library versions."""
+    data = load_goal_inputs(config)
+    provenance = goal_provenance(data, prematch_version=config.raw["inputs"]["prematch_version"])
+    result = []
+    for unit in pilot_units(config):
+        path = _path(config.output, "pilot", unit)
+        status, reason = "missing", "No saved unit"
+        if path.exists() or path.with_suffix(".trainlog.json.gz").exists():
+            try:
+                load_goal_unit(path, unit, provenance, data)
+                status, reason = "complete", "Verified current unit and training journal"
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                status, reason = "outdated", str(exc)
+        result.append({"unit_id": unit.unit_id, "status": status, "reason": reason})
+    return result

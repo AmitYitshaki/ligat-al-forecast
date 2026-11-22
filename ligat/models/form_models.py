@@ -1,5 +1,6 @@
 """EXP-002 Poisson and ordinal adapters; no candidate selection occurs here."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,6 +16,7 @@ from ligat.models.ordered_logit import (
     fit_ordered_logit,
     ordered_probabilities,
 )
+from ligat.models.training_log import ObjectiveJournal
 
 
 @dataclass(frozen=True)
@@ -28,7 +30,13 @@ class PoissonFit:
     max_abs_gradient: float
 
 
-def fit_poisson(x: ArrayLike, goals: ArrayLike, weights: ArrayLike | None = None) -> PoissonFit:
+def fit_poisson(
+    x: ArrayLike,
+    goals: ArrayLike,
+    weights: ArrayLike | None = None,
+    *,
+    callback: Callable[[float], None] | None = None,
+) -> PoissonFit:
     """Fit a design matrix by mean Poisson NLL, optionally weighted by observations.
 
     None retains the exact legacy arithmetic and initialization. Explicit weights
@@ -90,8 +98,21 @@ def fit_poisson(x: ArrayLike, goals: ArrayLike, weights: ArrayLike | None = None
                 gradient = design.T @ (normalized * (lam - y))
         return value, gradient
 
+    journal = ObjectiveJournal(objective)
+
+    def observe(beta: NDArray[np.float64]) -> None:
+        journal.callback(beta)
+        assert callback is not None
+        callback(journal.losses[-1])
+
+    kwargs = {} if callback is None else {"callback": observe}
     result = minimize(
-        objective, initial, jac=True, method="BFGS", options={"gtol": 1e-8, "maxiter": 1000}
+        objective if callback is None else journal,
+        initial,
+        jac=True,
+        method="BFGS",
+        options={"gtol": 1e-8, "maxiter": 1000},
+        **kwargs,
     )
     _, gradient = objective(result.x)
     maximum = float(np.max(np.abs(gradient)))

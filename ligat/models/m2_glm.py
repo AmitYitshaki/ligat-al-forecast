@@ -3,6 +3,7 @@
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import ClassVar, Literal, Self
 
 import numpy as np
@@ -12,8 +13,9 @@ from scipy.linalg import qr  # type: ignore[import-untyped]
 from ligat.features.registry import M2_BASE_COLUMNS
 from ligat.models.form_models import PoissonFit, fit_poisson
 from ligat.models.m2_xgb import STAGE_DTYPE, _alignment, _digest
+from ligat.models.training_log import TrainingJournal
 
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
 _COLUMNS = {
     "r0": ("is_home",),
     "r1": ("is_home", "elo_diff"),
@@ -91,13 +93,15 @@ def glm_design(X: pd.DataFrame, config: GLMGoalConfig) -> pd.DataFrame:
     return result
 
 
-class GLMGoalModel:
+class GLMGoalModel(TrainingJournal):
     """Full-rank unpenalized GLM, with explicit zero coefficients for absent stages."""
 
     refit_policy: ClassVar[Literal["per_fold"]] = "per_fold"
     supports_sample_weight: ClassVar[bool] = True
 
-    def __init__(self, config: GLMGoalConfig) -> None:
+    def __init__(self, config: GLMGoalConfig, *, record_training_log: bool = True) -> None:
+        self.record_training_log = record_training_log
+        self._training_log = None
         self._config = config
         self._coefficients: pd.Series | None = None
         self.dropped_columns: tuple[str, ...] = ()
@@ -122,6 +126,8 @@ class GLMGoalModel:
         *,
         context: pd.DataFrame,
     ) -> Self:
+        started = perf_counter()
+        self._training_log = None
         self._coefficients, self.fit_result = None, None
         self.dropped_columns, self.training_seasons = (), ()
         _alignment(X, context)
@@ -151,7 +157,38 @@ class GLMGoalModel:
             raise ValueError(f"GLM rank-deficient design; dependent columns: {dependent}")
         # Unit weights are exactly the historical unweighted likelihood.
         native_weights = None if weights is None or np.all(weights == 1) else weights
-        fitted = fit_poisson(active.to_numpy(), y.loc[selected].to_numpy(float), native_weights)
+        losses: list[float] = []
+        fitted = fit_poisson(
+            active.to_numpy(),
+            y.loc[selected].to_numpy(float),
+            native_weights,
+            callback=losses.append if self.record_training_log else None,
+        )
+        self._training_log = {
+            "model": "glm",
+            "config_id": self.config.config_id,
+            "label": self.config.label,
+            "actual_params": {
+                "method": "BFGS",
+                "gtol": 1e-8,
+                "maxiter": 1000,
+                **asdict(self.config),
+            },
+            "n_rows": int(selected.sum()),
+            "n_features": len(active.columns),
+            "fit_seconds": perf_counter() - started,
+            "dataset": "training",
+            "metric": "mean_poisson_without_log_factorial"
+            if native_weights is None
+            else "weighted_poisson_nll",
+            "train_loss": losses,
+            "iterations": fitted.iterations,
+            "converged": fitted.converged,
+            "message": "Accepted by precision-loss gradient check"
+            if fitted.accepted_by_gradient_check
+            else "Converged",
+            "recorded": self.record_training_log,
+        }
         coefficients = pd.Series(0.0, index=design.columns, name="coefficient")
         coefficients.loc[active.columns] = fitted.coefficients
         self._coefficients, self.fit_result = coefficients, fitted
@@ -175,6 +212,7 @@ class GLMGoalModel:
     def save(self, path: Path) -> None:
         coefficients = self.coefficients
         payload = {
+            "training_log": self.training_log,
             "format_version": _FORMAT_VERSION,
             "config": asdict(self.config),
             "config_id": self.config.config_id,
@@ -194,12 +232,15 @@ class GLMGoalModel:
         if not isinstance(saved, dict) or set(saved) != {"payload", "sha256"}:
             raise ValueError("Invalid GLM saved schema")
         payload = saved["payload"]
-        if saved["sha256"] != _digest(payload) or payload["format_version"] != _FORMAT_VERSION:
+        if payload["format_version"] != _FORMAT_VERSION:
+            raise ValueError(f"Unsupported GLM format_version; expected {_FORMAT_VERSION}")
+        if saved["sha256"] != _digest(payload):
             raise ValueError("Invalid GLM signature or format version")
         config = GLMGoalConfig(**payload["config"])
         if payload["config_id"] != config.config_id:
             raise ValueError("GLM configuration signature mismatch")
         result = cls(config)
+        result._training_log = payload["training_log"]
         result._coefficients = pd.Series(
             payload["coefficients"], index=payload["columns"], dtype=float, name="coefficient"
         )

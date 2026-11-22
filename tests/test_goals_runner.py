@@ -33,8 +33,20 @@ from tests.test_goal_inputs import prepare
 from tests.test_team_goal_backtest import MeanGoalSpy
 
 
+class LoggedMean(MeanGoalSpy):
+    @property
+    def training_log(self):
+        return {
+            "dataset": "training",
+            "model": "fake",
+            "train_loss": [1.0],
+            "iterations": 1,
+            "converged": True,
+        }
+
+
 def fake_factory(unit):
-    return MeanGoalSpy()
+    return LoggedMean()
 
 
 def units():
@@ -134,6 +146,7 @@ def test_one_and_four_loky_workers_are_bitwise_identical(goal_sources, tmp_path)
     for a, b in zip(serial, parallel, strict=True):
         pd.testing.assert_frame_equal(a.evaluation.per_team, b.evaluation.per_team)
         assert a.unit.unit_id == b.unit.unit_id
+        assert a.training_log == b.training_log
 
 
 @pytest.mark.parametrize("damage", ["code", "input", "content"])
@@ -231,7 +244,7 @@ def test_pilot_dispatcher_interrupts_and_resumes_only_synthetic_units(
         "ligat.evaluate.goals_runner.goal_provenance", lambda *a, **k: provenance(data)
     )
     monkeypatch.setattr("ligat.evaluate.goals_runner.pilot_units", lambda _: units())
-    monkeypatch.setattr("ligat.evaluate.goals_runner._model", lambda *a: MeanGoalSpy())
+    monkeypatch.setattr("ligat.evaluate.goals_runner._model", lambda *a: LoggedMean())
 
     def forbidden(*args, **kwargs):
         pytest.fail("Synthetic pilot dispatcher computed a score")

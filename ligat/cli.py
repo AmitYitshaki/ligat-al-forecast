@@ -32,11 +32,12 @@ ConfigOption = Annotated[Path, typer.Option("--config", exists=True, dir_okay=Fa
 def goals(
     config: ConfigOption = Path("config/exp005.yaml"),
     stage: Annotated[str, typer.Option("--stage")] = "pilot",
+    status: Annotated[bool, typer.Option("--status")] = False,
     stop_after_units: Annotated[int | None, typer.Option("--stop-after-units", min=1)] = None,
 ) -> None:
     """Run the approved blind EXP-005 pilot; full is guarded before reading inputs."""
     from ligat.evaluate.goals_experiment import load_goal_experiment
-    from ligat.evaluate.goals_runner import PilotInterrupted, run_goal_pilot
+    from ligat.evaluate.goals_runner import PilotInterrupted, exp005_status, run_goal_pilot
 
     try:
         spec = load_goal_experiment(config)
@@ -45,6 +46,9 @@ def goals(
             raise ValueError("Full orchestration is not available in D1a")
         if stage != "pilot":
             raise ValueError("Goal stage must be pilot or full")
+        if status:
+            typer.echo(json.dumps(exp005_status(spec)))
+            return
         report = run_goal_pilot(spec, stop_after_units=stop_after_units)
         typer.echo(json.dumps({k: v for k, v in report.items() if k != "timings"}))
     except PilotInterrupted as exc:

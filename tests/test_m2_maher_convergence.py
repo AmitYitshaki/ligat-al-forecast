@@ -1,6 +1,7 @@
 """Complete, blind eight-configuration daily convergence audit for C4c."""
 
 import json
+import os
 from pathlib import Path
 from time import perf_counter
 
@@ -78,7 +79,9 @@ def test_all_daily_development_folds_converge_for_eight_configurations(real_prio
         "wall_seconds": perf_counter() - started,
         "all_lambda_positive_finite": True,
     }
-    target = Path("data/reports/T-014/C4c_convergence.json")
+    target = Path("data/reports/T-014") / (
+        os.environ.get("LIGAT_AUDIT_ROUND", "maher_audit") + "_convergence.json"
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report))
@@ -134,7 +137,10 @@ def test_first_day_entrants_use_their_season_league_reference(real_prior_inputs)
                     ),
                 }
             )
-    target = Path("data/reports/T-014/C4c_reference.json")
+    target = Path("data/reports/T-014") / (
+        os.environ.get("LIGAT_AUDIT_ROUND", "maher_audit") + "_reference.json"
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"season_reference": report}))
     for row in report:

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import ClassVar, Literal, Self
 
 import numpy as np
@@ -16,8 +17,9 @@ from catboost import __version__ as CATBOOST_VERSION
 from ligat.evaluate.goal_metrics import poisson_nll
 from ligat.models.m2_identity import IDENTITY_COLUMNS, TeamIdentity
 from ligat.models.m2_xgb import STAGE_DTYPE, _alignment, _digest, _features, _Schema
+from ligat.models.training_log import TrainingJournal
 
-_FORMAT_VERSION = 2
+_FORMAT_VERSION = 3
 _FIXED = {
     "loss_function": "Poisson",
     "task_type": "CPU",
@@ -131,15 +133,21 @@ def _cat_features(prepared: pd.DataFrame, schema: _Schema) -> list[str]:
     return columns
 
 
-class CatBoostGoalModel:
+class CatBoostGoalModel(TrainingJournal):
     """Positive Poisson means, raw judge weights and immutable shared identity history."""
 
     refit_policy: ClassVar[Literal["per_fold"]] = "per_fold"
     supports_sample_weight: ClassVar[bool] = True
 
     def __init__(
-        self, config: CatBoostGoalConfig, *, team_ids: Sequence[int] | None = None
+        self,
+        config: CatBoostGoalConfig,
+        *,
+        team_ids: Sequence[int] | None = None,
+        record_training_log: bool = True,
     ) -> None:
+        self.record_training_log = record_training_log
+        self._training_log = None
         self._config = config
         self._team_ids = TeamIdentity(tuple(team_ids)).team_ids if team_ids is not None else None
         self._identity: TeamIdentity | None = None
@@ -177,6 +185,8 @@ class CatBoostGoalModel:
         context: pd.DataFrame,
     ) -> Self:
         """Fit supplied past rows only, without validation data or early stopping."""
+        started = perf_counter()
+        self._training_log = None
         self._estimator, self._schema, self._identity, self._actual_params = None, None, None, None
         identity = None
         features = X
@@ -214,6 +224,23 @@ class CatBoostGoalModel:
         estimator = self._new_estimator()
         estimator.fit(prepared, goals, sample_weight=weights, cat_features=categories)
         self._actual_params = deepcopy(estimator.get_all_params())
+        self._training_log = {
+            "model": "catboost",
+            "config_id": self.config.config_id,
+            "label": self.config.label,
+            "actual_params": self.actual_params,
+            "n_rows": len(X),
+            "n_features": prepared.shape[1],
+            "fit_seconds": perf_counter() - started,
+            "dataset": "training",
+            "metric": "Poisson",
+            "train_loss": estimator.get_evals_result()["learn"]["Poisson"]
+            if self.record_training_log
+            else [],
+            "iterations": estimator.tree_count_,
+            "converged": True,
+            "recorded": self.record_training_log,
+        }
         self._estimator, self._schema, self._identity = estimator, schema, identity
         return self
 
@@ -242,6 +269,7 @@ class CatBoostGoalModel:
         if path.suffix != ".cbm":
             raise ValueError("M2 CatBoost models require a .cbm path")
         metadata = {
+            "training_log": self.training_log,
             "format_version": _FORMAT_VERSION,
             "catboost_version": CATBOOST_VERSION,
             "config": asdict(self.config),
@@ -266,7 +294,13 @@ class CatBoostGoalModel:
         if path.suffix != ".cbm":
             raise ValueError("M2 CatBoost models require a .cbm path")
         metadata = json.loads(path.with_suffix(".metadata.json").read_text(encoding="utf-8"))
+        if isinstance(metadata, dict) and metadata.get("format_version") != _FORMAT_VERSION:
+            raise ValueError(
+                f"Unsupported catboost format_version {metadata.get('format_version')}; "
+                f"expected {_FORMAT_VERSION}"
+            )
         keys = {
+            "training_log",
             "format_version",
             "catboost_version",
             "config",
@@ -333,4 +367,5 @@ class CatBoostGoalModel:
             raise ValueError("Model schema or actual parameters do not match its sidecar")
         result._estimator, result._schema, result._identity = estimator, schema, identity
         result._actual_params = deepcopy(metadata["actual_params"])
+        result._training_log = metadata["training_log"]
         return result
