@@ -1,6 +1,7 @@
 """Blind fold-15 training journals, timing overhead and legacy callback parity."""
 
 import json
+import os
 from pathlib import Path
 from time import perf_counter
 
@@ -23,7 +24,8 @@ from tests.test_m2_maher_prior import real_prior_inputs as real_prior_inputs
 
 
 def report_path(name):
-    target = Path("data/reports/T-014") / name
+    round_name = os.environ.get("LIGAT_AUDIT_ROUND", "C5")
+    target = Path("data/reports/T-014") / name.replace("C5_", round_name + "_", 1)
     target.parent.mkdir(parents=True, exist_ok=True)
     return target
 

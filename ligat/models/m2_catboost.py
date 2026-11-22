@@ -145,7 +145,15 @@ class CatBoostGoalModel(TrainingJournal):
         *,
         team_ids: Sequence[int] | None = None,
         record_training_log: bool = True,
+        identity_columns: Sequence[str] = IDENTITY_COLUMNS,
     ) -> None:
+        if (
+            not identity_columns
+            or len(set(identity_columns)) != len(identity_columns)
+            or not set(identity_columns) <= set(IDENTITY_COLUMNS)
+        ):
+            raise ValueError("Select a nonempty subset of the shared identity columns")
+        self._identity_columns = tuple(identity_columns)
         self.record_training_log = record_training_log
         self._training_log = None
         self._config = config
@@ -192,8 +200,10 @@ class CatBoostGoalModel(TrainingJournal):
         features = X
         if self._team_ids is not None:
             identity = TeamIdentity.from_context(context, team_ids=self._team_ids)
-            features = identity.transform(X, context=context)
-        prepared, schema = _features(features, with_identity=identity is not None)
+            features = identity.transform(X, context=context, columns=self._identity_columns)
+        prepared, schema = _features(
+            features, with_identity=identity is not None, identity_columns=self._identity_columns
+        )
         categories = _cat_features(prepared, schema)
         _alignment(X, context)
         if not isinstance(y, pd.Series) or not X.index.equals(y.index):
@@ -248,8 +258,16 @@ class CatBoostGoalModel(TrainingJournal):
         """Ask explicitly for exp(raw Poisson score), exactly once inside CatBoost."""
         if self._estimator is None or self._schema is None:
             raise RuntimeError("Fit or load the goal model before prediction")
-        features = self._identity.transform(X, context=context) if self._identity is not None else X
-        prepared, schema = _features(features, with_identity=self._identity is not None)
+        features = (
+            self._identity.transform(X, context=context, columns=self._identity_columns)
+            if self._identity is not None
+            else X
+        )
+        prepared, schema = _features(
+            features,
+            with_identity=self._identity is not None,
+            identity_columns=self._identity_columns,
+        )
         _alignment(X, context)
         _cat_features(prepared, schema)
         if schema != self._schema:
@@ -348,11 +366,16 @@ class CatBoostGoalModel(TrainingJournal):
         identity = (
             TeamIdentity.from_metadata(metadata["identity"]) if "identity" in metadata else None
         )
-        if {row[0] for row in schema if row[2] == "identity"} != (
-            set(IDENTITY_COLUMNS) if identity is not None else set()
+        selected = tuple(row[0] for row in schema if row[2] == "identity")
+        if (identity is None and selected) or (
+            identity is not None and (not selected or not set(selected) <= set(IDENTITY_COLUMNS))
         ):
             raise ValueError("Identity schema and saved history disagree")
-        result = cls(config, team_ids=identity.team_ids if identity is not None else None)
+        result = cls(
+            config,
+            team_ids=identity.team_ids if identity is not None else None,
+            identity_columns=selected if identity is not None else IDENTITY_COLUMNS,
+        )
         estimator = result._new_estimator()
         estimator.load_model(str(path), format="cbm")
         # CBM rounds get_all_params() floats on reload (e.g. 0.10000000149011612

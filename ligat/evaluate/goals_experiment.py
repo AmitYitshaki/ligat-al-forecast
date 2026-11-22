@@ -164,6 +164,8 @@ def load_goal_experiment(path: Path = Path("config/exp005.yaml")) -> GoalExperim
         or not isinstance(raw["full_run_approved"], bool)
     ):
         raise ValueError("Invalid seed, conditional F6 policy or approval flag")
+    if not isinstance(raw.get("catboost_f6_requested", False), bool):
+        raise ValueError("catboost_f6_requested must be an explicit boolean")
     return GoalExperimentSpec(raw)
 
 

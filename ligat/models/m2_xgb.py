@@ -141,7 +141,12 @@ class XGBGoalConfig:
         )
 
 
-def _features(X: pd.DataFrame, *, with_identity: bool = False) -> tuple[pd.DataFrame, _Schema]:
+def _features(
+    X: pd.DataFrame,
+    *,
+    with_identity: bool = False,
+    identity_columns: Sequence[str] = IDENTITY_COLUMNS,
+) -> tuple[pd.DataFrame, _Schema]:
     if (
         not isinstance(X, pd.DataFrame)
         or X.empty
@@ -149,7 +154,10 @@ def _features(X: pd.DataFrame, *, with_identity: bool = False) -> tuple[pd.DataF
         or not all(isinstance(c, str) for c in X.columns)
         or not set(X) <= {*PREMATCH_V2_COLUMNS, "team_id"}
         or (not with_identity and set(X) & set(IDENTITY_COLUMNS))
-        or (with_identity and not set(IDENTITY_COLUMNS) <= set(X))
+        or (
+            with_identity
+            and (not identity_columns or set(X) & set(IDENTITY_COLUMNS) != set(identity_columns))
+        )
         or not X.index.is_unique
         or X.index.to_frame(index=False).isna().any().any()
     ):
@@ -199,7 +207,15 @@ class XGBGoalModel(TrainingJournal):
         *,
         team_ids: Sequence[int] | None = None,
         record_training_log: bool = True,
+        identity_columns: Sequence[str] = IDENTITY_COLUMNS,
     ) -> None:
+        if (
+            not identity_columns
+            or len(set(identity_columns)) != len(identity_columns)
+            or not set(identity_columns) <= set(IDENTITY_COLUMNS)
+        ):
+            raise ValueError("Select a nonempty subset of the shared identity columns")
+        self._identity_columns = tuple(identity_columns)
         self.record_training_log = record_training_log
         self._training_log = None
         self._config = config
@@ -239,8 +255,10 @@ class XGBGoalModel(TrainingJournal):
         features = X
         if self._team_ids is not None:
             identity = TeamIdentity.from_context(context, team_ids=self._team_ids)
-            features = identity.transform(X, context=context)
-        prepared, schema = _features(features, with_identity=identity is not None)
+            features = identity.transform(X, context=context, columns=self._identity_columns)
+        prepared, schema = _features(
+            features, with_identity=identity is not None, identity_columns=self._identity_columns
+        )
         _alignment(X, context)
         if not isinstance(y, pd.Series) or not X.index.equals(y.index):
             raise ValueError("Goal targets must align with feature keys in exact order")
@@ -305,8 +323,16 @@ class XGBGoalModel(TrainingJournal):
         """Return the native Poisson mean directly, preserving the requested index order."""
         if self._estimator is None or self._schema is None:
             raise RuntimeError("Fit or load the goal model before prediction")
-        features = self._identity.transform(X, context=context) if self._identity is not None else X
-        prepared, schema = _features(features, with_identity=self._identity is not None)
+        features = (
+            self._identity.transform(X, context=context, columns=self._identity_columns)
+            if self._identity is not None
+            else X
+        )
+        prepared, schema = _features(
+            features,
+            with_identity=self._identity is not None,
+            identity_columns=self._identity_columns,
+        )
         _alignment(X, context)
         if schema != self._schema:
             raise ValueError("Prediction columns, order or dtypes differ from the fitted schema")
@@ -395,11 +421,16 @@ class XGBGoalModel(TrainingJournal):
         identity = (
             TeamIdentity.from_metadata(metadata["identity"]) if "identity" in metadata else None
         )
-        if {row[0] for row in schema if row[2] == "identity"} != (
-            set(IDENTITY_COLUMNS) if identity is not None else set()
+        selected = tuple(row[0] for row in schema if row[2] == "identity")
+        if (identity is None and selected) or (
+            identity is not None and (not selected or not set(selected) <= set(IDENTITY_COLUMNS))
         ):
             raise ValueError("Identity schema and saved history disagree")
-        result = cls(config, team_ids=identity.team_ids if identity is not None else None)
+        result = cls(
+            config,
+            team_ids=identity.team_ids if identity is not None else None,
+            identity_columns=selected if identity is not None else IDENTITY_COLUMNS,
+        )
         estimator = result._new_estimator()
         estimator.load_model(path)
         booster = estimator.get_booster()

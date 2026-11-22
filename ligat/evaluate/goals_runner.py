@@ -34,6 +34,7 @@ from ligat.features.prematch_v2 import validate_prematch_v2_frame
 from ligat.models.goal_model import TeamGoalModel
 from ligat.models.m2_catboost import CatBoostGoalModel
 from ligat.models.m2_glm import GLMGoalModel
+from ligat.models.m2_identity import IDENTITY_COLUMNS
 from ligat.models.m2_maher import MaherGoalModel
 from ligat.models.m2_maher_prior import season_roster
 from ligat.models.m2_xgb import XGBGoalModel, _digest
@@ -132,13 +133,25 @@ def _model(unit: GoalUnit, data: GoalData) -> TeamGoalModel:
     configuration = unit.configuration()
     ids = (
         tuple(sorted(int(v) for v in data.context.team_id.unique()))
-        if "team_id" in unit.features
+        if set(IDENTITY_COLUMNS) & set(unit.features)
         else None
     )
     if isinstance(configuration, XGBGoalConfig):
-        return XGBGoalModel(configuration, team_ids=ids)
+        return XGBGoalModel(
+            configuration,
+            team_ids=ids,
+            identity_columns=tuple(c for c in IDENTITY_COLUMNS if c in unit.features)
+            if ids is not None
+            else IDENTITY_COLUMNS,
+        )
     if isinstance(configuration, CatBoostGoalConfig):
-        return CatBoostGoalModel(configuration, team_ids=ids)
+        return CatBoostGoalModel(
+            configuration,
+            team_ids=ids,
+            identity_columns=tuple(c for c in IDENTITY_COLUMNS if c in unit.features)
+            if ids is not None
+            else IDENTITY_COLUMNS,
+        )
     if isinstance(configuration, GLMGoalConfig):
         return GLMGoalModel(configuration)
     if isinstance(configuration, MaherGoalConfig):
@@ -402,17 +415,27 @@ def run_goal_pilot(
     provenance = goal_provenance(data, prematch_version=spec.raw["inputs"]["prematch_version"])
     stop = threading.Event()
     peak = [0.0]
+    peak_main = [0.0]
+    peak_workers = [0.0]
+    per_process_peak: dict[int, float] = {}
 
     def sample_memory() -> None:
         process = psutil.Process()
         while not stop.is_set():
-            total = 0
+            total, workers = 0.0, 0.0
             for member in [process, *process.children(recursive=True)]:
                 try:
-                    total += member.memory_info().rss
+                    rss = member.memory_info().rss / (1024**2)
+                    per_process_peak[member.pid] = max(per_process_peak.get(member.pid, 0), rss)
+                    total += rss
+                    if member.pid == process.pid:
+                        peak_main[0] = max(peak_main[0], rss)
+                    else:
+                        workers += rss
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-            peak[0] = max(peak[0], total / (1024**2))
+            peak[0] = max(peak[0], total)
+            peak_workers[0] = max(peak_workers[0], workers)
             stop.wait(0.1)
 
     monitor = threading.Thread(target=sample_memory, daemon=True)
@@ -440,6 +463,9 @@ def run_goal_pilot(
             "interrupted": True,
             "wall_seconds": time.perf_counter() - started,
             "peak_total_rss_mb": peak[0],
+            "peak_main_rss_mb": peak_main[0],
+            "peak_workers_rss_mb": peak_workers[0],
+            "process_peak_rss_mb": {str(pid): value for pid, value in per_process_peak.items()},
             "completed_files": len(list((spec.output / "pilot").glob("unit-*.json"))),
         }
         _atomic_json(spec.output / "pilot" / "interruption_report.json", partial)
@@ -452,6 +478,9 @@ def run_goal_pilot(
         "cached_units": sum(r.cached for r in results),
         "wall_seconds": time.perf_counter() - started,
         "peak_total_rss_mb": peak[0],
+        "peak_main_rss_mb": peak_main[0],
+        "peak_workers_rss_mb": peak_workers[0],
+        "process_peak_rss_mb": {str(pid): value for pid, value in per_process_peak.items()},
         "rows": sum(len(r.evaluation.per_team) for r in results),
         "n_jobs": spec.n_jobs,
         "timings": [
@@ -553,9 +582,21 @@ def exp005_status(config: GoalExperimentSpec) -> list[dict[str, str]]:
     """Classify planned pilot units against current inputs, source and library versions."""
     data = load_goal_inputs(config)
     provenance = goal_provenance(data, prematch_version=config.raw["inputs"]["prematch_version"])
+    return goal_units_status(pilot_units(config), data, provenance, config.output)
+
+
+def goal_units_status(
+    units: Sequence[GoalUnit],
+    data: GoalData,
+    provenance: GoalProvenance,
+    root: Path,
+    *,
+    stage: str = "pilot",
+) -> list[dict[str, str]]:
+    """Shared read-only cache classification for pilot, full batches and derived layers."""
     result = []
-    for unit in pilot_units(config):
-        path = _path(config.output, "pilot", unit)
+    for unit in units:
+        path = _path(root, stage, unit)
         status, reason = "missing", "No saved unit"
         if path.exists() or path.with_suffix(".trainlog.json.gz").exists():
             try:

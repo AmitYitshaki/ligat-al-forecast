@@ -2,6 +2,7 @@
 
 import gzip
 import json
+import os
 from pathlib import Path
 from statistics import median
 from time import perf_counter
@@ -138,7 +139,9 @@ def test_synthetic_training_log_overhead():
             "with_seconds": median(times[True]),
             "overhead_percent": 100 * (median(times[True]) / median(times[False]) - 1),
         }
-    target = Path("data/reports/T-014/C5_synthetic_overhead.json")
+    target = Path("data/reports/T-014") / (
+        os.environ.get("LIGAT_AUDIT_ROUND", "C5") + "_synthetic_overhead.json"
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 

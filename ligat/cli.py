@@ -43,7 +43,13 @@ def goals(
         spec = load_goal_experiment(config)
         if stage == "full":
             spec.guard_full()
-            raise ValueError("Full orchestration is not available in D1a")
+            if status or stop_after_units is not None:
+                raise ValueError("--status and --stop-after-units currently support pilot only")
+            from ligat.evaluate.goals_ladder import run_goal_full
+
+            report = run_goal_full(spec)
+            typer.echo(json.dumps({"stage": "full", "features": report["features"]}))
+            return
         if stage != "pilot":
             raise ValueError("Goal stage must be pilot or full")
         if status:

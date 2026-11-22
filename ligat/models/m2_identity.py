@@ -85,7 +85,9 @@ class TeamIdentity:
         first = rows.groupby("team_id", sort=True).season_id.min()
         return cls(tuple(team_ids), tuple((int(i), int(s)) for i, s in first.items()))
 
-    def transform(self, X: pd.DataFrame, *, context: pd.DataFrame) -> pd.DataFrame:
+    def transform(
+        self, X: pd.DataFrame, *, context: pd.DataFrame, columns: Sequence[str] = IDENTITY_COLUMNS
+    ) -> pd.DataFrame:
         """Encode explicit own/opponent columns by strictly earlier-season appearances.
 
         Every season-8 team is known. Later first-season rows remain unknown for
@@ -97,14 +99,17 @@ class TeamIdentity:
             not isinstance(X, pd.DataFrame)
             or not X.columns.is_unique
             or not X.index.equals(context.index)
-            or not set(IDENTITY_COLUMNS) <= set(X)
+            or not columns
+            or len(set(columns)) != len(columns)
+            or not set(columns) <= set(IDENTITY_COLUMNS)
+            or not set(columns) <= set(X)
         ):
             raise ValueError(
                 "Identity encoding requires both explicitly selected IDs and aligned keys"
             )
         first = dict(self.first_seen)
         result = X.copy(deep=True)
-        for column in IDENTITY_COLUMNS:
+        for column in columns:
             _integer_values(X[column], column, positive=True)
             ids = [int(v) for v in X[column]]
             if column == "team_id" and ids != rows.team_id.tolist():
