@@ -28,6 +28,33 @@ app.add_typer(run_app, name="run")
 ConfigOption = Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)]
 
 
+@run_app.command("goals")
+def goals(
+    config: ConfigOption = Path("config/exp005.yaml"),
+    stage: Annotated[str, typer.Option("--stage")] = "pilot",
+    stop_after_units: Annotated[int | None, typer.Option("--stop-after-units", min=1)] = None,
+) -> None:
+    """Run the approved blind EXP-005 pilot; full is guarded before reading inputs."""
+    from ligat.evaluate.goals_experiment import load_goal_experiment
+    from ligat.evaluate.goals_runner import PilotInterrupted, run_goal_pilot
+
+    try:
+        spec = load_goal_experiment(config)
+        if stage == "full":
+            spec.guard_full()
+            raise ValueError("Full orchestration is not available in D1a")
+        if stage != "pilot":
+            raise ValueError("Goal stage must be pilot or full")
+        report = run_goal_pilot(spec, stop_after_units=stop_after_units)
+        typer.echo(json.dumps({k: v for k, v in report.items() if k != "timings"}))
+    except PilotInterrupted as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=3) from exc
+    except (ValueError, OSError, KeyError, RuntimeError) as exc:
+        typer.echo(f"goals stopped: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+
 @run_app.command("motivation")
 def motivation(config: ConfigOption = Path("config/motivation.yaml")) -> None:
     """Build M1 competitive leverage locally, or verify the immutable saved version."""

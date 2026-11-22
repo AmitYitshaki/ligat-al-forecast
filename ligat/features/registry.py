@@ -181,6 +181,43 @@ M2_BASE_COLUMNS = (
     "opp_promoted_in",
 )
 
+# EXP-005: one source of feature lists for the config, ladder and lambda writer.
+M2_S1_COLUMNS = ("elo_pre", "elo_diff", "is_home")
+_M2_RICH_FORM = tuple(
+    f"{prefix}_{suffix}"
+    for prefix in ("gf", "opp_ga")
+    for suffix in ("all_w5", "venue_w5", "all_std_m6", "all_prev", "all_hist")
+)
+M2_FAMILY_COLUMNS = {
+    "F1-R": _M2_RICH_FORM,
+    "F1-A": _M2_RICH_FORM,
+    "F2": ("pts_venue_ewma5", "opp_pts_venue_ewma5"),
+    "F3": (
+        "games_played",
+        "points_per_game",
+        "gd_per_game",
+        "position_pct",
+        "gap_to_leader",
+        "gap_to_cut",
+        "gap_to_safety",
+        "games_behind",
+        "opp_points_per_game",
+        "opp_position_pct",
+    ),
+    "F4": ("prev_ppm_diff", "prev_gd_diff", "position_log_ratio"),
+    "F5": ("nothing_to_play", "opp_nothing_to_play"),
+    "F6": ("team_id", "opponent_id"),
+}
+M2_BASE_GROUPS = {
+    "elo": ("elo_pre", "elo_diff"),
+    "home": ("is_home",),
+    "form": ("gf_venue_ewma5", "opp_ga_venue_ewma5"),
+    "value": ("value_avg_log_ratio",),
+    "stage": ("stage",),
+    "remaining": ("rounds_to_stage_end",),
+    "promoted": ("promoted_in", "opp_promoted_in"),
+}
+
 for _column in ("elo_pre", "elo_diff", "gf_venue_ewma5", "opp_ga_venue_ewma5", "promoted_in"):
     _spec = FEATURES[_column]
     FEATURES[_column] = replace(
