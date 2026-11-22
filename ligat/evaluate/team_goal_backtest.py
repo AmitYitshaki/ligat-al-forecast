@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
@@ -10,7 +11,7 @@ from ligat.evaluate.backtest import DevelopmentPolicy, policy_folds
 from ligat.evaluate.goal_inputs import GoalData, _feature_columns
 from ligat.evaluate.goal_metrics import poisson_nll
 from ligat.features.pipeline import DEVELOPMENT_SEASONS
-from ligat.models.goal_model import RefitPolicy, TeamGoalModel
+from ligat.models.goal_model import MatchdayGoalModel, RefitPolicy, TeamGoalModel
 from ligat.models.ordered_logit import time_weights
 
 MIN_TRAIN_SEASONS = 4
@@ -72,12 +73,22 @@ def _predict_batch(
         )
         if getattr(model, "supports_sample_weight", False) is not True:
             raise ValueError("Goal model does not declare support for sample_weight")
-    fitted = model.fit(
-        data.X.loc[training].copy(deep=True),
-        data.y.loc[training].copy(deep=True),
-        sample_weight=weights,
-        context=train_context.copy(deep=True),
-    )
+    train_X, train_y = data.X.loc[training].copy(deep=True), data.y.loc[training].copy(deep=True)
+    if refit_policy == "per_matchday" and getattr(model, "requires_as_of", False) is True:
+        fitted = cast(
+            TeamGoalModel,
+            cast(MatchdayGoalModel, model).fit(
+                train_X,
+                train_y,
+                context=train_context.copy(deep=True),
+                as_of=val_context.as_of.iloc[0],
+                prediction_features=data.X.loc[validation].copy(deep=True),
+            ),
+        )
+    else:
+        fitted = model.fit(
+            train_X, train_y, sample_weight=weights, context=train_context.copy(deep=True)
+        )
     if fitted is not model:
         raise ValueError("TeamGoalModel.fit must return the fitted model itself")
     rates = fitted.predict(

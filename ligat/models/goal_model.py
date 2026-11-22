@@ -34,3 +34,18 @@ class TeamGoalModel(Protocol):
     def predict(self, X: pd.DataFrame, *, context: pd.DataFrame) -> pd.Series:
         """Predict without receiving observed goals for any requested fixture."""
         ...
+
+
+class MatchdayGoalModel(Protocol):
+    """Opt-in daily fit receives explicit prediction time and target-free fixture features."""
+
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sample_weight: pd.Series | None = None,
+        *,
+        context: pd.DataFrame,
+        as_of: pd.Timestamp | None = None,
+        prediction_features: pd.DataFrame | None = None,
+    ) -> Self: ...
