@@ -36,6 +36,10 @@ class SeasonRoster:
 
     rows: tuple[tuple[int, int, bool, str], ...]
 
+    def teams(self, season: int) -> tuple[int, ...]:
+        """Every current-season club, including entrants without a training fixture."""
+        return tuple(team for s, team, _, _ in self.rows if s == season)
+
     def promoted(self, season: int) -> tuple[int, ...]:
         return tuple(team for s, team, flag, _ in self.rows if s == season and flag)
 

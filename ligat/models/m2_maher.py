@@ -15,7 +15,8 @@ from ligat.models.m2_maher_prior import PromotedPrior, SeasonRoster
 from ligat.models.m2_xgb import _alignment, _digest
 
 MAHER_COLUMNS = ("team_id", "opponent_id", "is_home")
-_FORMAT_VERSION = 2
+_FORMAT_VERSION = 3
+_MAX_ITERATIONS = 20000
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ def maher_objective(
     a_star: float = 0.0,
     b_star: float = 0.0,
     penalty_strength: float = 0.0,
+    reference: NDArray[np.bool_] | None = None,
 ) -> tuple[float, NDArray[np.float64]]:
     """Weighted training likelihood and analytic gradient in identified coordinates."""
     a, b, gamma = unpack_parameters(theta, n)
@@ -87,12 +89,14 @@ def maher_objective(
     gb = np.bincount(opponent, weights=residual, minlength=n)
     value = float(weights @ (rates - goals * eta))
     if promoted is not None and penalty_strength > 0:
-        da = promoted * (a - a_star)
-        db = promoted * (b - b.mean() - b_star)
+        if reference is None or not reference.any():
+            raise ValueError("Promoted penalty requires the current-season reference clubs")
+        size = int(reference.sum())
+        da = promoted * (a - a[reference].mean() - a_star)
+        db = promoted * (b - b[reference].mean() - b_star)
         value += 0.5 * penalty_strength * float(da @ da + db @ db)
-        ga += penalty_strength * da
-        # beta's league mean is a function of every beta, including the entrant.
-        gb += penalty_strength * (db - db.mean())
+        ga += penalty_strength * (da - reference * da.sum() / size)
+        gb += penalty_strength * (db - reference * db.sum() / size)
     gradient = np.r_[ga[:-1] - ga[-1], gb, residual @ home]
     mass = weights.sum()
     return value / mass, gradient / mass
@@ -174,23 +178,26 @@ class MaherGoalModel:
         own, opp, home = _input(X)
         weights = day_weights(context.date, as_of, self.config.half_life)
         promoted_teams: tuple[int, ...] = ()
+        reference_teams: tuple[int, ...] = ()
         strength = 0.0
         prior = self.config.prior
         if prior is not None:
             if self.roster is None:
                 raise ValueError("Maher promoted prior requires target-free M0 season roster")
             season = self.roster.season_for(as_of)
+            reference_teams = self.roster.teams(season)
             promoted_teams = self.roster.promoted(season) if season > 8 else ()
             w0 = day_weights(pd.Series([self.roster.start(season)]), as_of, self.config.half_life)[
                 0
             ]
             strength = 6 * float(np.average(goals, weights=weights)) * w0
-        teams = np.union1d(np.union1d(own, opp), np.asarray(promoted_teams, dtype=np.int64))
+        teams = np.union1d(np.union1d(own, opp), np.asarray(reference_teams, dtype=np.int64))
         n = len(teams)
         ti, oi = np.searchsorted(teams, own), np.searchsorted(teams, opp)
         initial = np.zeros(2 * n)
         initial[n - 1 : 2 * n - 1] = np.log(np.average(goals, weights=weights))
         promoted_mask = np.isin(teams, promoted_teams)
+        reference_mask = np.isin(teams, reference_teams)
         with threadpool_limits(limits=1):
             result = minimize(
                 maher_objective,
@@ -206,10 +213,11 @@ class MaherGoalModel:
                     0.0 if prior is None else prior.a_star,
                     0.0 if prior is None else prior.b_star,
                     strength,
+                    reference_mask,
                 ),
                 jac=True,
                 method="L-BFGS-B",
-                options={"maxiter": 1000, "gtol": 1e-8, "ftol": 1e-13},
+                options={"maxiter": _MAX_ITERATIONS, "gtol": 1e-8, "ftol": 1e-13},
             )
         if not result.success or not np.isfinite(result.x).all():
             raise RuntimeError(f"Maher did not converge at as_of={as_of}: {result.message}")
@@ -265,7 +273,12 @@ class MaherGoalModel:
     def load(cls, path: Path) -> Self:
         saved = json.loads(path.read_text(encoding="utf-8"))
         payload = saved["payload"]
-        if saved["sha256"] != _digest(payload) or payload["format_version"] != _FORMAT_VERSION:
+        if payload["format_version"] != _FORMAT_VERSION:
+            raise ValueError(
+                f"Unsupported Maher format_version {payload['format_version']}; "
+                f"expected {_FORMAT_VERSION}"
+            )
+        if saved["sha256"] != _digest(payload):
             raise ValueError("Invalid Maher signature or format version")
         config_values = dict(payload["config"])
         if config_values.get("prior") is not None:

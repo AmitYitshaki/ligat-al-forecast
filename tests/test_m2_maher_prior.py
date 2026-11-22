@@ -38,10 +38,11 @@ def prior():
 
 def roster():
     return SeasonRoster(
-        (
-            (12, 11, True, "2010-08-01T00:00:00+03:00"),
-            (13, 11, False, "2011-08-01T00:00:00+03:00"),
-            (14, 11, True, "2012-08-01T00:00:00+03:00"),
+        tuple(
+            (season, team, team == 11, f"{1998 + season}-08-01T00:00:00+03:00")
+            for season in (12, 13, 14)
+            for team in range(1, 12)
+            if season != 13 or team != 11
         )
     )
 
@@ -71,7 +72,10 @@ def test_penalty_gradient_includes_league_beta_mean(seed):
     mask = np.array([False, True, False, False, True, False, False])
 
     def objective(t):
-        return maher_objective(t, team, opp, home, goals, weights, n, mask, -0.2, 0.3, 7.2)
+        reference = np.array([True, True, True, False, True, False, False])
+        return maher_objective(
+            t, team, opp, home, goals, weights, n, mask, -0.2, 0.3, 7.2, reference
+        )
 
     assert check_grad(lambda t: objective(t)[0], lambda t: objective(t)[1], theta) < 1e-5
 
@@ -84,10 +88,13 @@ def test_rookie_without_matches_has_exact_relative_prior_and_only_current_season
         assert model.penalty_teams == ((11,) if season != 13 else ())
         if season != 13:
             params = model.parameters
-            assert params.loc[11, "log_alpha"] == pytest.approx(prior().a_star, abs=2e-5)
-            assert params.loc[11, "log_beta"] - params.log_beta.mean() == pytest.approx(
-                prior().b_star, abs=2e-5
-            )
+            league = list(roster().teams(season))
+            assert params.loc[11, "log_alpha"] - params.loc[
+                league, "log_alpha"
+            ].mean() == pytest.approx(prior().a_star, abs=2e-5)
+            assert params.loc[11, "log_beta"] - params.loc[
+                league, "log_beta"
+            ].mean() == pytest.approx(prior().b_star, abs=2e-5)
             assert model.penalty_strength == pytest.approx(6 * y.mean())
         else:
             assert 11 not in model.parameters.index
