@@ -47,3 +47,5 @@ full_run_approved: false  # D3 requires Amit's explicit approval.
 fast_path: null  # Amit decides after blind timing evidence.
 catboost_f6: conditional
 correlation_drops: pending  # Only Amit selects the fixed drops.
+rule6_mode: pending
+review_decisions: {}

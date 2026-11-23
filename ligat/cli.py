@@ -38,13 +38,19 @@ def goals(
     """Run the approved blind EXP-005 pilot; full is guarded before reading inputs."""
     from ligat.evaluate.goals_experiment import load_goal_experiment
     from ligat.evaluate.goals_runner import PilotInterrupted, exp005_status, run_goal_pilot
+    from ligat.evaluate.selection_rules import LeakageSuspectedError
 
     try:
         spec = load_goal_experiment(config)
         if stage == "full":
             spec.guard_full()
-            if status or stop_after_units is not None:
-                raise ValueError("--status and --stop-after-units currently support pilot only")
+            if stop_after_units is not None:
+                raise ValueError("--stop-after-units currently supports pilot only")
+            if status:
+                from ligat.evaluate.goals_ladder import exp005_full_status
+
+                typer.echo(json.dumps(exp005_full_status(spec)))
+                return
             from ligat.evaluate.goals_ladder import run_goal_full
 
             report = run_goal_full(spec)
@@ -57,6 +63,9 @@ def goals(
             return
         report = run_goal_pilot(spec, stop_after_units=stop_after_units)
         typer.echo(json.dumps({k: v for k, v in report.items() if k != "timings"}))
+    except LeakageSuspectedError as exc:
+        typer.echo(f"LeakageSuspectedError: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
     except PilotInterrupted as exc:
         typer.echo(str(exc))
         raise typer.Exit(code=3) from exc

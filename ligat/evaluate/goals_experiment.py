@@ -109,6 +109,8 @@ class GoalExperimentSpec:
             raise ValueError("Full run requires Amit's explicit full/short path decision")
         if not isinstance(self.raw["correlation_drops"], list):
             raise ValueError("Full run requires an approved fixed correlation_drops list")
+        if self.raw.get("rule6_mode", "pending") not in ("stop", "provisional"):
+            raise ValueError("Full run requires an explicit rule6_mode: stop or provisional")
 
 
 def load_goal_experiment(path: Path = Path("config/exp005.yaml")) -> GoalExperimentSpec:
@@ -172,6 +174,13 @@ def load_goal_experiment(path: Path = Path("config/exp005.yaml")) -> GoalExperim
         raise ValueError("Invalid seed, conditional F6 policy or approval flag")
     if not isinstance(raw.get("catboost_f6_requested", False), bool):
         raise ValueError("catboost_f6_requested must be an explicit boolean")
+    if raw.get("rule6_mode", "pending") not in ("pending", "stop", "provisional"):
+        raise ValueError("Invalid rule6_mode")
+    reviews = raw.get("review_decisions", {})
+    if not isinstance(reviews, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in reviews.items()
+    ):
+        raise ValueError("review_decisions must map selection names to explicit choices")
     return GoalExperimentSpec(raw)
 
 

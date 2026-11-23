@@ -305,6 +305,7 @@ def test_full_score_provider_uses_c5_status_and_resumes_units(monkeypatch, tmp_p
             "full_run_approved": True,
             "fast_path": "short",
             "correlation_drops": [],
+            "rule6_mode": "stop",
         },
     )
 
@@ -350,7 +351,9 @@ def test_synthetic_full_report_contains_all_comparators_and_confidence_intervals
 
     engine, provider = small_ladder(monkeypatch, tmp_path)
     spec = replace(
-        engine.spec, raw=engine.spec.raw | {"output": str(tmp_path), "full_run_approved": True}
+        engine.spec,
+        raw=engine.spec.raw
+        | {"output": str(tmp_path), "full_run_approved": True, "rule6_mode": "stop"},
     )
     monkeypatch.setattr("ligat.evaluate.goals_ladder.load_goal_inputs", lambda _: object())
     monkeypatch.setattr(

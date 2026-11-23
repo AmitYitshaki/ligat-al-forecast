@@ -1,5 +1,6 @@
 """EXP-005 feature screening and full-only ladder orchestration."""
 
+import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
@@ -142,7 +143,7 @@ class GoalLadder:
         provider: ScoreProvider,
         root: Path,
         *,
-        provenance: dict[str, str],
+        provenance: dict[str, Any],
     ) -> None:
         self.spec, self.provider, self.root = spec, provider, root
         self.provenance = provenance
@@ -154,6 +155,11 @@ class GoalLadder:
         self.drops = set(drops)
         self.cache: dict[tuple[str, tuple[str, ...]], TeamGoalEvaluation] = {}
         self.decisions: list[dict[str, Any]] = []
+        self.active_dependencies: set[str] = set()
+        self.choice_dependencies: dict[str, set[str]] = {}
+        self.open_reviews: dict[str, dict[str, Any]] = {}
+        self.used_reviews: set[str] = set()
+        self.reviews = dict(spec.raw.get("review_decisions", {}))
 
     def _columns(self, columns: tuple[str, ...]) -> tuple[str, ...]:
         result = tuple(c for c in columns if c not in self.drops)
@@ -175,23 +181,36 @@ class GoalLadder:
         return self.cache[key]
 
     def _record(self, kind: str, name: str, **evidence: Any) -> None:
+        evidence.setdefault("provisional_on", sorted(self.active_dependencies))
         payload = _jsonable({"kind": kind, "name": name, "provenance": self.provenance, **evidence})
-        saved = {"payload": payload, "sha256": _payload_digest(payload)}
         path = self.root / "decisions" / (kind + "-" + _digest({"name": name}) + ".json")
-        if path.exists():
-            import json
-
-            previous = json.loads(path.read_text(encoding="utf-8"))
-            if previous != saved:
+        history = ([path] if path.exists() else []) + sorted(
+            path.parent.glob(path.stem + ".r*.json")
+        )
+        if history:
+            previous = json.loads(history[-1].read_text(encoding="utf-8"))
+            if previous["sha256"] != _payload_digest(previous["payload"]):
                 raise ValueError("Decision signature mismatch; refusing to overwrite")
-        else:
-            _atomic_json(path, saved)
+            comparable = {k: v for k, v in previous["payload"].items() if k != "previous_decision"}
+            if comparable == payload:
+                self.decisions.append(previous["payload"])
+                return
+            payload["previous_decision"] = {"path": history[-1].name, "sha256": previous["sha256"]}
+            path = path.with_name(path.stem + f".r{len(history):04d}.json")
+        if path.exists():
+            raise ValueError("Decision revision already exists; refusing to overwrite")
+        _atomic_json(path, {"payload": payload, "sha256": _payload_digest(payload)})
         self.decisions.append(payload)
 
     def _select(
         self, candidates: list[LadderConfiguration], columns: tuple[str, ...], name: str
     ) -> tuple[LadderConfiguration, list[LadderConfiguration]]:
         unique = {c.key: c for c in candidates}
+        choice = self.reviews.get(name)
+        if choice is not None:
+            if choice not in unique:
+                raise ValueError(f"Review choice for {name} is not a candidate")
+            self.used_reviews.add(name)
         prepare = getattr(self.provider, "prepare", None)
         if prepare is not None:
             prepare(list(unique.values()), columns, name)
@@ -213,33 +232,57 @@ class GoalLadder:
         nll = close_configurations(frames, score="poisson_nll", simplicity_order=simplicity)
         rps = close_configurations(frames, score="rps", simplicity_order=simplicity)
         recent = recent_leader_flag(frames, score="poisson_nll")
+        dependencies = set(self.active_dependencies)
+        mode = self.spec.raw.get("rule6_mode", "stop")
+        if recent.flag and choice is None and mode == "provisional":
+            dependencies.add(name)
+            self.open_reviews[name] = {
+                "name": name,
+                "deep_leaders": [
+                    {"key": k, "label": unique[k].label} for k in recent.deep_ranking.winners
+                ],
+                "recent_leaders": [
+                    {"key": k, "label": unique[k].label} for k in recent.last5_ranking.winners
+                ],
+                "proposal": nll.proposal,
+            }
+        self.choice_dependencies[name] = dependencies
         self._record(
             "selection",
             name,
             features=columns,
             proposal=nll.proposal,
+            selected=choice or nll.proposal,
+            amit_choice=choice,
+            rule6_mode=mode,
+            provisional_on=sorted(dependencies),
             rule4=nll,
             rule6=recent.flag,
             rule10=metric_disagreement_selection(nll, rps),
             configurations={k: asdict(v) for k, v in unique.items()},
             labels={k: v.label for k, v in unique.items()},
         )
-        if recent.flag:
+        if recent.flag and choice is None and mode != "provisional":
             raise LadderReviewRequired("Rule 6: recent and deep leaders differ; review required")
-        return unique[nll.proposal], [unique[k] for k in nll.ranking.order]
+        return unique[choice or nll.proposal], [unique[k] for k in nll.ranking.order]
 
     def _tune(
         self, columns: tuple[str, ...], name: str
     ) -> tuple[LadderConfiguration, list[LadderConfiguration]]:
         a = [LadderConfiguration("xgb", asdict(c)) for c in xgb_stage_a(self.spec)]
+        inherited = set(self.active_dependencies)
         winner, _ = self._select(a, columns, name + "-A")
+        self.active_dependencies = self.choice_dependencies[name + "-A"]
         from ligat.models.m2_xgb import XGBGoalConfig
 
         b = [
             LadderConfiguration("xgb", asdict(c), hl)
             for c, hl in xgb_stage_b(self.spec, XGBGoalConfig(**winner.parameters))
         ]
-        return self._select([*a, *b], columns, name + "-AB")
+        result = self._select([*a, *b], columns, name + "-AB")
+        self.choice_dependencies[name] = set(self.choice_dependencies[name + "-AB"])
+        self.active_dependencies = inherited
+        return result
 
     def _entry(
         self,
@@ -272,6 +315,7 @@ class GoalLadder:
         base = self._columns(registry.M2_BASE_COLUMNS)
         s1, _ = self._tune(self._columns(registry.M2_S1_COLUMNS), "S1")
         s2, s2_order = self._tune(base, "S2")
+        self.active_dependencies = set(self.choice_dependencies["S2"])
         for group, fields in registry.M2_BASE_GROUPS.items():
             removed = tuple(c for c in base if c not in fields)
             self._entry(s2, removed, base, "base-without-" + group, can_enter=False)
@@ -283,8 +327,18 @@ class GoalLadder:
             decision = self._entry(s2, candidate, base, family, can_enter=False)
             if decision.passes:
                 alternatives.append((family, candidate, decision.stats.mean_improvement))
-        if alternatives:
-            family, current, _ = max(alternatives, key=lambda item: (item[2], item[0] == "F1-R"))
+        automatic_family = (
+            max(alternatives, key=lambda item: (item[2], item[0] == "F1-R"))[0]
+            if alternatives
+            else "none"
+        )
+        family_choice = self.reviews.get("F1", automatic_family)
+        if "F1" in self.reviews:
+            self.used_reviews.add("F1")
+        if family_choice not in {"none", *(a[0] for a in alternatives)}:
+            raise ValueError("F1 review must choose none or a family that passed rule 8")
+        if family_choice != "none":
+            family, current, _ = next(a for a in alternatives if a[0] == family_choice)
             entered.append(family)
             self._internal(s2, current, family)
         self._record(
@@ -292,6 +346,8 @@ class GoalLadder:
             "F1",
             entered=bool(entered),
             selected_family=entered[0] if entered else None,
+            proposal=automatic_family,
+            amit_choice=self.reviews.get("F1"),
             reference=base,
             candidate=current,
         )
@@ -307,20 +363,27 @@ class GoalLadder:
         for name, columns in stages.items():
             if name in winners:
                 continue
+            self.active_dependencies = set(self.choice_dependencies["S2"])
             if self.spec.raw["fast_path"] == "short":
                 winners[name], _ = self._select(s2_order[:5], columns, name + "-short")
+                self.choice_dependencies[name] = set(self.choice_dependencies[name + "-short"])
             else:
                 winners[name], _ = self._tune(columns, name + "-retune")
         comparators = {}
         for name, columns in (("base", base), ("selected", current)):
+            self.active_dependencies = (
+                set() if name == "base" else set(self.choice_dependencies["S2"])
+            )
             configs = [LadderConfiguration("catboost", asdict(c)) for c in catboost_grid(self.spec)]
             winner, _ = self._select(configs, columns, "catboost-" + name)
             comparators["catboost-" + name] = {"config": asdict(winner), "features": columns}
         if "F6" in entered or self.spec.raw.get("catboost_f6_requested", False):
+            self.active_dependencies = set(self.choice_dependencies["S2"])
             configs = [LadderConfiguration("catboost", asdict(c)) for c in catboost_grid(self.spec)]
             columns = self._columns(family_features(base, "F6"))
             winner, _ = self._select(configs, columns, "catboost-F6")
             comparators["catboost-F6"] = {"config": asdict(winner), "features": columns}
+        self.active_dependencies = set()
         glm = [
             LadderConfiguration("glm", asdict(GLMGoalConfig("base", 9)), hl)
             for hl in self.spec.raw["glm"]["half_life"]
@@ -334,6 +397,14 @@ class GoalLadder:
         ]
         winner, _ = self._select(maher, MAHER_COLUMNS, "maher")
         comparators["maher"] = {"config": asdict(winner), "features": MAHER_COLUMNS}
+        unused = set(self.reviews) - self.used_reviews
+        if unused:
+            raise ValueError("Unknown review selections: " + ", ".join(sorted(unused)))
+        for name, review in self.open_reviews.items():
+            review["dependents"] = sorted(
+                {d["name"] for d in self.decisions if name in d["provisional_on"]}
+                | {choice for choice, deps in self.choice_dependencies.items() if name in deps}
+            )
         return {
             "features": current,
             "entered": entered,
@@ -342,6 +413,8 @@ class GoalLadder:
             "top5_s2": [asdict(c) for c in s2_order[:5]],
             "comparators": comparators,
             "decisions": self.decisions,
+            "open_reviews": list(self.open_reviews.values()),
+            "provisional_dependencies": {k: sorted(v) for k, v in self.choice_dependencies.items()},
         }
 
     def _internal(self, cfg: LadderConfiguration, columns: tuple[str, ...], family: str) -> None:
@@ -426,6 +499,7 @@ class SavedGoalScores:
             for c in pending
         }
         units = [u for group in units_by_key.values() for u in group]
+        register_full_plan(self.spec.output, units, self.provenance)
         status = goal_units_status(
             units, self.data, self.provenance, self.spec.output, stage="full"
         )
@@ -462,6 +536,7 @@ def run_goal_full(spec: GoalExperimentSpec) -> dict[str, Any]:
     provider = SavedGoalScores(spec, data, provenance)
     engine = GoalLadder(spec, provider, spec.output / "full", provenance=provenance.identity())
     result = engine.run()
+    result["provenance"] = asdict(provenance)
     rulers = {}
     ruler_models = {}
     for name, config in (
@@ -499,12 +574,21 @@ def run_goal_full(spec: GoalExperimentSpec) -> dict[str, Any]:
             paired.append(
                 TeamGoalEvaluation(rows, folds, evaluation.summary, evaluation.refit_policy)
             )
+        dependency_name = "glm-base" if name == "glm" else name
+        dependencies = sorted(
+            set(result["provisional_dependencies"].get(dependency_name, []))
+            | set(result["provisional_dependencies"].get("S2", []))
+        )
         reports[name] = {
             "label": ranked_config.label,
             "summary": report.summary.reset_index().to_dict(orient="records"),
             "by_season": report.by_season.reset_index().to_dict(orient="records"),
             "paired": _jsonable(paired_goal_statistics(*paired)),
+            "provisional_on": dependencies,
         }
+        for review in result["open_reviews"]:
+            if review["name"] in dependencies:
+                review["dependents"] = sorted(set(review["dependents"]) | {"metrics:" + name})
     result["readable_metrics"] = reports
     payload = cast(dict[str, Any], _jsonable(result))
     _atomic_json(
@@ -512,3 +596,60 @@ def run_goal_full(spec: GoalExperimentSpec) -> dict[str, Any]:
         {"payload": payload, "sha256": _payload_digest(payload)},
     )
     return payload
+
+
+def register_full_plan(root: Path, units: list[GoalUnit], provenance: GoalProvenance) -> None:
+    """Persist the accumulating, target-free unit plan before a full batch starts."""
+    path = root / "full" / "unit_plan.json"
+    previous = _read_full_plan(path, provenance) if path.exists() else []
+    planned = {u.unit_id: u for u in previous}
+    for unit in units:
+        planned.setdefault(unit.unit_id, unit)
+    payload = {
+        "provenance": provenance.identity(),
+        "units": [asdict(planned[k]) for k in sorted(planned)],
+    }
+    _atomic_json(path, {"payload": payload, "sha256": _payload_digest(payload)})
+
+
+def _read_full_plan(path: Path, provenance: GoalProvenance) -> list[GoalUnit]:
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    payload = saved["payload"]
+    if (
+        saved["sha256"] != _payload_digest(payload)
+        or payload["provenance"] != provenance.identity()
+    ):
+        raise ValueError("Full unit plan is outdated or damaged")
+    return [GoalUnit(**(u | {"features": tuple(u["features"])})) for u in payload["units"]]
+
+
+def exp005_full_status(spec: GoalExperimentSpec) -> dict[str, Any]:
+    """Inspect saved full units without scores or training, including interrupted batches."""
+    from collections import Counter
+
+    spec.guard_full()
+    data = load_goal_inputs(spec)
+    provenance = goal_provenance(data, prematch_version=spec.raw["inputs"]["prematch_version"])
+    path = spec.output / "full" / "unit_plan.json"
+    if path.exists():
+        units = _read_full_plan(path, provenance)
+    else:
+        units = [
+            GoalUnit("xgb", asdict(c), columns, season, role=role)
+            for role, columns in (
+                ("S1-A", registry.M2_S1_COLUMNS),
+                ("S2-A", registry.M2_BASE_COLUMNS),
+            )
+            for c in xgb_stage_a(spec)
+            for season in spec.seasons
+        ]
+    statuses = goal_units_status(units, data, provenance, spec.output, stage="full")
+    return {
+        "stage": "full",
+        "units": len(units),
+        "counts": dict(Counter(r["status"] for r in statuses)),
+        "unit_statuses": statuses,
+        "deferred": "Data-dependent stages are registered before their batches start"
+        if not path.exists()
+        else None,
+    }
