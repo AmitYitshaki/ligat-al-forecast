@@ -132,6 +132,7 @@ def evaluate_team_goals(
     half_life: float | None = None,
     sample_weight: pd.Series | None = None,
     blind: bool = False,
+    prior_seasons_only: bool = False,
 ) -> TeamGoalEvaluation:
     """Predict seasons 11-25 from allowed history, fitting a fresh model per batch.
 
@@ -145,11 +146,15 @@ def evaluate_team_goals(
     External observation weights are forbidden: select half_life instead.
     blind=True produces predictions and provenance only: no validation scores
     are calculated, no targets are attached, and no reporting layer is invoked.
+    prior_seasons_only=True is the M3 export contract: even daily refits exclude
+    the entire validation season, while retaining the actual daily as_of cutoff.
     """
     if sample_weight is not None:
         raise ValueError("sample_weight is computed by the judge; select half_life instead")
     if not isinstance(blind, bool):
         raise ValueError("blind must be an explicit boolean")
+    if not isinstance(prior_seasons_only, bool):
+        raise ValueError("prior_seasons_only must be an explicit boolean")
     if half_life is not None and (
         isinstance(half_life, (bool, np.bool_))
         or not isinstance(half_life, (int, float, np.integer, np.floating))
@@ -198,7 +203,11 @@ def evaluate_team_goals(
                 train
                 if day is None
                 else (
-                    data.context.season_id.isin((*row.train_seasons, row.validation_season))
+                    data.context.season_id.isin(
+                        row.train_seasons
+                        if prior_seasons_only
+                        else (*row.train_seasons, row.validation_season)
+                    )
                     & data.context.date.lt(day)
                 )
             )

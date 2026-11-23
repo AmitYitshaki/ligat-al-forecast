@@ -27,8 +27,11 @@ class GoalUnit:
     season: int
     half_life: float | None = None
     role: str = "unit"
+    prior_seasons_only: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.prior_seasons_only, bool):
+            raise ValueError("prior_seasons_only must be an explicit boolean")
         if self.backend not in ("xgb", "catboost", "glm", "maher") or self.season not in range(
             11, 26
         ):
@@ -54,7 +57,7 @@ class GoalUnit:
         return MaherGoalConfig(**parameters)
 
     def identity(self) -> dict[str, Any]:
-        return {
+        identity = {
             "backend": self.backend,
             "config_id": self.configuration().config_id,
             "parameters": self.parameters,
@@ -62,6 +65,9 @@ class GoalUnit:
             "season": self.season,
             "half_life": self.half_life,
         }
+        if self.prior_seasons_only:
+            identity["prior_seasons_only"] = True
+        return identity
 
     @property
     def unit_id(self) -> str:

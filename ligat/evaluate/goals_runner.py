@@ -195,7 +195,7 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def _path(root: Path, stage: str, unit: GoalUnit) -> Path:
-    if stage not in ("pilot", "full", "synthetic"):
+    if stage not in ("pilot", "full", "synthetic", "lambda"):
         raise ValueError("Invalid goal artifact stage")
     return root / stage / (unit.unit_id + ".json")
 
@@ -317,6 +317,7 @@ def run_goal_unit(
             policy=DevelopmentPolicy(training_start=start, validation_seasons=(unit.season,)),
             half_life=unit.half_life,
             blind=True,
+            prior_seasons_only=unit.prior_seasons_only,
         )
     elapsed = time.perf_counter() - started
     memory = psutil.Process().memory_info()
@@ -514,7 +515,14 @@ def _read_journal(path: Path, payload: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(logs, list) or not logs:
             raise ValueError("Missing training fit records")
         for log in logs:
-            if log.get("dataset") != "training" or not log.get("train_loss"):
+            losses = log.get("train_loss")
+            zero_iterations = (
+                losses == []
+                and log.get("iterations") == 0
+                and log.get("converged") is True
+                and log.get("recorded") is True
+            )
+            if log.get("dataset") != "training" or (not losses and not zero_iterations):
                 raise ValueError("Invalid training journal record")
         return logs
     except (OSError, KeyError, ValueError, EOFError) as exc:
@@ -563,8 +571,11 @@ def rebuild_goal_index(root: Path, *, stage: str = "pilot") -> Path:
                         payload["fit_seconds"],
                         payload["peak_rss_mb"],
                         sum(log["iterations"] for log in logs),
-                        logs[0]["train_loss"][0],
-                        logs[-1]["train_loss"][-1],
+                        next((log["train_loss"][0] for log in logs if log["train_loss"]), None),
+                        next(
+                            (log["train_loss"][-1] for log in reversed(logs) if log["train_loss"]),
+                            None,
+                        ),
                         all(log["converged"] for log in logs),
                         saved["sha256"],
                         payload["completed_at"],
