@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -42,6 +42,48 @@ from ligat.models.training_log import TrainingJournal, atomic_bytes, journal_byt
 
 ModelFactory = Callable[[GoalUnit], TeamGoalModel]
 _FORBIDDEN = {"goals_scored", "poisson_nll", "rps", "log_loss", "brier", "accuracy"}
+UNIT_FORMAT_VERSION = 3
+# Explicit, reviewed dependency closure. Notebook, CLI and ladder code are not
+# unit dependencies. A clean-process native-backend test guards this boundary.
+UNIT_CODE_MODULES = (
+    "ligat",
+    "ligat.analysis",
+    "ligat.analysis.prepare",
+    "ligat.data",
+    "ligat.data.details",
+    "ligat.data.game_pages",
+    "ligat.data.repository",
+    "ligat.data.schemas",
+    "ligat.evaluate",
+    "ligat.evaluate.backtest",
+    "ligat.evaluate.goal_inputs",
+    "ligat.evaluate.goal_metrics",
+    "ligat.evaluate.goals_experiment",
+    "ligat.evaluate.goals_runner",
+    "ligat.evaluate.metrics",
+    "ligat.evaluate.splits",
+    "ligat.evaluate.team_goal_backtest",
+    "ligat.features",
+    "ligat.features.elo",
+    "ligat.features.pipeline",
+    "ligat.features.prematch_v2",
+    "ligat.features.registry",
+    "ligat.features.table_state",
+    "ligat.models",
+    "ligat.models.base",
+    "ligat.models.form_models",
+    "ligat.models.goal_model",
+    "ligat.models.m2_catboost",
+    "ligat.models.m2_glm",
+    "ligat.models.m2_identity",
+    "ligat.models.m2_maher",
+    "ligat.models.m2_maher_prior",
+    "ligat.models.m2_xgb",
+    "ligat.models.ordered_logit",
+    "ligat.models.training_log",
+    "ligat.simulate",
+    "ligat.simulate.rules",
+)
 
 
 @dataclass(frozen=True)
@@ -50,12 +92,16 @@ class GoalProvenance:
     code_sha256: str
     git_commit: str
     prematch_version: str = "prematch_v2"
+    code_files: dict[str, str] = field(default_factory=dict)
+    libraries: dict[str, str] = field(default_factory=dict)
 
-    def identity(self) -> dict[str, str]:
+    def identity(self) -> dict[str, Any]:
         return {
             "input_sha256": self.input_sha256,
             "code_sha256": self.code_sha256,
             "prematch_version": self.prematch_version,
+            "code_files": self.code_files,
+            "libraries": self.libraries,
         }
 
 
@@ -84,12 +130,23 @@ def goal_data_fingerprint(data: GoalData) -> str:
     return _digest(parts)
 
 
-def goal_provenance(data: GoalData, *, prematch_version: str = "prematch_v2") -> GoalProvenance:
+def unit_code_hashes() -> dict[str, str]:
+    """Hash only the explicit unit dependency closure, independently of imports."""
     root = Path(__file__).resolve().parents[2]
-    sources = {
-        p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted((root / "ligat").rglob("*.py"))
-    }
+    sources = {}
+    for module in UNIT_CODE_MODULES:
+        base = root.joinpath(*module.split("."))
+        path = (
+            base.with_suffix(".py") if base.with_suffix(".py").is_file() else base / "__init__.py"
+        )
+        sources[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return sources
+
+
+def goal_provenance(data: GoalData, *, prematch_version: str = "prematch_v2") -> GoalProvenance:
+    """Bind data, explicit unit sources and installed numerical library versions."""
+    root = Path(__file__).resolve().parents[2]
+    sources = unit_code_hashes()
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, cwd=root).strip()
     libraries = {
         name: version(name)
@@ -100,6 +157,8 @@ def goal_provenance(data: GoalData, *, prematch_version: str = "prematch_v2") ->
         _digest({"sources": sources, "libraries": libraries}),
         commit,
         prematch_version,
+        sources,
+        libraries,
     )
 
 
@@ -161,7 +220,11 @@ def _model(unit: GoalUnit, data: GoalData) -> TeamGoalModel:
 
 def _signature(unit: GoalUnit, provenance: GoalProvenance) -> str:
     return _digest(
-        {"format_version": 2, "unit": unit.identity(), "provenance": provenance.identity()}
+        {
+            "format_version": UNIT_FORMAT_VERSION,
+            "unit": unit.identity(),
+            "provenance": provenance.identity(),
+        }
     )
 
 
@@ -208,12 +271,21 @@ def load_goal_unit(
     if not isinstance(saved, dict) or set(saved) != {"payload", "sha256"}:
         raise ValueError("Invalid goal unit envelope")
     payload = saved["payload"]
-    if not isinstance(payload, dict) or payload.get("format_version") != 2:
-        raise ValueError("Unsupported goal unit format")
+    if not isinstance(payload, dict) or payload.get("format_version") != UNIT_FORMAT_VERSION:
+        raise ValueError(f"Unsupported goal unit format; expected {UNIT_FORMAT_VERSION}")
     if saved["sha256"] != _payload_digest(payload) or payload["signature"] != _signature(
         unit, provenance
     ):
-        raise ValueError("Goal unit signature mismatch; refusing to overwrite existing result")
+        old = payload.get("provenance", {}).get("code_files", {})
+        changed = sorted(
+            k
+            for k in set(old) | set(provenance.code_files)
+            if old.get(k) != provenance.code_files.get(k)
+        )
+        detail = "; changed files: " + ", ".join(changed) if changed else ""
+        raise ValueError(
+            "Goal unit signature mismatch" + detail + "; refusing to overwrite existing result"
+        )
     logs = _read_journal(path, payload)
     rows = pd.DataFrame(payload["per_team"]).loc[:, payload["per_team_columns"]]
     if _FORBIDDEN & set(rows):
@@ -326,7 +398,7 @@ def run_goal_unit(
     payload = {
         "completed_at": datetime.now(UTC).isoformat(),
         "training_log_sha256": hashlib.sha256(journal).hexdigest(),
-        "format_version": 2,
+        "format_version": UNIT_FORMAT_VERSION,
         "signature": _signature(unit, provenance),
         "unit": asdict(unit),
         "provenance": asdict(provenance),
