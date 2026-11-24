@@ -422,6 +422,21 @@ def run_goal_unit(
     return GoalUnitResult(unit, evaluation, elapsed, sum(fit_times), peak, metadata, False, logs)
 
 
+def goal_unit_priority(unit: GoalUnit) -> tuple[int, int, float, str]:
+    """Fixed engineering cost order, independent of outcomes and validation scores."""
+    parameters = unit.parameters
+    default_cat = unit.backend == "catboost" and parameters.get("preset") == "library_default"
+    backend_order = {"catboost": 0, "xgb": 1, "maher": 2, "glm": 3}
+    if unit.backend == "maher":
+        half_life = parameters.get("half_life")
+        cost = 0.0 if half_life is None else 1.0 / float(half_life)
+    else:
+        trees = parameters.get("n_estimators", parameters.get("iterations")) or 1
+        depth = parameters.get("max_depth", parameters.get("depth")) or 1
+        cost = float(trees) * float(depth)
+    return (0 if default_cat else 1, backend_order[unit.backend], -cost, unit.unit_id)
+
+
 def run_goal_units(
     units: Sequence[GoalUnit],
     data: GoalData,
@@ -452,6 +467,7 @@ def run_goal_units(
     if not pending:
         rebuild_goal_index(root, stage=stage)
         return sorted(completed, key=lambda r: r.unit.unit_id)
+    pending.sort(key=goal_unit_priority)
     count = 0
     # An intentional interruption waits for its finite batch to publish both
     # files, rather than terminating another worker between journal and unit.

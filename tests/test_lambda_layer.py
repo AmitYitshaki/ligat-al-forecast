@@ -237,7 +237,11 @@ def test_failed_export_resumes_c5_units_without_refitting_completed_seasons(goal
         write_lambda_layer(
             cfg, data, tmp_path, n_jobs=1, provenance=version, model_factory=fail_at_15
         )
-    assert calls == list(range(11, 16))
+    assert calls[-1] == 15
+    assert len(calls) == len(set(calls))
+    completed = set(calls[:-1])
+    preserved = {p: p.read_bytes() for p in (tmp_path / "units" / "lambda").glob("unit-*")}
+    assert len(preserved) == 2 * len(completed)
     assert not (tmp_path / "manifest.json").exists()
     assert lambda_layer_status(cfg, data, tmp_path, provenance=version)["status"] == "missing"
     calls.clear()
@@ -249,7 +253,9 @@ def test_failed_export_resumes_c5_units_without_refitting_completed_seasons(goal
     frame = write_lambda_layer(
         cfg, data, tmp_path, n_jobs=1, provenance=version, model_factory=resume
     )
-    assert calls == list(range(15, 26))
+    assert set(calls) == set(range(11, 26)) - completed
+    assert len(calls) == len(set(calls))
+    assert all(p.read_bytes() == raw for p, raw in preserved.items())
     validate_lambda_layer(frame, data)
 
 
