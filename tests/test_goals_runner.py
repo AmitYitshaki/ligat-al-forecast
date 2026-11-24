@@ -69,8 +69,6 @@ def test_fixed_grids_and_score_free_pilot_plan():
     assert len(b) == 24 and len({(c.config_id, hl) for c, hl in b}) == 24
     assert len(planned) == 408 and len({u.unit_id for u in planned}) == 408
     assert set(u.season for u in planned) == {12, 18, 25}
-    assert spec.n_jobs == 15 and spec.raw["full_run_approved"] is False
-    assert spec.raw["fast_path"] is None and spec.raw["correlation_drops"] == "pending"
     assert not any("team_id" in u.features for u in planned if u.backend == "catboost")
     assert sum(u.backend == "maher" for u in planned) == 12
     assert registry.M2_S1_COLUMNS == ("elo_pre", "elo_diff", "is_home")
@@ -171,6 +169,11 @@ def test_mismatched_or_corrupt_unit_fails_without_overwriting(goal_sources, tmp_
 
 
 def test_full_cli_blocks_before_loading_inputs(monkeypatch):
+    spec = load_goal_experiment()
+    unapproved = replace(spec, raw=spec.raw | {"full_run_approved": False})
+    monkeypatch.setattr(
+        "ligat.evaluate.goals_experiment.load_goal_experiment", lambda *a, **k: unapproved
+    )
     monkeypatch.setattr(
         "ligat.evaluate.goals_runner.load_goal_inputs",
         lambda *a, **k: pytest.fail("Full loaded inputs"),

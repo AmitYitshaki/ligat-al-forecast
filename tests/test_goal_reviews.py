@@ -85,7 +85,13 @@ def test_pending_blocks_full_before_inputs():
     spec = load_goal_experiment()
     spec = replace(
         spec,
-        raw=spec.raw | {"full_run_approved": True, "fast_path": "short", "correlation_drops": []},
+        raw=spec.raw
+        | {
+            "full_run_approved": True,
+            "fast_path": "short",
+            "correlation_drops": [],
+            "rule6_mode": "pending",
+        },
     )
     with pytest.raises(ValueError, match="rule6_mode"):
         spec.guard_full()

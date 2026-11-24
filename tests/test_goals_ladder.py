@@ -66,7 +66,6 @@ def test_real_correlations_read_features_only(real_tables):
         + "\n",
         encoding="utf-8",
     )
-    assert spec.raw["correlation_drops"] == "pending"
     assert not {"goals_scored", "poisson_nll"} & set(data.X)
     print(pairs.to_string(index=False))
 
@@ -200,7 +199,9 @@ def small_ladder(monkeypatch, tmp_path, *, family="F2", recent_flip=False, leaka
         lambda _: [CatBoostGoalConfig(4, 3, 16, 0.1), CatBoostGoalConfig.library_default()],
     )
     spec = load_goal_experiment()
-    spec = replace(spec, raw=spec.raw | {"correlation_drops": [], "fast_path": "short"})
+    spec = replace(
+        spec, raw=spec.raw | {"correlation_drops": [], "fast_path": "short", "rule6_mode": "stop"}
+    )
     provider = FamilyGoalSpy(family, recent_flip=recent_flip, leakage=leakage)
     return GoalLadder(spec, provider, tmp_path, provenance={"source": "synthetic"}), provider
 
@@ -339,7 +340,8 @@ def test_full_entry_guard_precedes_inputs_and_scores(monkeypatch):
         lambda *a: pytest.fail("Unapproved full loaded inputs"),
     )
     with pytest.raises(ValueError, match="not approved"):
-        run_goal_full(load_goal_experiment())
+        spec = load_goal_experiment()
+        run_goal_full(replace(spec, raw=spec.raw | {"full_run_approved": False}))
 
 
 @pytest.mark.slow

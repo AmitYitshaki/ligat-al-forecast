@@ -41,11 +41,11 @@ glm:
 maher:
   half_life: [null, 0.5, 1, 2]
 seed: 0
-n_jobs: 15  # One native training thread per worker.
+n_jobs: 10  # D2b: 14.47% faster than 15; one native thread per worker.
 output: data/derived/exp005
-full_run_approved: false  # D3 requires Amit's explicit approval.
-fast_path: null  # Amit decides after blind timing evidence.
+full_run_approved: true  # Amit approved D3 in D3-pre; F1-F4 and D2b passed.
+fast_path: short
 catboost_f6: conditional
-correlation_drops: pending  # Only Amit selects the fixed drops.
-rule6_mode: pending
+correlation_drops: [prev_ppm_diff]  # Amit's D3-pre decision.
+rule6_mode: provisional
 review_decisions: {}
