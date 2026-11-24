@@ -712,3 +712,256 @@ def full_figures(
             + "; n=14, שיפור מול S2 ו-±SE — טיוטה",
         ),
     )
+
+
+def diagnostic_configurations(selected: Any, spec: GoalExperimentSpec) -> list[Any]:
+    """One-grid-step neighbors, holding every other selected setting fixed."""
+    from dataclasses import replace
+
+    result = [selected]
+    for field, grid in [
+        ("max_depth", spec.raw["xgboost"]["stage_a"]["max_depth"]),
+        (
+            "learning_rate",
+            sorted(set(spec.raw["xgboost"]["stage_a"]["learning_rate"] + [selected.learning_rate])),
+        ),
+    ]:
+        position = grid.index(getattr(selected, field))
+        for neighbor in (position - 1, position + 1):
+            if 0 <= neighbor < len(grid):
+                result.append(replace(selected, **{field: grid[neighbor]}, preset="grid"))
+    result.append(
+        replace(
+            selected,
+            n_estimators=max(spec.raw["xgboost"]["stage_a"]["n_estimators"]),
+            preset="grid",
+        )
+    )
+    return list({c.config_id: c for c in result}.values())
+
+
+def _diagnostic_signature() -> str:
+    """Bind diagnostic fitting code independently of later presentation changes."""
+    functions = (_diagnostic_signature, diagnostic_configurations, run_learning_diagnostics)
+    return _payload_digest({f.__name__: inspect.getsource(f) for f in functions})
+
+
+def run_learning_diagnostics(spec: GoalExperimentSpec) -> dict[str, Any]:
+    """Explicit post-D3 diagnostic only. Never early-stop or change a decision."""
+    from dataclasses import asdict
+
+    from threadpoolctl import threadpool_limits  # type: ignore[import-untyped]
+
+    from ligat.models.m2_xgb import XGBGoalConfig, XGBGoalModel, _features
+    from ligat.models.ordered_logit import time_weights
+
+    report = frozen_full_report(spec)
+    data, provenance, units, binding = _sources(spec, "full")
+    directory = spec.output / "full"
+    frozen = {
+        p: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in directory.rglob("*")
+        if p.is_file()
+        and (
+            p.name.startswith("unit-")
+            or p.name == "ladder_report.json"
+            or p.parent.name == "decisions"
+            or p.name in ("index.csv", "unit_plan.json")
+        )
+    }
+    selected = report["winners"]["S2"]
+    cfg = XGBGoalConfig(**selected["parameters"])
+    configs = diagnostic_configurations(cfg, spec)
+    columns = tuple(report["stages"]["S2"])
+    target = spec.output / "diagnostics" / "learning_curves"
+    target.mkdir(parents=True, exist_ok=True)
+    outputs = []
+    started = perf_counter()
+    fitted = 0
+    report_sha = hashlib.sha256((directory / "ladder_report.json").read_bytes()).hexdigest()
+    for candidate in configs:
+        for season in spec.seasons:
+            identity = dict(
+                diagnostic=True,
+                config=asdict(candidate),
+                half_life=selected["half_life"],
+                season=season,
+                features=columns,
+                frozen_report_sha256=report_sha,
+                provenance=provenance.identity(),
+                code_sha256=_diagnostic_signature(),
+                validation_used_only_for_diagnostic=True,
+                early_stopping=False,
+            )
+            key = _payload_digest(identity)
+            path = target / (key + ".json")
+            if path.exists():
+                saved = json.loads(path.read_bytes())
+                if saved["sha256"] != _payload_digest(saved["payload"]) or saved["payload"][
+                    "identity"
+                ] != json.loads(json.dumps(identity)):
+                    raise ValueError("Diagnostic cache signature mismatch")
+                outputs.append(saved["payload"])
+                continue
+            train = data.context.season_id.lt(season)
+            valid = data.context.season_id.eq(season)
+            if not data.context.loc[train, "date"].max() < data.context.loc[valid, "as_of"].min():
+                raise ValueError("Diagnostic history crosses as_of")
+            Xtrain, schema = _features(data.X.loc[train, list(columns)])
+            Xval, other_schema = _features(data.X.loc[valid, list(columns)])
+            if schema != other_schema:
+                raise ValueError("Diagnostic feature schema mismatch")
+            weights = time_weights(
+                data.context.loc[train, "season_id"], season, selected["half_life"]
+            )
+            estimator = XGBGoalModel(candidate)._new_estimator()
+            with threadpool_limits(limits=1):
+                estimator.fit(
+                    Xtrain,
+                    data.y.loc[train].to_numpy(float),
+                    sample_weight=weights,
+                    eval_set=[
+                        (Xtrain, data.y.loc[train].to_numpy(float)),
+                        (Xval, data.y.loc[valid].to_numpy(float)),
+                    ],
+                    verbose=False,
+                )
+            loss = estimator.evals_result()
+            if candidate.config_id == cfg.config_id:
+                unit = GoalUnit(
+                    "xgb", asdict(cfg), columns, season, half_life=selected["half_life"]
+                )
+                cached = load_goal_unit(
+                    directory / (unit.unit_id + ".json"), unit, provenance, data
+                )
+                predicted = pd.Series(
+                    np.asarray(estimator.predict(Xval), dtype=float), index=Xval.index
+                ).sort_index()
+                np.testing.assert_array_equal(
+                    predicted.to_numpy(), cached.evaluation.per_team["lambda"].to_numpy()
+                )
+            payload = dict(
+                identity=identity,
+                train_nll=loss["validation_0"]["poisson-nloglik"],
+                validation_nll=loss["validation_1"]["poisson-nloglik"],
+                selected_trees=cfg.n_estimators,
+                train_rows=int(train.sum()),
+                validation_rows=int(valid.sum()),
+                native_predictions_match_selected=True
+                if candidate.config_id == cfg.config_id
+                else None,
+            )
+            atomic_bytes(
+                path, json.dumps(dict(payload=payload, sha256=_payload_digest(payload))).encode()
+            )
+            fitted += 1
+            outputs.append(payload)
+    if not all(hashlib.sha256(p.read_bytes()).hexdigest() == h for p, h in frozen.items()):
+        raise ValueError("Diagnostic modified a frozen D3 artifact")
+    summary = dict(
+        diagnostic=True,
+        configs=len(configs),
+        folds=15,
+        files=len(outputs),
+        new_fits=fitted,
+        wall_seconds=perf_counter() - started,
+        selected_config=asdict(cfg),
+        outputs=outputs,
+        frozen_artifacts=len(frozen),
+        frozen_artifacts_unchanged=True,
+        early_stopping=False,
+    )
+    path = target / "manifest.json"
+    atomic_bytes(path, json.dumps(dict(payload=summary, sha256=_payload_digest(summary))).encode())
+    return summary
+
+
+def load_learning_diagnostics(spec: GoalExperimentSpec) -> dict[str, Any]:
+    frozen_full_report(spec)
+    directory = spec.output / "diagnostics" / "learning_curves"
+    saved = json.loads((directory / "manifest.json").read_bytes())
+    result = saved["payload"]
+    if saved["sha256"] != _payload_digest(result) or result.get("diagnostic") is not True:
+        raise ValueError("Invalid diagnostic manifest")
+    report_sha = hashlib.sha256(
+        (spec.output / "full" / "ladder_report.json").read_bytes()
+    ).hexdigest()
+    for output in result["outputs"]:
+        if output["identity"]["frozen_report_sha256"] != report_sha:
+            raise ValueError("Diagnostic belongs to a different frozen report")
+        if output["identity"]["code_sha256"] != _diagnostic_signature():
+            raise ValueError("Diagnostic code is outdated")
+        record = json.loads(
+            (directory / (_payload_digest(output["identity"]) + ".json")).read_bytes()
+        )
+        if record["sha256"] != _payload_digest(record["payload"]) or record["payload"] != output:
+            raise ValueError("Invalid diagnostic fit record")
+    return dict(result)
+
+
+def learning_curve_figure(summary: dict[str, Any]) -> Any:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for output in summary["outputs"]:
+        cfg = output["identity"]["config"]
+        key = json.dumps(cfg, sort_keys=True)
+        grouped.setdefault(key, []).append(output)
+    titles = []
+    for key in grouped:
+        cfg = json.loads(key)
+        titles.append(
+            f"עומק {cfg['max_depth']}, קצב {cfg['learning_rate']}, עצים {cfg['n_estimators']}"
+        )
+    rows = (len(grouped) + 1) // 2
+    figure = make_subplots(rows=rows, cols=2, vertical_spacing=0.12, subplot_titles=titles)
+    for index, (key, outputs) in enumerate(grouped.items()):
+        row, col = index // 2 + 1, index % 2 + 1
+        cfg = json.loads(key)
+        label = f"עומק {cfg['max_depth']}, קצב {cfg['learning_rate']}, עצים {cfg['n_estimators']}"
+        for field, color, dash in [
+            ("train_nll", COLORS[0], "solid"),
+            ("validation_nll", COLORS[1], "dash"),
+        ]:
+            frame = pd.DataFrame(
+                [
+                    dict(iteration=i, train_loss=loss)
+                    for output in outputs
+                    for i, loss in enumerate(output[field], 1)
+                ]
+            )
+            _band(
+                figure,
+                frame,
+                label + (" — אימון" if field == "train_nll" else " — ולידציה"),
+                color,
+                row=row,
+                col=col,
+            )
+            figure.data[-1].line.dash = dash
+            figure.data[-1].showlegend = index == 0
+            for trace in figure.data[-3:]:
+                trace.legendgroup = field
+            figure.data[-1].name = "אימון" if field == "train_nll" else "ולידציה"
+        figure.add_vline(
+            x=summary["selected_config"]["n_estimators"],
+            line_color="#6B7280",
+            line_dash="dash",
+            row=row,
+            col=col,
+        )
+        figure.update_xaxes(title="מספר עצים", row=row, col=col)
+        figure.update_yaxes(title="NLL לא משוקלל", row=row, col=col)
+    if len(grouped) % 2:
+        figure.update_xaxes(visible=False, row=rows, col=2)
+        figure.update_yaxes(visible=False, row=rows, col=2)
+    figure.add_annotation(
+        x=0.5,
+        y=1.065,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+        text="על הבחירה הזמנית; אם עמית יכריע אחרת, האבחון ירוץ שוב",
+        font=dict(size=13),
+    )
+    return finish(
+        figure, "אבחון הבחירה הזמנית: האימון והוולידציה נפרדים; n=15 ו-IQR — טיוטה", height=1150
+    )

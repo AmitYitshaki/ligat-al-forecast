@@ -141,3 +141,69 @@ def test_four_native_fits_open_no_files_and_publish_one_journal_each(
         run_goal_unit(GoalUnit(backend, asdict(cfg), features, 15), data, version, tmp_path)
     assert set(fitted) == {"XGBGoalModel", "CatBoostGoalModel", "GLMGoalModel", "MaherGoalModel"}
     assert len(published) == len(set(published)) == 4
+
+
+def test_diagnostic_neighbors_change_one_grid_parameter_and_skip_boundaries():
+    spec = load_goal_experiment()
+    selected = XGBGoalConfig(2, 1, 150, 0.05, 0.8, 0.8, 1)
+    before = asdict(selected)
+    neighbors = curves.diagnostic_configurations(selected, spec)
+    assert len(neighbors) == 4
+    assert len({c.config_id for c in neighbors}) == 4
+    assert neighbors[0] == selected and asdict(selected) == before
+    changes = []
+    for neighbor in neighbors[1:]:
+        changed = {k for k, v in asdict(neighbor).items() if v != before[k]}
+        assert len(changed) == 1
+        changes.append(changed.pop())
+        assert neighbor.max_depth in spec.raw["xgboost"]["stage_a"]["max_depth"]
+        assert neighbor.learning_rate in spec.raw["xgboost"]["stage_a"]["learning_rate"]
+    assert set(changes) == {"max_depth", "learning_rate", "n_estimators"}
+    edge = replace(selected, max_depth=8, learning_rate=0.1, n_estimators=1000)
+    boundary = curves.diagnostic_configurations(edge, spec)
+    assert len(boundary) == 3  # selected, depth down, learning-rate down; max trees deduplicated
+    assert all(c.max_depth <= 8 and c.learning_rate <= 0.1 for c in boundary)
+
+
+def test_diagnostic_requires_frozen_report_before_any_source_or_training(monkeypatch):
+    def missing(spec):
+        raise ValueError("D3 report not frozen")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Sources accessed before checking the frozen D3 report")
+
+    monkeypatch.setattr(curves, "frozen_full_report", missing)
+    monkeypatch.setattr(curves, "_sources", forbidden)
+    with pytest.raises(ValueError, match="not frozen"):
+        curves.run_learning_diagnostics(load_goal_experiment())
+
+
+def test_diagnostic_loader_rejects_modified_record(tmp_path, monkeypatch):
+    import hashlib
+
+    spec = replace(
+        load_goal_experiment(), raw=load_goal_experiment().raw | {"output": str(tmp_path)}
+    )
+    full = tmp_path / "full"
+    full.mkdir()
+    (full / "ladder_report.json").write_bytes(b"frozen report fixture")
+    target = tmp_path / "diagnostics" / "learning_curves"
+    target.mkdir(parents=True)
+    identity = dict(
+        diagnostic=True,
+        frozen_report_sha256=hashlib.sha256((full / "ladder_report.json").read_bytes()).hexdigest(),
+        code_sha256=curves._diagnostic_signature(),
+    )
+    output = dict(identity=identity, train_nll=[1.4], validation_nll=[1.5])
+    record = target / (curves._payload_digest(identity) + ".json")
+    record.write_text(json.dumps(dict(payload=output, sha256=curves._payload_digest(output))))
+    summary = dict(diagnostic=True, outputs=[output])
+    (target / "manifest.json").write_text(
+        json.dumps(dict(payload=summary, sha256=curves._payload_digest(summary)))
+    )
+    monkeypatch.setattr(curves, "frozen_full_report", lambda spec: {})
+    assert curves.load_learning_diagnostics(spec) == summary
+    output["validation_nll"][0] = 0.5
+    record.write_text(json.dumps(dict(payload=output, sha256=curves._payload_digest(output))))
+    with pytest.raises(ValueError, match="fit record"):
+        curves.load_learning_diagnostics(spec)
