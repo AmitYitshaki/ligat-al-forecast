@@ -246,3 +246,90 @@ def frozen_prior() -> dict[str, Any]:
 
     value = yaml.safe_load(Path("config/m2_maher_prior.yaml").read_text(encoding="utf-8"))
     return dict(value["prior"])
+
+
+def ladder_plan_table() -> pd.DataFrame:
+    from ligat.features import registry
+
+    rows = [
+        dict(
+            stage="S1", features=", ".join(registry.M2_S1_COLUMNS), meaning="כוח Elo וביתיות בלבד"
+        ),
+        dict(
+            stage="S2",
+            features=", ".join(registry.M2_BASE_COLUMNS),
+            meaning="הבסיס שאושר; כל קבוצת בסיס נבחנת בהוצאה",
+        ),
+    ]
+    meanings = {
+        "F1-R": "כושר עשיר במקום שתי עמודות הכושר בבסיס",
+        "F1-A": "כושר עשיר בנוסף לכושר הבסיס",
+        "F2": "נקודות לפי מגרש, לקבוצה וליריבה",
+        "F3": "מצב העונה והטבלה",
+        "F4": "עונה קודמת ומיקום יחסי",
+        "F5": "מוטיבציה מעל פיצ׳רי השלב",
+        "F6": "זהות קבוצה ויריבה; לא מוכרת מהעבר בלבד",
+    }
+    for family, fields in registry.M2_FAMILY_COLUMNS.items():
+        rows.append(
+            dict(stage=family, features=", ".join(fields), meaning=meanings.get(family, family))
+        )
+    return pd.DataFrame(rows)
+
+
+def engineering_tables() -> dict[str, pd.DataFrame]:
+    root = Path("data/reports/T-014")
+    summary = json.loads((root / "D2b_summary.json").read_text(encoding="utf-8"))
+    old = json.loads((root / "D2_summary.json").read_text(encoding="utf-8"))
+    backend = pd.DataFrame(summary["backend_comparison"])
+    bench = pd.DataFrame(summary["benchmarks"])[["n_jobs", "wall_seconds", "units_per_hour"]]
+    wall = pd.DataFrame(
+        [
+            dict(
+                run="D2 לפני F4",
+                seconds=old["execution"]["total_cli_wall_seconds"],
+                calibration=old["measured_efficiency_factor"],
+                rss=old["peak_total_rss_mb"],
+            ),
+            dict(
+                run="D2b אחרי F4",
+                seconds=summary["cli_wall_seconds"],
+                calibration=summary["calibration"],
+                rss=summary["peak_total_rss_mb"],
+            ),
+        ]
+    )
+    return dict(backend=backend, bench=bench, wall=wall)
+
+
+def correlation_decision_table() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            dict(
+                pair="prev_ppm_diff / prev_gd_diff",
+                r=0.957226,
+                codex="הוצאת prev_gd_diff; שמירת נקודות",
+                claude="הוצאת prev_ppm_diff; שמירת שערים",
+                amit="prev_ppm_diff יוצא; prev_gd_diff נשאר — D3-pre (1)",
+                scope="פיצ׳רים בלבד, עונות 8–25; Q57 סגורה",
+            )
+        ]
+    )
+
+
+def lambda_schema_table() -> pd.DataFrame:
+    from ligat.evaluate.lambda_layer import LAMBDA_COLUMNS
+
+    meanings = {
+        "game_id": "מפתח משחק",
+        "team_id": "מפתח קבוצה",
+        "season_id": "עונת היעד: 11–25",
+        "as_of": "תחילת יום המשחק, שעון ישראל",
+        "lambda": "קצב שערים חיובי וסופי",
+        "train_end_season": "העונה השלמה האחרונה; קטנה מעונת היעד",
+        "train_end_date": "האימון האחרון בפועל; קודם ל-as_of",
+        "trained_on_current_season": "האם נכללו משחקי העונה הנוכחית שכבר הסתיימו",
+        "config_id": "חתימת תצורה ומדיניות",
+        "prematch_version": "גרסת קלט קפואה",
+    }
+    return pd.DataFrame([dict(column=c, meaning=meanings[c]) for c in LAMBDA_COLUMNS])
