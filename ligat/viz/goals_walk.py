@@ -91,7 +91,7 @@ def provisional_summary(data: GoalData) -> str:
     columns = ["fold", "games", "deep_fold", "poisson_nll"]
     a = reference.assign(season_id=reference.fold + 10)[columns + ["season_id"]]
     b = candidate.assign(season_id=candidate.fold + 10)[columns + ["season_id"]]
-    stats = paired_statistics(a, b, score="poisson_nll")
+    stats = paired_statistics(b, a, score="poisson_nll")
     if stats.mean_improvement is None or stats.se is None:
         raise ValueError("Insufficient deep folds for the provisional summary")
     direction = "טובה" if stats.mean_improvement > 0 else "גרועה"

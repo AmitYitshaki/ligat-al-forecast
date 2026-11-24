@@ -19,6 +19,61 @@ def test_notebook_math_is_outside_html_blocks():
             source = "".join(cell["source"])
             for block in re.findall(r"<div\b[^>]*>.*?</div>", source, flags=re.S):
                 assert "$" not in block, block
+            for formula in re.findall(r"\$\$(.*?)\$\$", source, flags=re.S):
+                assert len(formula.strip()) >= 12, formula
+
+
+def test_ladder_table_applies_approved_correlation_drops():
+    from ligat.evaluate.goals_experiment import load_goal_experiment
+
+    table = views.ladder_plan_table()
+    for dropped in load_goal_experiment().raw["correlation_drops"]:
+        assert all(dropped not in row.split(", ") for row in table.features)
+
+
+def test_review_gap_is_positive_when_candidate_has_higher_loss():
+    import pandas as pd
+
+    from ligat.evaluate.goals_ladder import LadderConfiguration
+    from ligat.viz.goals_qa import review_evidence
+
+    configs = {
+        "deep": dict(backend="xgb", parameters={"max_depth": 2}, half_life=None),
+        "recent": dict(backend="xgb", parameters={"max_depth": 3}, half_life=None),
+    }
+    records = [
+        dict(
+            configuration_key=LadderConfiguration(**cfg).key,
+            feature_list=json.dumps(["is_home"]),
+            fold=season - 10,
+            games=100,
+            deep_fold=True,
+            poisson_nll=1.4 + (0.01 if name == "recent" else 0),
+        )
+        for name, cfg in configs.items()
+        for season in range(21, 26)
+    ]
+    report = dict(
+        decisions=[
+            dict(
+                name="test",
+                configurations=configs,
+                features=["is_home"],
+                labels={"deep": "עמוקה", "recent": "אחרונות"},
+            )
+        ],
+        open_reviews=[
+            dict(
+                name="test",
+                deep_leaders=[{"key": "deep"}],
+                recent_leaders=[{"key": "recent"}],
+                proposal="recent",
+                dependents=[],
+            )
+        ],
+    )
+    result = review_evidence(report, pd.DataFrame(records))
+    np.testing.assert_allclose(result.gap, 0.01, atol=1e-12)
 
 
 def test_math_and_plan_figures_use_rtl_without_direction_marks():

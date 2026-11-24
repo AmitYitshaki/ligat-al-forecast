@@ -274,6 +274,9 @@ def ladder_plan_table() -> pd.DataFrame:
         rows.append(
             dict(stage=family, features=", ".join(fields), meaning=meanings.get(family, family))
         )
+    drops = set(load_goal_experiment().raw["correlation_drops"])
+    for row in rows:
+        row["features"] = ", ".join(c for c in row["features"].split(", ") if c not in drops)
     return pd.DataFrame(rows)
 
 
