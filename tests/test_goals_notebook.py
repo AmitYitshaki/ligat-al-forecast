@@ -10,6 +10,17 @@ from ligat.viz import goals_notebook as views
 from ligat.viz.motivation_style import verify_rtl_labels
 
 
+def test_notebook_math_is_outside_html_blocks():
+    import re
+
+    book = json.loads(Path("notebooks/explore/05_goals.ipynb").read_text(encoding="utf-8"))
+    for cell in book["cells"]:
+        if cell["cell_type"] == "markdown":
+            source = "".join(cell["source"])
+            for block in re.findall(r"<div\b[^>]*>.*?</div>", source, flags=re.S):
+                assert "$" not in block, block
+
+
 def test_math_and_plan_figures_use_rtl_without_direction_marks():
     figures = [
         views.chain_figure(),
