@@ -49,7 +49,7 @@ def daily_factory(unit):
 
 
 def config():
-    return LambdaLayerConfig("glm", asdict(GLMGoalConfig("r0")), ("is_home",))
+    return LambdaLayerConfig("glm", asdict(GLMGoalConfig("r0")), ("is_home",), "prior_seasons_only")
 
 
 @pytest.mark.parametrize("factory", [fake_factory, daily_factory])
@@ -170,7 +170,7 @@ def test_native_backends_export_synthetic_data_only(
     prematch = prematch.assign(promoted_in=False)
     columns = tuple(dict.fromkeys((*features, "promoted_in")))
     data = prepare((prematch, games), columns)
-    cfg = LambdaLayerConfig(backend, parameters, features)
+    cfg = LambdaLayerConfig(backend, parameters, features, "prior_seasons_only")
     frame = write_lambda_layer(cfg, data, tmp_path, n_jobs=1)
     validate_lambda_layer(frame, data)
     assert lambda_layer_status(cfg, data, tmp_path)["status"] == "complete"

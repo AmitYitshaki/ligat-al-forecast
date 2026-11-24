@@ -1,11 +1,11 @@
-"""Signed M2 rates for M3, trained strictly outside each predicted season."""
+"""Signed chronological M2 rates for M3 under an explicit training-window policy."""
 
 import hashlib
 import io
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
@@ -20,6 +20,7 @@ from ligat.evaluate.goals_runner import (
     _payload_digest,
     goal_provenance,
     goal_units_status,
+    load_goal_unit,
     run_goal_units,
 )
 from ligat.models.m2_xgb import _digest
@@ -35,7 +36,9 @@ LAMBDA_COLUMNS = (
     "config_id",
     "prematch_version",
     "train_end_date",
+    "trained_on_current_season",
 )
+_LAYER_FORMAT_VERSION = 2
 LAMBDA_ROOT = Path("data/derived/m2_lambda_v1")
 _SEASONS = tuple(range(11, 26))
 _LOCAL_TIME = pd.DatetimeTZDtype(unit="ns", tz="Asia/Jerusalem")
@@ -50,6 +53,7 @@ LAMBDA_SCHEMA = pa.DataFrameSchema(
         "config_id": pa.Column(str),
         "prematch_version": pa.Column(str),
         "train_end_date": pa.Column(_LOCAL_TIME),
+        "trained_on_current_season": pa.Column(bool),
     },
     checks=[
         pa.Check(lambda f: f.train_end_season.lt(f.season_id).all()),
@@ -68,13 +72,16 @@ class LambdaLayerConfig:
     backend: GoalBackend
     parameters: dict[str, Any]
     features: tuple[str, ...]
+    refit_policy: Literal["as_evaluated", "prior_seasons_only"]
     half_life: float | None = None
 
     def __post_init__(self) -> None:
+        if self.refit_policy not in ("as_evaluated", "prior_seasons_only"):
+            raise ValueError("Explicit refit_policy must be as_evaluated or prior_seasons_only")
         self.units()
 
     def units(self) -> tuple[GoalUnit, ...]:
-        """Declare the fifteen signed, strictly prior-season blind units."""
+        """Declare fifteen blind units; as_evaluated IDs match the evaluation exactly."""
         return tuple(
             GoalUnit(
                 self.backend,
@@ -83,7 +90,7 @@ class LambdaLayerConfig:
                 season,
                 self.half_life,
                 "lambda-layer",
-                prior_seasons_only=True,
+                prior_seasons_only=self.refit_policy == "prior_seasons_only",
             )
             for season in _SEASONS
         )
@@ -92,7 +99,7 @@ class LambdaLayerConfig:
     def config_id(self) -> str:
         """Bind native settings, feature order, weights and the export history policy."""
         return "m2-lambda-" + _digest(
-            {"format_version": 1, "configuration": asdict(self), "prior_seasons_only": True}
+            {"format_version": _LAYER_FORMAT_VERSION, "configuration": asdict(self)}
         )
 
 
@@ -117,7 +124,12 @@ def validate_lambda_layer(frame: pd.DataFrame, data: GoalData) -> None:
 
 def _signature(config: LambdaLayerConfig, provenance: GoalProvenance) -> str:
     return _digest(
-        {"format_version": 1, "config_id": config.config_id, "provenance": provenance.identity()}
+        {
+            "format_version": _LAYER_FORMAT_VERSION,
+            "config_id": config.config_id,
+            "provenance": provenance.identity(),
+            "layer_code_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        }
     )
 
 
@@ -131,7 +143,7 @@ def _load_verified(
     if (
         not isinstance(payload, dict)
         or saved["sha256"] != _payload_digest(payload)
-        or payload.get("format_version") != 1
+        or payload.get("format_version") != _LAYER_FORMAT_VERSION
         or payload.get("signature") != _signature(config, provenance)
         or payload.get("config_id") != config.config_id
         or payload.get("config_sha256") != config.config_id.removeprefix("m2-lambda-")
@@ -160,10 +172,12 @@ def lambda_layer_status(
     root: Path = LAMBDA_ROOT,
     *,
     provenance: GoalProvenance | None = None,
+    evaluation_root: Path | None = None,
 ) -> dict[str, str]:
     """Read-only C5 status: missing, complete, or outdated; never train or overwrite."""
     provenance = provenance or goal_provenance(data)
-    statuses = goal_units_status(config.units(), data, provenance, root / "units", stage="lambda")
+    store, stage = _unit_store(config, root, evaluation_root)
+    statuses = goal_units_status(config.units(), data, provenance, store, stage=stage)
     outdated = next((s for s in statuses if s["status"] == "outdated"), None)
     if outdated is not None:
         return {"status": "outdated", "reason": outdated["reason"]}
@@ -185,10 +199,13 @@ def load_lambda_layer(
     root: Path = LAMBDA_ROOT,
     *,
     provenance: GoalProvenance | None = None,
+    evaluation_root: Path | None = None,
 ) -> pd.DataFrame:
     """Load only a verified current M3 input; reject obsolete inputs, code or settings."""
     provenance = provenance or goal_provenance(data)
-    status = lambda_layer_status(config, data, root, provenance=provenance)
+    status = lambda_layer_status(
+        config, data, root, provenance=provenance, evaluation_root=evaluation_root
+    )
     if status["status"] != "complete":
         raise ValueError(f"Lambda layer {status['status']}: {status['reason']}")
     return _load_verified(config, data, provenance, root)
@@ -202,32 +219,64 @@ def write_lambda_layer(
     n_jobs: int = 15,
     provenance: GoalProvenance | None = None,
     model_factory: ModelFactory | None = None,
+    evaluation_root: Path | None = None,
 ) -> pd.DataFrame:
     """Export OOF goals for M3, resuming C5 units and publishing the signed manifest last.
 
     No selection or scoring takes place. The caller supplies the selected
     configuration. A custom model factory is a synthetic testing seam and
     requires its own explicit provenance, preventing an accidental native cache.
+    Production as_evaluated exports require evaluation_root (the EXP-005 output
+    root), read its completed full units, and never fit or mutate that store.
     """
     if model_factory is not None and provenance is None:
         raise ValueError("A synthetic model factory requires explicit provenance")
+    if config.refit_policy == "as_evaluated" and evaluation_root is None and model_factory is None:
+        raise ValueError(
+            "as_evaluated requires evaluation_root to reuse completed evaluation units"
+        )
     provenance = provenance or goal_provenance(data)
-    status = lambda_layer_status(config, data, root, provenance=provenance)
+    store, stage = _unit_store(config, root, evaluation_root)
+    status = lambda_layer_status(
+        config, data, root, provenance=provenance, evaluation_root=evaluation_root
+    )
     if status["status"] == "outdated":
         raise ValueError(f"Lambda layer outdated: {status['reason']}; refusing to overwrite")
     if status["status"] == "complete":
-        return load_lambda_layer(config, data, root, provenance=provenance)
-    results = run_goal_units(
-        config.units(),
-        data,
-        provenance,
-        root / "units",
-        n_jobs=n_jobs,
-        stage="lambda",
-        model_factory=model_factory,
-    )
+        return load_lambda_layer(
+            config, data, root, provenance=provenance, evaluation_root=evaluation_root
+        )
+    if evaluation_root is not None:
+        statuses = goal_units_status(config.units(), data, provenance, store, stage=stage)
+        if any(s["status"] != "complete" for s in statuses):
+            raise ValueError("Export requires completed evaluation units; it never trains into D3")
+        results = [
+            load_goal_unit(store / stage / (u.unit_id + ".json"), u, provenance, data)
+            for u in config.units()
+        ]
+    else:
+        results = run_goal_units(
+            config.units(),
+            data,
+            provenance,
+            store,
+            n_jobs=n_jobs,
+            stage=stage,
+            model_factory=model_factory,
+        )
     rows = pd.concat([r.evaluation.per_team for r in results]).reset_index()
-    rows["train_end_season"] = rows.train_seasons.map(max).astype("int64")
+    season_ends = data.context.groupby("season_id").date.max().to_dict()
+    rows["train_end_season"] = [
+        max(s for s in history if s < season and season_ends[s] < as_of)
+        for history, season, as_of in zip(
+            rows.train_seasons, rows.season_id, rows.as_of, strict=True
+        )
+    ]
+    rows["trained_on_current_season"] = [
+        season in history
+        for season, history in zip(rows.season_id, rows.train_seasons, strict=True)
+    ]
+    rows["train_end_season"] = rows.train_end_season.astype("int64")
     rows["train_end_date"] = rows.train_max_date
     rows["config_id"] = config.config_id
     rows["prematch_version"] = provenance.prematch_version
@@ -243,7 +292,7 @@ def write_lambda_layer(
     # Validate the actual bytes that will be published, including timezone/dtypes.
     validate_lambda_layer(pd.read_parquet(io.BytesIO(raw)), data)
     payload = {
-        "format_version": 1,
+        "format_version": _LAYER_FORMAT_VERSION,
         "signature": _signature(config, provenance),
         "configuration": asdict(config),
         "config_id": config.config_id,
@@ -262,6 +311,16 @@ def write_lambda_layer(
         (_canonical({"payload": payload, "sha256": _payload_digest(payload)}) + "\n").encode(),
     )
     return frame
+
+
+def _unit_store(
+    config: LambdaLayerConfig, root: Path, evaluation_root: Path | None
+) -> tuple[Path, str]:
+    if evaluation_root is not None:
+        if config.refit_policy != "as_evaluated":
+            raise ValueError("Evaluation-unit reuse requires as_evaluated")
+        return evaluation_root, "full"
+    return root / "units", "lambda"
 
 
 def join_lambda_games(frame: pd.DataFrame, data: GoalData) -> pd.DataFrame:
