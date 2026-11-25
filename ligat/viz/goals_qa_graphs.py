@@ -102,12 +102,12 @@ def training_selector(b: dict[str, Any]) -> Any:
         end = int(row.n_estimators)
         fig.add_trace(
             go.Scatter(
-                x=[1, end],
-                y=[stats["mean"]] * 2,
-                error_y=dict(type="data", array=[0, stats["upper"] - stats["mean"]]),
-                line=dict(color=views.COLORS[1], dash="dash"),
-                marker=dict(size=[0, 9]),
-                name="ולידציה סופית: ממוצע ו-CI95",
+                x=[end],
+                y=[stats["mean"]],
+                mode="markers",
+                error_y=dict(type="data", array=[stats["upper"] - stats["mean"]]),
+                marker=dict(size=10, color=views.COLORS[1]),
+                name="ולידציה בסוף בלבד: נקודה ו-CI95",
                 visible=False,
                 hovertemplate="NLL ולידציה %{y:.5f}<extra>n=15</extra>",
             )
@@ -233,7 +233,18 @@ def slice_maps(b: dict[str, Any]) -> dict[str, Any]:
             ],
             axis=-1,
         )
-        bound = float(np.abs(elo.to_numpy()).max())
+        # Each slice uses its own range. Zero still separates negative/red from
+        # positive/green, while positive values retain visible contrast.
+        low, high = float(elo.min().min()), float(elo.max().max())
+        if low == high:
+            low, high = low - 1, high + 1
+        if low < 0 < high:
+            zero = -low / (high - low)
+            scale = [[0, "#FCA5A5"], [zero, "#FFFFFF"], [1, "#16A34A"]]
+        elif high <= 0:
+            scale = [[0, "#FCA5A5"], [1, "#FFF1F2"]]
+        else:
+            scale = [[0, "#F0FDF4"], [1, "#16A34A"]]
         share.add_trace(
             go.Heatmap(
                 z=elo.to_numpy(),
@@ -243,10 +254,9 @@ def slice_maps(b: dict[str, Any]) -> dict[str, Any]:
                 texttemplate="%{text}",
                 textfont=dict(color="#111827"),
                 customdata=elo_intervals,
-                colorscale=["#FEE2E2", "#F9FAFB", "#DCFCE7"],
-                zmin=-bound,
-                zmax=bound,
-                zmid=0,
+                colorscale=scale,
+                zmin=low,
+                zmax=high,
                 visible=False,
                 hovertemplate=(
                     "תרומת Elo %{z:+.1f}%<br>CI95 [%{customdata[0]:.1f}, "
@@ -318,7 +328,22 @@ def budget_table(b: dict[str, Any]) -> pd.DataFrame:
 
 
 def learning_curves(b: dict[str, Any], summary: dict[str, Any]) -> Any:
-    fig = curves.learning_curve_figure(summary)
+    # Plotly fills left to right. Put the frozen proposal second so it is the
+    # first panel for a Hebrew reader (top right), without changing evidence.
+    keys = list(dict.fromkeys(_learning_key(o) for o in summary["outputs"]))
+    selected = summary["selected_config"]
+    proposal = (
+        selected.get("max_depth", 2),
+        selected.get("learning_rate", 0.05),
+        selected["n_estimators"],
+    )
+    if proposal in keys and len(keys) > 1:
+        keys.remove(proposal)
+        keys.insert(1, proposal)
+    ordered = dict(
+        summary, outputs=sorted(summary["outputs"], key=lambda o: keys.index(_learning_key(o)))
+    )
+    fig = curves.learning_curve_figure(ordered)
     values = [float(y) for trace in fig.data for y in _array(trace.y)]
     low, high = min(values), max(values)
     padding = 0.03 * (high - low)
@@ -330,6 +355,11 @@ def learning_curves(b: dict[str, Any], summary: dict[str, Any]) -> Any:
     fig.layout.yaxis2.title.text = ""
     fig.layout.yaxis4.title.text = ""
     return fig
+
+
+def _learning_key(output: dict[str, Any]) -> tuple[Any, Any, Any]:
+    cfg = output["identity"]["config"]
+    return cfg["max_depth"], cfg["learning_rate"], cfg["n_estimators"]
 
 
 def paired_folds(b: dict[str, Any]) -> Any:
@@ -398,7 +428,11 @@ def family_ladder(b: dict[str, Any], *, base: bool = False) -> Any:
                     symbol="cross" if row.passes else "x",
                     size=11,
                 ),
-                showlegend=False,
+                name="עברה את כלל 8" if row.passes else "לא עברה את כלל 8",
+                legendgroup=str(bool(row.passes)),
+                showlegend=not any(
+                    trace.legendgroup == str(bool(row.passes)) for trace in fig.data
+                ),
                 customdata=[[row.n, row.se * scale]],
                 hovertemplate=(
                     "שיפור %{x:+.3f}%<br>n=%{customdata[0]}<br>SE "
@@ -528,7 +562,13 @@ def models_vs_baselines(b: dict[str, Any]) -> Any:
     v = b["validation"]
     report = b["report"]
     fig = go.Figure()
-    for name in ["S1", "S2", "F6", "EXP-002", "EXP-003", "catboost-selected", "glm", "maher"]:
+    labels = {
+        "F5": "F5: המודל המוצע (S2+F5)",
+        "glm": "GLM בבסיס (D3)",
+        "EXP-002": "GLM סרגל (EXP-002)",
+        "catboost-selected": "CatBoost מהרשת",
+    }
+    for name in ["S1", "S2", "F5", "F6", "EXP-002", "EXP-003", "catboost-selected", "glm", "maher"]:
         if name in report["winners"]:
             p = qa.fold_group(v, report["winners"][name], report["stages"][name])
         elif name in report["comparators"]:
@@ -547,14 +587,18 @@ def models_vs_baselines(b: dict[str, Any]) -> Any:
         fig.add_trace(
             go.Scatter(
                 x=[mean],
-                y=[name],
+                y=[labels.get(name, name)],
                 mode="markers",
                 error_x=dict(
                     type="data", array=[hi - mean], arrayminus=[mean - lo], symmetric=False
                 ),
                 name=name,
                 showlegend=False,
-                marker=dict(color=views.COLORS[0], size=10),
+                marker=dict(
+                    color=views.COLORS[1] if name == "F5" else views.COLORS[0],
+                    size=15 if name == "F5" else 10,
+                    symbol="diamond" if name == "F5" else "circle",
+                ),
                 customdata=[s["n"]],
                 hovertemplate=(
                     "הסתברות גאומטרית %{x:.2f}%<br>n=%{customdata}<extra>CI95 בין עונות</extra>"
@@ -628,7 +672,7 @@ def review_plot(b: dict[str, Any]) -> Any:
         fig.add_trace(
             go.Scatter(
                 x=[row.gap],
-                y=[row.stage + " · " + row.kind],
+                y=[_review_label(row.stage) + " · " + row.kind],
                 mode="markers",
                 error_x=dict(type="data", array=[row.se]),
                 showlegend=False,
@@ -637,8 +681,9 @@ def review_plot(b: dict[str, Any]) -> Any:
                     symbol="cross" if row.gap <= 0 else "x",
                     size=9,
                 ),
-                customdata=[row.n],
-                hovertemplate="תוספת NLL %{x:+.6f}<br>n=%{customdata}<extra>±SE</extra>",
+                customdata=[[row.n, row.stage]],
+                hovertemplate="תוספת NLL %{x:+.6f}<br>n=%{customdata[0]}"
+                "<br>ID: %{customdata[1]}<extra>±SE</extra>",
             )
         )
     fig.add_vline(x=0, line_color=GRAY, line_dash="dash")
@@ -649,22 +694,57 @@ def review_plot(b: dict[str, Any]) -> Any:
     )
 
 
+def _review_label(stage: str) -> str:
+    labels = {
+        "S1-AB": "S1: Elo ובית",
+        "S2-AB": "S2: בסיס",
+        "catboost-selected": "CatBoost מהרשת",
+        "glm-base": "GLM בבסיס (D3)",
+        "maher": "Maher",
+    }
+    return labels.get(stage, stage.replace("-short", " (מסלול מקוצר)"))
+
+
 def post_hoc_forest(b: dict[str, Any]) -> Any:
-    fig = go.Figure()
+    """Compare every diagnostic with S2 and F5 on the same deep seasons."""
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        shared_xaxes=True,
+        shared_yaxes=True,
+        horizontal_spacing=0.07,
+        subplot_titles=["מול המודל המוצע F5", "מול הבסיס S2"],
+    )
+    tables = pd.concat(
+        [
+            scoped_post_hoc_table(b, check, references=("S2", "F5"))
+            for check in ["P1", "P2", "P3", "P4"]
+        ],
+        ignore_index=True,
+    )
+    labels = []
     for record in b["post"]["records"]:
-        for ref in ["S2", "EXP-002"]:
-            s = record["paired"][ref]
-            value = s["mean_improvement"]
-            p = record["parameters"]
-            detail = (
-                f"d{p['depth']} T{p['iterations']} L2={p['l2_leaf_reg']}"
-                if record["check"] == "P4"
-                else (
-                    f"d{p['max_depth']} T{p['n_estimators']} "
-                    f"lr{p['learning_rate']} cw{p['min_child_weight']}"
-                )
-            )
-            label = record["check"] + " " + detail + " / " + ref
+        p = record["parameters"]
+        detail = _post_hoc_label(record)
+        prominent = (record["check"] == "P4" and p["iterations"] == 150) or (
+            record["check"] == "P3"
+            and p["max_depth"] == 1
+            and p["n_estimators"] == 400
+            and p["learning_rate"] == 0.05
+        )
+        label = (
+            record["check"] + " " + ("CatBoost " if record["check"] == "P4" else "XGB ") + detail
+        )
+        label = f"<b>{label} ★</b>" if prominent else label
+        labels.append(label)
+        for col, ref in [(1, "F5"), (2, "S2")]:
+            s = tables.loc[
+                tables.check.eq(record["check"])
+                & tables.configuration.eq(detail)
+                & tables.reference.eq(ref)
+                & tables.scope.eq("deep")
+            ].iloc[0]
+            value = s.d
             fig.add_trace(
                 go.Scatter(
                     x=[value],
@@ -672,27 +752,38 @@ def post_hoc_forest(b: dict[str, Any]) -> Any:
                     mode="markers",
                     error_x=dict(
                         type="data",
-                        array=[s["ci_upper"] - value],
-                        arrayminus=[value - s["ci_lower"]],
+                        array=[s.upper - value],
+                        arrayminus=[value - s.lower],
                         symmetric=False,
                     ),
                     marker=dict(
                         color=GREEN if value >= 0 else RED,
                         symbol="cross" if value >= 0 else "x",
-                        size=8,
+                        size=11 if prominent else 8,
                     ),
                     showlegend=False,
-                    customdata=[s["n"]],
-                    hovertemplate="שיפור %{x:+.6f}<br>n=%{customdata}<extra>CI95</extra>",
-                )
+                    customdata=[[s.n, ref, record["check"]]],
+                    hovertemplate="שיפור %{x:+.6f}<br>n=%{customdata[0]}"
+                    "<br>מול %{customdata[1]}<extra>CI95</extra>",
+                ),
+                row=1,
+                col=col,
             )
     fig.add_vline(x=0, line_color=GRAY, line_dash="dash")
     fig.update_xaxes(title="שיפור NLL מזווג מול הייחוס, CI95")
-    fig.update_yaxes(title="בדיקה ותצורה", autorange="reversed")
+    fig.update_yaxes(categoryorder="array", categoryarray=labels, autorange="reversed")
+    deep = tables.loc[tables.scope.eq("deep")]
+    low, high = float(deep.lower.min()), float(deep.upper.max())
+    padding = (high - low) * 0.05
+    fig.update_xaxes(range=[low - padding, high + padding])
+    fig.layout.xaxis2.matches = "x"
     result = views.finish(
-        fig, "תיאורי בלבד, על עונות שכבר נראו. לא משנה הכרעה; n=14, CI95 — טיוטה", height=1150
+        fig,
+        "CatBoost רדוד ועומק 1 משפרים מול S2; בלי Elo גרוע יותר"
+        "<br>n=14, CI95 — טיוטה, לפני הכרעות עמית",
+        height=1150,
     )
-    result.update_layout(margin=dict(l=300))
+    result.update_layout(margin=dict(l=330, t=185, b=130), title_font_size=17)
     return result
 
 
@@ -713,7 +804,9 @@ def decay_figures() -> dict[str, Any]:
                 trace.line.shape = "hv"
         fig.add_hline(y=0.5, line_color=GRAY, line_dash="dash")
         if daily:
-            fig.update_xaxes(title="כמה זמן לפני יום החיזוי (בעונות)")
+            for trace in fig.data:
+                trace.x = _array(trace.x) * 365.25
+            fig.update_xaxes(title="כמה ימים לפני יום החיזוי")
         result["daily_decay" if daily else "season_decay"] = views.finish(
             fig,
             "זמן מחצית קצר מעדיף תוצאות עדכניות — "
@@ -830,12 +923,12 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
         "training_selector": (
             (
                 "ציר x הוא מספר העצים וציר y הוא NLL. כחול: חציון אימון ופס IQR; "
-                "סגול מקווקו: ממוצע ולידציה סופי ו-CI95, 15 עונות. הבורר משנה את "
+                "נקודה סגולה: ממוצע ולידציה ו-CI95 בסוף בלבד, 15 עונות. הבורר משנה את "
                 "אותה תצורה בשני המדדים."
             ),
             (
-                "ירידה באימון מתארת התאמה לעבר; רק קו הוולידציה מודד עונה שלא "
-                "נראתה באימון. למשל, ההפרש בין הערך האחרון בכחול לקו הסגול הוא פער"
+                "ירידה באימון מתארת התאמה לעבר; נקודת הוולידציה מודדת עונה שלא "
+                "נראתה באימון. ההפרש בין הערך האחרון בכחול לנקודה הסגולה הוא פער"
                 " האימון והוולידציה של התצורה הפעילה."
             ),
         ),
@@ -853,7 +946,8 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
         "hyperparameter_heatmap": (
             (
                 "x: זהירות, y: עומק. הצבע והמספר הם אחוז מתרומת Elo; ירוק חיובי "
-                "ואדום שלילי. בבורר כל ששת צירופי עצים וקצב. בריחוף CI95 על 15 "
+                "ואדום שלילי, בסולם נפרד לכל פרוסה לפי הטווח שלה. בבורר כל ששת "
+                "צירופי עצים וקצב. בריחוף CI95 על 15 "
                 "קיפולים, כשהסרגלים מוחזקים קבועים."
             ),
             (
@@ -877,7 +971,8 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
             (
                 "x: מספר עצים, y: NLL לא משוקלל ובאותה סקאלה בכל ארבע החלוניות. קו"
                 " מלא אימון, מקווקו ולידציה; קו אנכי בתקציב שנבחר. כל חלונית תצורה "
-                "אחת, והקווים והפסים הם חציון ו-IQR על 15 עונות."
+                "אחת, והקווים והפסים הם חציון ו-IQR על 15 עונות. ההצעה מוצגת "
+                "ראשונה בקריאה מימין לשמאל, למעלה מימין."
             ),
             (
                 "ציר y המשותף מאפשר להשוות את אותו גובה בין כל ארבע התצורות. ירידה "
@@ -958,12 +1053,13 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
         "models_vs_baselines": (
             (
                 "y: מודל, x: 100×exp(−NLL), ההסתברות הגאומטרית למה שקרה. פס CI95 "
-                "מהמרת ממוצע עונתי, n בריחוף. כחול מזהה נקודה; מיקום ימינה טוב "
+                "מהמרת ממוצע עונתי, n בריחוף. F5, המודל המוצע, מודגש ביהלום סגול; מיקום ימינה טוב "
                 "יותר, ללא קידוד דירוג בצבע."
             ),
             (
-                "מודלים שחופפים כמעט באותה הסתברות אינם מוכרעים מהנקודה לבדה. "
-                "למשל, NLL נמוך יותר מומר להסתברות גבוהה יותר באופן לא לינארי."
+                "רווחי הסמך כאן הם על הרמה המוחלטת, והם חופפים בגלל הבדלי הקושי "
+                "בין עונות. החפיפה אינה אומרת שאין הבדל בין מודלים; ההשוואה "
+                "הנכונה היא המזווגת לפי עונה, בגרף היער."
             ),
         ),
         "elo_by_scope": (
@@ -982,7 +1078,7 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
             (
                 "y: הכרעה ומועמדת, x: תוספת NLL ביחס למובילה העמוקה. כאן חיובי רע "
                 "ולכן איקס אדום; שלילי טוב ופלוס ירוק. הפס ±SE, n משותף בריחוף. "
-                "אלו 22 מועמדות ב-11 הכרעות פתוחות."
+                "התוויות מתארות את השלב במילים; ה-ID נשמר בריחוף."
             ),
             (
                 "רוב הפערים קטנים מרוחב אי-הוודאות. הגרף אינו מאשר אף הצעה: כללים "
@@ -991,14 +1087,15 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
         ),
         "post_hoc_forest": (
             (
-                "y: בדיקה, תצורה וייחוס; x: שיפור NLL מזווג מול S2 או EXP-002. "
+                "y: בדיקה ותצורה; x: שיפור NLL מזווג. מימין מול S2, משמאל מול F5, המודל המוצע. "
                 "חיובי טוב ופלוס ירוק, שלילי רע ואיקס אדום. הפסים CI95 על 14 עונות"
-                " עמוקות משותפות; n בריחוף."
+                " עמוקות משותפות; n בריחוף. כוכבית ושם מודגש מציינים את תצורות "
+                "עומק 1 ו-CatBoost הרדוד הבולטות."
             ),
             (
-                "התוצאות מתארות שאלות חדשות על עונות שכבר נראו. פער חיובי הוא סיבה"
-                " למחקר נוסף, ו-CI אינו מתקן את העובדה שזו בדיקה בדיעבד; אין שינוי"
-                " בהחלטה."
+                "ההפרדה בין החלוניות מראה אם תצורה משתפרת מעל בסיס S2, וגם מה "
+                "נשאר מהיתרון מול S2+F5. ההשוואה לסרגל GLM נשארת בטבלאות, "
+                "כדי לשמור על קריאות הגרף."
             ),
         ),
         "correlation_scatter": (
@@ -1049,7 +1146,7 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
         ),
         "daily_decay": (
             (
-                "x: כמה זמן לפני יום החיזוי בעונות, y: משקל משחק. כל צבע זמן מחצית"
+                "x: כמה ימים לפני יום החיזוי, y: משקל משחק. כל צבע זמן מחצית"
                 " אחר, הקו ב-0.5. Maher מעדכן מדי יום ולכן הקווים רציפים. אלה "
                 "פונקציות משקל, ללא אי-ודאות מדגמית."
             ),
@@ -1146,7 +1243,19 @@ def plain_explanation(value: str) -> str:
     return html.unescape(re.sub(r"<[^>]*>", "", value)).strip()
 
 
-def scoped_post_hoc_table(b: dict[str, Any], check: str) -> Any:
+def _post_hoc_label(record: dict[str, Any]) -> str:
+    p = record["parameters"]
+    return (
+        f"d{p['depth']} T{p['iterations']} L2={p['l2_leaf_reg']}"
+        if record["check"] == "P4"
+        else f"d{p['max_depth']} T{p['n_estimators']} lr{p['learning_rate']} "
+        f"cw{p['min_child_weight']}"
+    )
+
+
+def scoped_post_hoc_table(
+    b: dict[str, Any], check: str, *, references: tuple[str, ...] = ("S2", "EXP-002")
+) -> Any:
     """Descriptive comparisons on explicit populations, never used by selection.
 
     The frozen rule 8 still uses deep folds. For the requested all/last5 display,
@@ -1154,20 +1263,14 @@ def scoped_post_hoc_table(b: dict[str, Any], check: str) -> Any:
     paired-statistics core. Original depth flags and all signed files stay intact.
     """
     records = [r for r in b["post"]["records"] if r["check"] == check]
-    references = {name: _selected_folds(b, name) for name in ["S2", "EXP-002"]}
+    baselines = {name: _selected_folds(b, name) for name in references}
     rows = []
     for record in records:
         candidate = pd.DataFrame(record["folds"])
-        p = record["parameters"]
-        label = (
-            f"d{p['depth']} T{p['iterations']} L2={p['l2_leaf_reg']}"
-            if check == "P4"
-            else f"d{p['max_depth']} T{p['n_estimators']} lr{p['learning_rate']} "
-            f"cw{p['min_child_weight']}"
-        )
+        label = _post_hoc_label(record)
         for summary in record["summary"]:
             scope = summary["scope"]
-            for reference, baseline in references.items():
+            for reference, baseline in baselines.items():
                 seasons = set(candidate.season_id)
                 if scope == "deep":
                     seasons &= set(candidate.loc[candidate.deep_fold, "season_id"])
@@ -1179,6 +1282,7 @@ def scoped_post_hoc_table(b: dict[str, Any], check: str) -> Any:
                 stats = paired_statistics(a, r, score="poisson_nll")
                 rows.append(
                     dict(
+                        check=check,
                         configuration=label,
                         scope=scope,
                         nll=summary["poisson_nll"],
@@ -1202,7 +1306,7 @@ def scoped_post_hoc_table(b: dict[str, Any], check: str) -> Any:
 def post_hoc_sections(b: dict[str, Any], check: str) -> tuple[Any, str, str]:
     """Question, complete scoped evidence and football interpretation for one P."""
     records = [r for r in b["post"]["records"] if r["check"] == check]
-    table = scoped_post_hoc_table(b, check)
+    table = scoped_post_hoc_table(b, check, references=("S2", "EXP-002", "F5"))
     columns = ", ".join(records[0]["features"])
     configurations = "; ".join(table.configuration.drop_duplicates())
     questions = {
@@ -1238,91 +1342,85 @@ def post_hoc_sections(b: dict[str, Any], check: str) -> tuple[Any, str, str]:
         "CI95 אינו IQR: הוא מתאר אי-ודאות בממוצע ההפרש בין עונות, ולא את "
         "החצי האמצעי של ציוני האימון.</p></div>"
     )
-    result_lines = []
-    for scope, title in [("all", "בכל הקיפולים"), ("deep", "בעמוקים"), ("last5", "בחמש האחרונות")]:
-        for reference in ["S2", "EXP-002"]:
-            part = table.loc[table.scope.eq(scope) & table.reference.eq(reference)]
-            if len(part) == 1:
-                row = part.iloc[0]
-                result_lines.append(
-                    f"{title}, מול {reference}: NLL {row.nll:.6f} מול {row.reference_nll:.6f}; "
-                    f"d̄={row.d:+.6f}, SE={row.se:.6f}, CI95=[{row.lower:+.6f}, {row.upper:+.6f}], "
-                    f"{int(row.positive)} עונות חיוביות מתוך {int(row.n)}, "
-                    f"ו-{int(row.better)} מתוך חמש האחרונות."
-                )
-            else:
-                result_lines.append(
-                    f"{title}, מול {reference}: לאורך כל {len(part)} התצורות NLL נע בין "
-                    f"{part.nll.min():.6f} ל-{part.nll.max():.6f}, "
-                    f"והשיפור d̄ נע בין {part.d.min():+.6f} לבין {part.d.max():+.6f}. "
-                    f"CI95 מוצג לכל תצורה בטבלה, ולא מאחדים את הפסים לאינטרוול חדש; "
-                    f"האינטרוולים כוללים אפס "
-                    f"ב-{int((part.lower.le(0) & part.upper.ge(0)).sum())} מתוך "
-                    f"{len(part)} תצורות. "
-                    f"מספר העונות החיוביות בטווח נע בין {int(part.positive.min())} "
-                    f"ל-{int(part.positive.max())} מתוך {int(part.n.iloc[0])}, "
-                    f"ובחמש האחרונות בין {int(part.better.min())} ל-{int(part.better.max())}."
-                )
-    football = {
-        "P1": "בכדורגל, מצב הטבלה והכושר מחזירים הרבה ממידע החוזק שהיה חסר בבסיס"
-        " בלי Elo, אך אינם מסכמים באותה יעילות את רצף המפגשים ואת איכות "
-        "היריבות. הפער מול S2 בעונות העמוקות נשאר לרעת המודל בלי Elo; מול "
-        "סרגל GLM אי-הוודאות רחבה יותר. לכן התשובה אינה שאפשר למחוק את Elo"
-        " בלי מחיר, אלא שחלק גדול מכוחו ניתן לקירוב ממקורות אחרים.",
-        "P2": "בכדורגל, חלק ממשתני הטבלה, העבר והכושר מתארים את אותה איכות ש-Elo"
-        " כבר מסכם. התוצאה הקרובה ל-S2 בעמוקות מתאימה להסבר של מידע חופף, "
-        "ולא להוכחה שכל הפיצ׳רים חסרי ערך. היתרון בחלק מהעונות האחרונות "
-        "יכול להצביע על התאמה לתקופה, ולכן חייבים לקרוא אותו לצד פס ההפרש "
-        "ולא רק לצד דירוג NLL.",
-        "P3": "בכדורגל, כללי כוח רחבים עשויים להיות יציבים יותר מצירופים מסובכים"
-        " של מאפייני משחק. התלות בתקציב מראה שעומק אחד אינו מבטיח הצלחה: "
-        "גם הרבה תיקונים פשוטים יכולים ללמוד רעש. הבדיקה מרחיבה את ההבנה "
-        "של פינת הרשת, אך אינה מתקנת בדיעבד את התכנון המקורי ואינה מחליפה "
-        "את S2 במי שיצא ראשון כאן.",
-        "P4": "בכדורגל, הגבלת מספר העצים מאפשרת ל-CatBoost ללמוד קשרי כוח כלליים"
-        " בלי להתאים כל פרט לעבר. ההבדל בין התקציבים הקטנים לגדולים תומך "
-        "בבדיקה של הסבר השינון, ולא בטענה שהספרייה חלשה בכל מצב. גם כשיש "
-        "שיפור מול S2, ההשוואה ל-GLM נשארת חשובה כי הוא הסרגל הנפרד שעליו "
-        "נשענת המשימה.",
-    }
-    conclusion = (
-        '<div dir="rtl"><p>'
-        + " ".join(result_lines)
-        + "</p><p>"
-        + football[check]
-        + " כל אלה עונות שכבר נראו בתכנון הסולם ובמעבר על התוצאות. כשבודקים "
-        "כמה חלופות על אותו מידע, המובילה נהנית גם ממזל; CI95 לבדו אינו "
-        "מתקן את הבחירה בדיעבד. זו בדיקה תיאורית בלבד, אינה משנה הכרעה, "
-        "ונותרת טיוטה, לפני הכרעות עמית.</p></div>"
-    )
+    conclusion = _post_hoc_interpretation(table, check)
     return table, intro, conclusion
 
 
+def _post_hoc_interpretation(table: Any, check: str) -> str:
+    deep = table.loc[table.scope.eq("deep") & table.reference.eq("S2")]
+    if check == "P1":
+        r = deep.iloc[0]
+        text = (
+            "כל המשפחות בלי Elo מחזירות חלק גדול ממידע החוזק, אך אינן תחליף מלא לו. "
+            f"בעמוקים מול S2 השיפור הוא {r.d:+.6f}, עם SE של {r.se:.6f} "
+            f"ו-CI95=[{r.lower:+.6f}, {r.upper:+.6f}], כולו לרעת המודל בלי Elo. "
+            "הפער נשאר גם כשהטבלה, הכושר והעבר נגישים יחד ולא רק כל משפחה בנפרד. "
+            "בכדורגל, סיכום רצף המפגשים ואיכות היריבות ב-Elo עדיין מכיל מידע "
+            "שהמדדים האחרים אינם משחזרים באותה יעילות."
+        )
+    elif check == "P2":
+        r = deep.iloc[0]
+        text = (
+            "הכנסת כל המשפחות עם Elo כמעט אינה מוסיפה דיוק לבסיס S2. "
+            f"בעמוקים השיפור הוא {r.d:+.6f}, לעומת SE של {r.se:.6f}; "
+            f"CI95=[{r.lower:+.6f}, {r.upper:+.6f}] כולל אפס. "
+            "התוספת קטנה מאוד ביחס לאי-הוודאות, ולכן אין כאן רווח מבוסס מכל המידע יחד. "
+            "בכדורגל, חלק ממדדי הטבלה, העבר והכושר מתארים איכות קבוצה ש-Elo "
+            "והבסיס כבר מסכמים, והעמסתם יכולה להוסיף גם מידע חוזר ורעש."
+        )
+    elif check == "P3":
+        good = deep.loc[deep.configuration.str.startswith("d1 T400 lr0.05 ")].iloc[0]
+        weak = deep.loc[deep.configuration.str.startswith("d1 T150 lr0.05 ")].iloc[0]
+        text = (
+            "עומק 1 מצליח כשהתקציב מספיק: XGBoost עם 400 עצים וקצב 0.05 "
+            f"נותן מול S2 בעמוקים שיפור של {good.d:+.6f}, עם SE של {good.se:.6f} "
+            f"וחיובי ב-{int(good.better)} מתוך חמש האחרונות. "
+            "התצורה עומדת במספרים של כלל 8 גרסה 2 מול S2, כולל ממוצע חיובי "
+            "בחמש האחרונות, אילו הייתה ברשת מראש. "
+            f"לעומתה, עומק 1 עם 150 עצים וקצב 0.05 גרוע בבירור: {weak.d:+.6f}. "
+            "בכדורגל, תיקוני כוח פשוטים יכולים להיות יציבים, אך בתקציב קצר מדי "
+            "המודל אינו מספיק ללמוד את ההבדלים בין מצבי המשחק."
+        )
+    else:
+        short = deep.loc[deep.configuration.str.startswith("d2 T150 ")]
+        long = deep.loc[deep.configuration.str.startswith("d2 T400 ")]
+        r3 = short.loc[short.configuration.str.endswith("L2=3.0")].iloc[0]
+        r10 = short.loc[short.configuration.str.endswith("L2=10.0")].iloc[0]
+        text = (
+            "CatBoost רדוד אינו חלש כשלעצמו: בעומק 2 ו-150 איטרציות שני הקנסות "
+            f"נותנים מול S2 בעמוקים שיפור של {short.d.min():+.5f} עד {short.d.max():+.5f}, "
+            f"עם SE של {short.se.min():.5f}–{short.se.max():.5f} "
+            "ו-CI95 שאינו כולל אפס. "
+            f"בקנס 3 השיפור חיובי ב-{int(r3.better)} מתוך חמש האחרונות ובקנס 10 "
+            f"ב-{int(r10.better)} מתוכן; שתיהן עומדות במספרים של כלל 8 גרסה 2 "
+            "מול S2, אילו היו ברשת מראש. "
+            "שתי התצורות כמעט זהות בתוצאותיהן ולכן אינן שתי ראיות נפרדות. "
+            f"ב-400 איטרציות השיפור כבר שלילי בשני הקנסות "
+            f"({long.d.min():+.6f} עד {long.d.max():+.6f}), עקבי עם שינון. "
+            "בכדורגל, תקציב קצר מאפשר ללמוד קשרי כוח רחבים בלי להתאים כל פרט לעבר."
+        )
+    return '<div dir="rtl"><p>' + text + "</p></div>"
+
+
 def post_hoc_chapter_summary(b: dict[str, Any]) -> str:
+    """Four direct answers for the human model decision, without selecting."""
     p1 = next(r for r in b["post"]["records"] if r["check"] == "P1")
-    p2 = next(r for r in b["post"]["records"] if r["check"] == "P2")
     p1_all = next(s for s in p1["summary"] if s["scope"] == "all")
-    p1_deep = next(s for s in p1["summary"] if s["scope"] == "deep")
-    p2_deep = next(s for s in p2["summary"] if s["scope"] == "deep")
     base = b["validation"].loc[b["validation"].stage_role.eq("base-without-elo")]
     base_loss = float(np.average(base.poisson_nll, weights=base.games))
     r0 = _scope_row(b, "R0", "all")["poisson_nll"]
     base_share = 100 * (r0 - base_loss) / _elo_denominator(b["report"], "all")
     return (
-        '<div dir="rtl"><h3>התשובה לשאלה על מודל בלי Elo</h3>'
-        f"<p>כל הפיצ׳רים בלי Elo מחזירים בכל הקיפולים "
-        f"{p1_all['elo_share_percent']:.1f}% מתרומת Elo, לעומת "
-        f"{base_share:.1f}% בבסיס בלי Elo: רוב החסר ניתן לקירוב, אך בעמוקות "
-        f"נשארים ב-{p1_deep['elo_share_percent']:.1f}% וההשוואה המזווגת מול "
-        f"S2 עדיין לרעת P1.</p>"
-        f"<p>הכול יחד עם Elo נותן בעמוקות "
-        f"{p2_deep['elo_share_percent']:.1f}% מול "
-        f"{_scope_row(b, 'S2', 'deep')['elo_share_percent']:.1f}% של S2: "
-        f"תוספת קטנה ביחס לאי-הוודאות, ולא הצדקה להכניס אוטומטית את כל "
-        f"המשפחות.</p>"
-        "<p>עומק אחד ו-CatBoost רדוד מראים שתקציב למידה פשוט ראוי לדיון; "
-        "אלה בדיקות על אותן עונות שכבר נראו, ולכן הן מסבירות ומעלות שאלות,"
-        " ואינן בוחרות את המודל הבא. טיוטה, לפני הכרעות עמית.</p></div>"
+        '<div dir="rtl"><h3>ארבע תשובות לקראת הכרעת המודל ל-M3</h3>'
+        f"<p>(1) בלי Elo: כל המשפחות מחזירות {p1_all['elo_share_percent']:.1f}% "
+        f"מתרומת Elo בכל הקיפולים, לעומת {base_share:.1f}% בבסיס בלי Elo; "
+        "עדיין גרועות מ-S2 בעמוקים.</p>"
+        "<p>(2) כל המשפחות עם Elo: כמעט זהה ל-S2; אין רווח מבוסס.</p>"
+        "<p>(3) רדוד מנצח עמוק בחלק מהתצורות: עומק 1 ו-CatBoost רדוד "
+        "עומדים במספרים של כלל 8 מול S2. CatBoost רדוד משתווה למודל המוצע "
+        "בעמוקים; המודל המוצע עדיף בחמש האחרונות.</p>"
+        "<p>(4) מה זה אומר: זו שאלה פתוחה להכרעת עמית על המודל שעובר ל-M3. "
+        "הבדיקה בדיעבד אינה בוחרת. טיוטה, לפני הכרעות עמית.</p></div>"
     )
 
 
@@ -1379,6 +1477,8 @@ def _specific_graph_numbers(name: str, b: dict[str, Any], fig: Any) -> str:
     if name in ["season_decay", "daily_decay"]:
         trace = fig.data[1 if name == "season_decay" else 2]
         ages, weights = _array(trace.x), _array(trace.y)
+        if name == "daily_decay":
+            ages = ages / 365.25
         values = [
             float(weights[int(np.argmin(np.abs(ages - age), axis=None))]) for age in [1, 2, 3]
         ]
@@ -1508,9 +1608,9 @@ def _specific_graph_numbers(name: str, b: dict[str, Any], fig: Any) -> str:
             f"הליגה."
         )
     if name == "models_vs_baselines":
-        probabilities = {trace.y[0]: float(_array(trace.x)[0]) for trace in fig.data}
+        probabilities = {trace.name: float(_array(trace.x)[0]) for trace in fig.data}
         return (
-            f"ההסתברות הגאומטרית בעמוקות היא {probabilities['F6']:.3f}% למודל הסופי, "
+            f"ההסתברות הגאומטרית בעמוקות היא {probabilities['F5']:.3f}% למודל המוצע F5, "
             f"{probabilities['EXP-002']:.3f}% לסרגל "
             f"ו-{probabilities['catboost-selected']:.3f}% ל-CatBoost. חפיפה בפסים מתארת "
             f"את שונות ציוני העונות; ההבדל הקטן בין שני המובילים מחייב גם את "
@@ -1676,7 +1776,8 @@ def explain_graph(name: str, b: dict[str, Any], fig: Any, *, after: bool) -> str
         "וקו האפס הוא היעדר הבדל. ציר x יכול להיות שלילי או חיובי; פלוס "
         "ירוק מציין כניסה לפי כלל 8 ואיקס אדום אי-כניסה. כל משפחה נבדקת "
         "בתצורת הכניסה הקבועה שלה, והפער מנורמל לתרומת Elo. כוונון מחדש של"
-        " הבסיס אינו נחשב תרומה של משפחה.",
+        " הבסיס אינו נחשב תרומה של משפחה. ירוק = עברה את כלל 8; אדום = לא עברה. "
+        "הצבע והסמל מציינים את הכלל, ואילו סימן המספר מציין את כיוון התרומה.",
         "base_family_forest": "השאלה כאן הפוכה מהוספת משפחה: האם הוצאת רכיב מהבסיס מועילה. נקודה"
         " שלילית אומרת שההוצאה פגעה בחיזוי, ופס שחוצה אפס משאיר אי-ודאות "
         "לגבי הממוצע. כל רכיב מושווה על אותם משחקים בעונות העמוקות, וההפרש"
@@ -1714,9 +1815,9 @@ def explain_graph(name: str, b: dict[str, Any], fig: Any, *, after: bool) -> str
         "להכרעת עמית.",
         "post_hoc_forest": "כל תצורה מופיעה מול שני ייחוסים, ולכן אין לספור שתי שורות כראיות "
         "עצמאיות. היער מציג את העונות העמוקות בלבד; הטבלאות והפסקאות בהמשך"
-        " מפרידות גם את כל הקיפולים ואת חמש האחרונות. המספרים הם תיאור של "
-        "עונות שכבר שימשו למחקר, והפסים אינם מתקנים את היתרון של חלופה "
-        "שנבדקה אחרי שראינו את התוצאות.",
+        " מפרידות גם את כל הקיפולים ואת חמש האחרונות. שני הצירים חולקים "
+        "את אותו טווח, כך שאותו אורך פס ואותו מרחק מקו האפס נקראים "
+        "באותן יחידות בשתי החלוניות. ההשוואה ל-EXP-002 נשמרת בטבלאות.",
         "correlation_scatter": "הפיזור כולל רק שורות עם מידע מלא על שני המשתנים; חוסר עבר של עולה"
         " או קבוצה אינו מוחלף כאן באפס. הצבע השקוף מאפשר לראות צפיפות של "
         "נקודות חופפות ולא מייצג יתרון של אחת הקבוצות. מתאם מודד תנועה "
@@ -1738,15 +1839,15 @@ def explain_graph(name: str, b: dict[str, Any], fig: Any, *, after: bool) -> str
         "הקו הקצר נותן לעבר הרחוק השפעה קטנה יותר. לא נלמדת כאן תחזית "
         "שערים ולא נמדדת איכות המודל.",
         "daily_decay": "המשקל של Maher מתעדכן לפי גיל המשחק ביום החיזוי, ולכן הקווים "
-        "רציפים. ציר הזמן מתורגם לעונות לצורך השוואה נוחה, אך יחידת העדכון"
-        " נשארת יום. כל צבע זמן מחצית אחר לפי המקרא, והקו האופקי מדגים את "
+        "רציפים. ציר הזמן מוצג בימים, ואילו זמני המחצית במקרא ניתנים בעונות; "
+        "עונה מומרת ל-365.25 ימים. כל צבע זמן מחצית אחר לפי המקרא, והקו האופקי מדגים את "
         "נקודת מחצית המשקל. אין פס אי-ודאות כי זו פונקציה קבועה; אין "
         "להשתמש בה כדי להציץ במשחק עתידי.",
     }
     football = {
         "training_selector": "בכדורגל, פער בין התאמה לעבר לחיזוי עונה חדשה יכול להעיד שהמודל "
         "למד צירופים מקומיים של קבוצות ותקופות. הפער לבדו אינו מבחן "
-        "מובהקות, ולכן לא בוחרים תצורה מהמרחק בין הקווים בלבד.",
+        "מובהקות, ולכן לא בוחרים תצורה מהמרחק בין עקומת האימון לנקודת הוולידציה בלבד.",
         "train_vs_validation_heatmap": "המשמעות הכדורגלנית היא שזיכרון מפורט של "
         "תוצאות עבר יכול לפגוע "
         "בהכללה לקבוצות ולסגלים של העונה הבאה. המפה מסבירה את מחיר הגמישות"

@@ -31,6 +31,21 @@ def test_ladder_table_applies_approved_correlation_drops():
         assert all(dropped not in row.split(", ") for row in table.features)
 
 
+def test_short_display_math_does_not_interrupt_a_sentence():
+    import html
+    import re
+
+    book = json.loads(Path("notebooks/explore/05_goals.ipynb").read_text(encoding="utf-8"))
+    for number, cell in enumerate(book["cells"], 1):
+        if cell["cell_type"] != "markdown":
+            continue
+        source = "".join(cell["source"])
+        for match in re.finditer(r"\$\$(.*?)\$\$", source, flags=re.S):
+            if len(match[1].strip()) < 40:
+                prefix = html.unescape(re.sub(r"<[^>]*>", "", source[: match.start()])).rstrip()
+                assert not prefix or prefix.endswith((".", ":")), (number, match[1], prefix[-80:])
+
+
 def test_review_gap_is_positive_when_candidate_has_higher_loss():
     import pandas as pd
 

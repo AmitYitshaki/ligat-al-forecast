@@ -195,8 +195,8 @@ def test_post_hoc_tables_keep_every_configuration_scope_and_reference(
 ):
     b, _ = signed_graphs
     table, introduction, explanation = graphs.post_hoc_sections(b, check)
-    assert len(table) == configurations * 3 * 2
-    assert set(table.reference) == {"S2", "EXP-002"}
+    assert len(table) == configurations * 3 * 3
+    assert set(table.reference) == {"S2", "EXP-002", "F5"}
     assert table.groupby("scope").n.unique().map(list).to_dict() == {
         "all": [15],
         "deep": [14],
@@ -204,7 +204,8 @@ def test_post_hoc_tables_keep_every_configuration_scope_and_reference(
     }
     assert len(graphs.plain_explanation(introduction)) >= 250
     assert len(graphs.plain_explanation(explanation)) >= 250
-    assert "אינה משנה" in explanation
+    assert "S2" in explanation
+    assert "נהנית גם ממזל" not in explanation
 
 
 def test_scoped_diagnostics_include_shallow_fold_only_in_all_without_mutating_depth(monkeypatch):
@@ -253,3 +254,61 @@ def test_scoped_diagnostics_include_shallow_fold_only_in_all_without_mutating_de
     assert "1 תצורות" not in introduction
     assert len(graphs.plain_explanation(introduction)) >= 250
     assert len(graphs.plain_explanation(conclusion)) >= 250
+
+
+def test_proposed_f5_is_visible_and_highlighted_in_model_comparison(signed_graphs):
+    _, figures = signed_graphs
+    traces = {trace.name: trace for trace in figures["models_vs_baselines"].data}
+    assert "F5" in traces
+    assert traces["F5"].marker.symbol == "diamond"
+    assert traces["F5"].marker.size > traces["S2"].marker.size
+    assert traces["glm"].y == ("GLM בבסיס (D3)",)
+
+
+def test_post_hoc_forest_compares_s2_and_f5_on_shared_axes(signed_graphs):
+    b, figures = signed_graphs
+    fig = figures["post_hoc_forest"]
+    assert len(fig.data) == 28
+    assert {trace.customdata[0][1] for trace in fig.data} == {"S2", "F5"}
+    assert fig.layout.xaxis.range == fig.layout.xaxis2.range
+    p1_f5 = next(trace for trace in fig.data if tuple(trace.customdata[0][1:]) == ("F5", "P1"))
+    p1 = next(r for r in b["post"]["records"] if r["check"] == "P1")
+    candidate = pd.DataFrame(p1["folds"]).set_index("season_id")
+    baseline = graphs._selected_folds(b, "F5").set_index("season_id")
+    seasons = candidate.index[candidate.deep_fold & baseline.deep_fold]
+    differences = baseline.loc[seasons, "poisson_nll"] - candidate.loc[seasons, "poisson_nll"]
+    expected = np.average(differences, weights=candidate.loc[seasons, "games"])
+    np.testing.assert_allclose(graphs._array(p1_f5.x), [expected], atol=1e-12)
+
+
+def test_training_validation_is_a_single_endpoint_not_an_iteration_curve(signed_graphs):
+    _, figures = signed_graphs
+    fig = figures["training_selector"]
+    for trace in fig.data[3::4]:
+        assert trace.mode == "markers"
+        assert len(trace.x) == len(trace.y) == len(trace.error_y.array) == 1
+    for button in fig.layout.updatemenus[0].buttons:
+        visible = button.args[0]["visible"]
+        traces = [trace for trace, flag in zip(fig.data, visible, strict=True) if flag]
+        assert int(graphs._array(traces[-1].x)[0]) == int(graphs._array(traces[2].x)[-1])
+
+
+def test_proposal_is_the_first_learning_panel_from_the_right(signed_graphs):
+    b, figures = signed_graphs
+    cfg = b["report"]["winners"]["S2"]["parameters"]
+    annotations = sorted(
+        figures["learning_curves_train_vs_validation"].layout.annotations[:4],
+        key=lambda a: (-a.y, -a.x),
+    )
+    title = "".join(c for c in annotations[0].text if not 0x202A <= ord(c) <= 0x202E)
+    assert f"עומק {cfg['max_depth']}" in title
+    assert f"קצב {cfg['learning_rate']}" in title
+    assert f"עצים {cfg['n_estimators']}" in title
+
+
+def test_elo_color_scale_has_contrast_inside_every_slice(signed_graphs):
+    _, figures = signed_graphs
+    for trace in figures["hyperparameter_heatmap"].data:
+        values = graphs._array(trace.z)
+        np.testing.assert_allclose([trace.zmin, trace.zmax], [values.min(), values.max()])
+        assert trace.zmid is None
