@@ -24,6 +24,7 @@ def configuration_name(value: Any, *, model: str = "xgb", stage_b: bool = False)
             (r"\bit(\d+)", r"\1 איטרציות"),
             (r"\boh(\d+)", r"סף קידוד \1"),
             (r"\bcatboost\b", "CatBoost"),
+            (r"\bglm-base\b", "GLM בבסיס (D3)"),
             (r"\brl(\d+(?:\.\d+)?)", r"קנס \1"),
             (r"\bss(\d+(?:\.\d+)?)", lambda m: f"דגימה {100 * float(m[1]):g}%"),
             (r"\bcs\d+(?:\.\d+)?\s*·?", ""),
@@ -32,6 +33,8 @@ def configuration_name(value: Any, *, model: str = "xgb", stage_b: bool = False)
         ]
         for pattern, replacement in patterns:
             text = re.sub(pattern, replacement, text)
+        if "CatBoost" in text:
+            text = re.sub(r"(\d+) עצים", r"\1 איטרציות", text)
         return text.replace(" / ", " · ").replace("XGB ", "XGBoost · ")
     p = value.get("parameters", value)
     depth = p.get("max_depth", p.get("depth"))
@@ -65,6 +68,8 @@ def figure_labels(figure: Any) -> Any:
             return {key: item if key in styles else walk(item) for key, item in value.items()}
         if isinstance(value, (list, tuple)):
             return [walk(item) for item in value]
+        if isinstance(value, np.ndarray) and value.dtype.kind in "OU":
+            return walk(value.tolist())
         return value
 
     return go.Figure(walk(figure.to_dict()))
@@ -103,6 +108,14 @@ def selectors(figures: dict[str, Any], b: dict[str, Any]) -> None:
             row = part.iloc[0]
             budget = float(row.n_estimators * row.learning_rate)
             if name == "training_selector":
+                hover = (
+                    f"<br>דגימת עמודות {100 * float(row.colsample_bytree):g}% · seed {cfg['seed']}"
+                )
+                for trace in fig.data[index * 4 : index * 4 + 4]:
+                    if trace.hovertemplate:
+                        trace.hovertemplate = trace.hovertemplate.replace(
+                            "<extra>", hover + "<extra>"
+                        )
                 label = configuration_name(
                     dict(
                         max_depth=row.depth,
@@ -137,9 +150,11 @@ def selectors(figures: dict[str, Any], b: dict[str, Any]) -> None:
                     f"{int(row.n_estimators)} עצים {tree_dots}",
                     f"קצב {row.learning_rate:g} {rate_dots}",
                 ]
-            lines.append(
-                f"תקציב {budget:g} · פי {budget / proposal_budget:.2f} מההצעה ({proposal_budget:g})"
-            )
+            budget_text = f"תקציב {budget:g} · פי {budget / proposal_budget:.2f} מההצעה"
+            if name == "training_selector":
+                lines.append(budget_text + f" ({proposal_budget:g})")
+            else:
+                lines[-1] += " · " + budget_text
             if index == old_preferred:
                 label = "★ ההצעה · " + label
             annotation = dict(
@@ -167,7 +182,12 @@ def selectors(figures: dict[str, Any], b: dict[str, Any]) -> None:
         menu.active = 0
         menu.y = 1.02
         menu.x = 0
-        fig.update_layout(annotations=initial_annotations, margin=dict(t=410, b=150), height=1050)
+        fig.update_layout(
+            annotations=initial_annotations,
+            margin=dict(t=330, b=150),
+            height=1050,
+            title=dict(y=0.98, yanchor="top"),
+        )
         if name != "training_selector":
             fig.update_xaxes(title="זהירות: כמה ראיות לפני שבונים חוק")
             fig.layout.yaxis.title.text = "עומק: כמה שאלות בכל עץ"

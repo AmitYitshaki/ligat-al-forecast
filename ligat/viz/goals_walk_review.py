@@ -145,7 +145,8 @@ def rules_html(b: dict[str, Any]) -> str:
         ),
     ]
     return (
-        paragraph(
+        '<div dir="rtl"><h3>כללי ההכרעה</h3></div>'
+        + paragraph(
             f"דוגמה מחושבת: בבדיקת הכניסה של F5 ממוצע ההפרש הוא {s['mean_improvement']:.6f}, "
             f"SE הוא {s['se']:.6f}, ועל פני {s['n']} עונות CI95 הוא "
             f"[{s['ci_lower']:+.6f}, {s['ci_upper']:+.6f}]."
@@ -435,18 +436,63 @@ def review_table(b: dict[str, Any]) -> Any:
     rows = []
     for stage, group in raw.groupby("stage", sort=False):
         proposal = group.loc[group.kind.eq("הצעה זמנית")].iloc[0]
-        other = group.loc[group.kind.ne("הצעה זמנית")].iloc[0]
+        choice = next(r for r in b["report"]["open_reviews"] if r["name"] == stage)
+        decision = next(d for d in b["report"]["decisions"] if d["name"] == stage)
+        deep_key = choice["deep_leaders"][0]["key"]
+        proposal_key = choice["proposal"]
+        other_key = choice["recent_leaders"][0]["key"] if proposal_key == deep_key else deep_key
+        selected = qa.configuration_folds(b["validation"], decision, proposal_key)
+        alternative = qa.configuration_folds(b["validation"], decision, other_key)
+        comparison = paired_statistics(alternative, selected, score="poisson_nll")
+        original = decision["configurations"][proposal_key]
+        changed = decision["configurations"][other_key]
+        terms = {
+            "max_depth": "עומק",
+            "n_estimators": "עצים",
+            "learning_rate": "קצב",
+            "min_child_weight": "זהירות",
+            "reg_lambda": "קנס",
+            "subsample": "דגימה",
+        }
+        changes = [
+            f"{terms.get(key, key)}: {value} במקום {original['parameters'].get(key)}"
+            for key, value in changed["parameters"].items()
+            if value != original["parameters"].get(key)
+        ]
+        if changed["half_life"] != original["half_life"]:
+
+            def decay(value: Any) -> str:
+                return "בלי דעיכה" if value is None else f"{value:g} עונות"
+
+            changes.append(
+                f"דעיכה: {decay(changed['half_life'])} במקום {decay(original['half_life'])}"
+            )
+        dependencies = (
+            "כל בדיקות הסולם והמדדים התלויים בבסיס"
+            if stage == "S2-AB"
+            else "המסלול המקוצר והמדדים של המשפחה"
+            if str(stage).startswith("F")
+            else "התצורה והמדדים של "
+            + {
+                "S1-AB": "סרגל Elo ובית המכוונן",
+                "catboost-selected": "CatBoost",
+                "glm-base": "GLM בבסיס",
+                "maher": "Maher",
+            }.get(str(stage), str(stage))
+        )
         rows.append(
             dict(
                 question=f"{stage}: איזו תצורה תמשיך?",
                 stage=stage,
                 proposal=proposal.label,
-                alternative=other.label,
-                changes=proposal.changes,
-                gap=proposal.gap,
-                se=proposal.se,
+                alternative=decision["labels"][other_key],
+                changes="; ".join(changes) or "אותה תצורה",
+                gap=comparison.mean_improvement,
+                se=comparison.se,
+                deep_gap=proposal.gap,
+                deep_se=proposal.se,
                 default="ההצעה הזמנית, כל עוד עמית לא יכריע אחרת",
-                depends=proposal.depends,
+                depends=dependencies,
             )
         )
     frame = pd.DataFrame(rows)
@@ -463,14 +509,29 @@ def review_table(b: dict[str, Any]) -> Any:
     merged = []
     for _, group in frame.groupby("signature", sort=False):
         row = group.iloc[0].drop(labels="signature").to_dict()
-        row["question"] = ", ".join(group.stage) + ": איזו תצורה תמשיך?"
+        stage = str(group.stage.iloc[0])
+        questions = {
+            "S1-AB": "איזו תצורת Elo ובית (S1)?",
+            "S2-AB": "איזו תצורה לבסיס S2?",
+            "F1-short": "איזו תצורה למסלול F1–F4?",
+            "F5-short": "איזו תצורה אחרי דגלי המוטיבציה?",
+            "catboost-selected": "איזו תצורת CatBoost?",
+            "glm-base": "איזו דעיכה ל-GLM בבסיס?",
+            "maher": "איזה זמן מחצית ל-Maher?",
+        }
+        row["question"] = questions.get(stage, stage + ": איזו תצורה תמשיך?")
         row["depends"] = "; ".join(dict.fromkeys(group.depends))
         merged.append(row)
-    return pd.DataFrame(merged).drop(columns="stage")
+    result = pd.DataFrame(merged).drop(columns="stage")
+    result.attrs["deep_rows"] = result[["question", "deep_gap", "deep_se"]].to_dict("records")
+    return result.drop(columns=["deep_gap", "deep_se"])
 
 
 def post_summary(b: dict[str, Any], check: str) -> str:
+    from ligat.viz.goals_configuration_names import configuration_name
+
     p, intro, conclusion = graphs.post_hoc_sections(b, check)
+    p = p.assign(includes_zero=p.lower.le(0) & p.upper.ge(0))
     rows = []
     for cfg, g in p.groupby("configuration", sort=False):
 
@@ -511,6 +572,7 @@ def post_summary(b: dict[str, Any], check: str) -> str:
             "se": "SE",
             "lower": "תחתון CI95",
             "upper": "עליון CI95",
+            "includes_zero": "כולל 0?",
             "n": "עונות",
             "positive": "עונות חיוביות",
             "better": "עדיפות בחמש האחרונות",
@@ -519,7 +581,7 @@ def post_summary(b: dict[str, Any], check: str) -> str:
             "hda": "log loss",
         }
     )
-    return (
+    return configuration_name(
         intro
         + conclusion
         + render(pd.DataFrame(rows), names)
@@ -556,7 +618,10 @@ def expanded_glossary(original: str, b: dict[str, Any]) -> str:
         "תקציב למידה": "מספר העצים כפול קצב הלמידה",
         "R0 / R1 / S1 / S2 / F1–F6": "בית; Elo ובית; שלב ראשון; בסיס; משפחות מידע",
         "prior לעולה": "מידע מוקדם על כוח עולה ביחס לליגה לפני שיש לה משחקים",
-        "בדיקות מרובות": "בדיקת חלופות רבות מגדילה את הסיכוי לממצא מקרי",
+        "בדיקות מרובות": (
+            "בדיקת חלופות רבות מגדילה את הסיכוי לממצא מקרי. כלל 8 הוא כלל החלטה "
+            "ולא מבחן מובהקות, ולכן אין לו סיכוי מזל מדויק."
+        ),
     }
     for key, value in terms.items():
         unique[key] = [key, value, "—", "הגדרה לקריאת הניסוי; אינה הכרעה"]

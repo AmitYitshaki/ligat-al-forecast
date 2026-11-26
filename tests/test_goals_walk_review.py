@@ -48,6 +48,19 @@ def test_default_table_has_no_filler_sentence():
     assert "if description:" in setup
 
 
+def test_configuration_translation_preserves_plotly_styles_and_readable_catboost():
+    import plotly.graph_objects as go
+
+    from ligat.viz import goals_configuration_names as naming
+
+    original = go.Figure(go.Scatter(x=[1], y=[2], name="d2 / T150 / lr0.05 / mcw1"))
+    translated = naming.figure_labels(original)
+    assert translated.layout.template == original.layout.template
+    assert translated.data[0].x == original.data[0].x
+    assert "150 עצים" in translated.data[0].name
+    assert "150 איטרציות" in naming.configuration_name("CatBoost d2 T150 L2=10")
+
+
 @pytest.fixture(scope="module")
 def evidence(real_tables):
     path = Path("data/derived/exp005/full/ladder_report.json")
@@ -102,7 +115,10 @@ def test_candidates_preserve_signed_paired_populations_and_direction(evidence):
     assert glm.se == pytest.approx(0.001526782897, abs=1e-10)
     assert set(deep.loc[~deep.candidate.eq(review.LABELS["glm"]), "n"]) == {14}
     assert set(table.loc[table.scope.eq("last5"), "n"]) == {5}
-    assert len(evidence_views.candidate_figure(evidence).data) == 9
+    figure = evidence_views.candidate_figure(evidence)
+    assert len(figure.data) == 9
+    assert len(figure.layout.xaxis.tickvals) == 3
+    assert figure.layout.xaxis.tickvals[0] < 0 < figure.layout.xaxis.tickvals[-1]
 
 
 @pytest.mark.real_data
@@ -128,3 +144,83 @@ def test_family_order_and_multiple_testing_claim_are_supported(evidence):
     text = evidence_views.family_explanation(evidence)
     assert "11 עונות חיוביות מתוך 14" in text
     assert "1 ל-4" not in text and "סיכוי מזל" in text
+
+
+@pytest.mark.real_data
+def test_final_forests_share_thirteen_seasons_and_show_f5(evidence):
+    from ligat.viz import goals_walk_plots as fixes
+
+    figure = fixes.paired_forest(evidence)
+    assert all(trace.customdata == (13,) for trace in figure.data)
+    assert any("F5" in trace.y[0] for trace in figure.data)
+    assert figure.layout.xaxis2.domain
+    season = fixes.metric_by_season(evidence)
+    assert any("F5" in trace.name for trace in season.data)
+    assert not any("F6" in trace.name for trace in season.data)
+    assert all(len(trace.x) == 1 for trace in fixes.models_vs_baselines(evidence).data)
+    assert len(fixes.population(evidence, "deep")) == 13
+    elo = fixes.elo_by_scope(evidence)
+    assert any("F5" in name for name in elo.data[0].y)
+    assert not any("F6" in name for name in elo.data[0].y)
+
+
+@pytest.mark.real_data
+def test_budget_uses_paired_intervals_and_includes_caution_one_proposal(evidence):
+    from ligat.viz import goals_walk_plots as fixes
+
+    table = fixes.budget_table(evidence)
+    proposal = table.loc[table.proposal].iloc[0]
+    assert proposal.caution == 1 and set(table.loc[~table.proposal, "caution"]) == {30}
+    assert proposal.lower == pytest.approx(74.21356527114)
+    assert proposal.upper == pytest.approx(113.50134181188)
+    assert proposal.versus_proposal == 0
+    assert table.includes_zero.any()
+
+
+@pytest.mark.real_data
+def test_learning_change_uses_paired_long_diagnostic_folds(evidence):
+    from ligat.viz import goal_training_curves as curves
+    from ligat.viz import goals_walk_plots as fixes
+
+    result = fixes.learning_changes(curves.load_learning_diagnostics(load_goal_experiment()))
+    assert list(result.trees) == [400, 1000]
+    assert set(result.n) == {15}
+    assert result.better.between(0, 15).all()
+
+
+@pytest.mark.real_data
+def test_review_table_compares_its_actual_alternative_and_keeps_deep_plot_reference(evidence):
+    from ligat.viz import goals_walk_plots as fixes
+
+    table = review.review_table(evidence)
+    assert len(table) == 7
+    assert (table.proposal != table.alternative).all()
+    maher = table.loc[table.question.str.contains("Maher")].iloc[0]
+    assert maher.gap == pytest.approx(-0.001885, abs=5e-7)
+    deep = next(r for r in table.attrs["deep_rows"] if "Maher" in r["question"])
+    assert deep["deep_gap"] == 0
+    assert len(fixes.review_plot(evidence).data) == len(table)
+
+
+@pytest.mark.real_data
+def test_posthoc_rendered_tables_and_prose_use_readable_names(evidence):
+    import re
+
+    forbidden = re.compile(r"d\d+ ?/|\bT\d+\b|lr0\.|mcw\d|cw\d+\.|L2=|proposal|\bn\d+ ·")
+    for check in ["P1", "P2", "P3", "P4"]:
+        rendered = review.post_summary(evidence, check)
+        assert not forbidden.search(rendered)
+        assert "כולל 0?" in rendered
+
+
+@pytest.mark.real_data
+def test_executed_notebook_contains_no_numpy_float_representation():
+    book = json.loads(Path("notebooks/explore/05_goals.ipynb").read_bytes())
+    visible = []
+    for cell in book["cells"]:
+        for output in cell.get("outputs", []):
+            for mime, value in output.get("data", {}).items():
+                if mime in {"text/html", "text/plain", "application/vnd.plotly.v1+json"}:
+                    visible.append(json.dumps(value, ensure_ascii=False))
+    assert visible, "Execute the notebook before checking its displayed text"
+    assert all("np.float64" not in text for text in visible)

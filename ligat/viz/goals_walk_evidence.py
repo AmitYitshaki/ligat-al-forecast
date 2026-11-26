@@ -83,8 +83,33 @@ def candidate_table(b: dict[str, Any]) -> Any:
 
 
 def candidate_tables_html(b: dict[str, Any]) -> str:
+    from ligat.viz.goals_configuration_names import configuration_name
+
     table = candidate_table(b)
     parts = []
+    for check in ["P4", "P3"]:
+        record = next(
+            r
+            for r in b["post"]["records"]
+            if r["check"] == check
+            and (
+                (
+                    check == "P4"
+                    and r["parameters"].get("iterations") == 150
+                    and r["parameters"].get("l2_leaf_reg") == 10
+                )
+                or (
+                    check == "P3"
+                    and r["parameters"].get("max_depth") == 1
+                    and r["parameters"].get("n_estimators") == 400
+                    and r["parameters"].get("learning_rate") == 0.05
+                )
+            )
+        )
+        label = configuration_name(
+            record["parameters"], model="catboost" if check == "P4" else "xgb"
+        )
+        parts.append(review.paragraph(check + " — בדיקה בדיעבד: " + label))
     for name, p in table.groupby("candidate", sort=False):
         p = p.drop(columns=["candidate", "post_hoc"]).copy()
         p["scope"] = p.scope.map(review.SCOPES)
@@ -121,7 +146,7 @@ def candidate_figure(b: dict[str, Any]) -> Any:
         cols=3,
         shared_yaxes=True,
         horizontal_spacing=0.08,
-        subplot_titles=list(METRICS.values()),
+        subplot_titles=["NLL", "log loss H/D/A", "RPS"],
     )
     for col, metric in enumerate(METRICS, 1):
         for scope, color in zip(review.SCOPES, views.COLORS[:3], strict=True):
@@ -153,14 +178,45 @@ def candidate_figure(b: dict[str, Any]) -> Any:
             )
     fig.add_vline(x=0, line_dash="dash", line_color="#64748B")
     fig.update_yaxes(autorange="reversed")
-    fig.update_xaxes(title="שיפור מול F5; אפס = אין הבדל; CI95", tickformat=".3f")
+    fig.update_xaxes(title="שיפור מול F5", tickformat=".3f", tickangle=0, nticks=3)
+    for col, metric in enumerate(METRICS, 1):
+        part = table.loc[table.metric.eq(metric)]
+        low, high = float(part.lower.min()), float(part.upper.max())
+        padding = (high - low) * 0.08
+        fig.update_xaxes(
+            tickvals=[low, 0, high],
+            range=[low - padding, high + padding],
+            tickfont=dict(size=10),
+            row=1,
+            col=col,
+        )
     result = views.finish(
         fig,
         "בעמוקים רוב המתחרים קרובים ל-F5; בחמש האחרונות F5 עדיף על GLM"
         "<br>n=15 / 13–14 / 5; CI95 בין עונות",
         height=1000,
     )
-    result.update_layout(margin=dict(l=280, b=160, t=170), title_font_size=16)
+    result.update_layout(
+        margin=dict(l=280, b=200, t=170), title_font_size=16, legend=dict(y=-0.22), height=1050
+    )
+    counts = {
+        scope: "/".join(str(int(n)) for n in sorted(part.n.unique()))
+        for scope, part in table.groupby("scope")
+    }
+    result.update_layout(
+        title_text="בעמוקים רוב המועמדים קרובים למודל המוצע"
+        "<br>בחמש האחרונות המודל המוצע עדיף על שני מודלי הרגרסיה"
+        f"<br>עונות: כל {counts['all']} · עמוקות {counts['deep']}"
+        f" · אחרונות {counts['last5']}"
+    )
+    result.add_annotation(
+        text="אפס = אין הבדל; הפסים הם CI95 בין עונות",
+        x=0.5,
+        y=-0.14,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+    )
     return result
 
 
