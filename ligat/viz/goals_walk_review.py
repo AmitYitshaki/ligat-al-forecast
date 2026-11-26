@@ -245,6 +245,13 @@ def learning_description(b: dict[str, Any], diagnostic: dict[str, Any]) -> str:
 
 def render(frame: Any, names: dict[str, str]) -> str:
     """Render complete precision, including both CI endpoints, without an index."""
+    from ligat.viz.goals_configuration_names import configuration_name
+
+    frame = frame.copy()
+    for field in frame.columns:
+        frame[field] = frame[field].map(
+            lambda value: configuration_name(value) if isinstance(value, str) else value
+        )
     return display_table(
         frame,
         names,

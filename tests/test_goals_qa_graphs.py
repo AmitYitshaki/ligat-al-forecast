@@ -9,6 +9,7 @@ import pytest
 from ligat.evaluate.goals_experiment import load_goal_experiment
 from ligat.evaluate.goals_runner import load_goal_inputs
 from ligat.viz import goal_training_curves as curves
+from ligat.viz import goals_configuration_names as naming
 from ligat.viz import goals_qa as qa
 from ligat.viz import goals_qa_graphs as graphs
 
@@ -36,6 +37,30 @@ NAMES = [
     "season_decay",
     "daily_decay",
 ]
+
+
+def test_selectors_update_explanations_and_put_proposal_first(signed_graphs):
+    import re
+
+    import plotly.graph_objects as go
+
+    b, originals = signed_graphs
+    keys = ["training_selector", "train_vs_validation_heatmap", "hyperparameter_heatmap"]
+    figures = {key: go.Figure(originals[key]) for key in keys}
+    naming.selectors(figures, b)
+    forbidden = re.compile(r"d\d+ ?/|\bT\d+\b|lr0\.|mcw\d|cw\d+\.|L2=|proposal|\bn\d+ ·")
+    for figure in figures.values():
+        menu = figure.layout.updatemenus[0]
+        assert menu.active == 0 and menu.buttons[0].label.startswith("★ ההצעה")
+        for button in menu.buttons:
+            assert button.method == "update"
+            assert "annotations" in button.args[1]
+            assert "התצורה שנבחרה" in button.args[1]["annotations"][-1]["text"]
+            assert not forbidden.search(button.label)
+    for figure in originals.values():
+        translated = naming.figure_labels(figure)
+        visible = str(translated.layout.to_plotly_json())
+        assert not forbidden.search(visible)
 
 
 def test_right_y_titles_are_empty_while_left_titles_survive_finalization():
