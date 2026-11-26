@@ -809,8 +809,9 @@ def decay_figures() -> dict[str, Any]:
             fig.update_xaxes(title="כמה ימים לפני יום החיזוי")
         result["daily_decay" if daily else "season_decay"] = views.finish(
             fig,
-            "זמן מחצית קצר מעדיף תוצאות עדכניות — "
-            + ("Maher יומי" if daily else "משקל קבוע בכל עונה"),
+            "ל-Maher דעיכה חיונית; ללא דעיכה מאבד דיוק"
+            if daily
+            else "ל-XGBoost ול-GLM ללא דעיכה נמצא בין הטובים",
         )
     return result
 
@@ -1420,7 +1421,7 @@ def post_hoc_chapter_summary(b: dict[str, Any]) -> str:
         "עומדים במספרים של כלל 8 מול S2. CatBoost רדוד משתווה למודל המוצע "
         "בעמוקים; המודל המוצע עדיף בחמש האחרונות.</p>"
         "<p>(4) מה זה אומר: זו שאלה פתוחה להכרעת עמית על המודל שעובר ל-M3. "
-        "הבדיקה בדיעבד אינה בוחרת. טיוטה, לפני הכרעות עמית.</p></div>"
+        "הבדיקה בדיעבד אינה בוחרת. </p></div>"
     )
 
 
@@ -1920,9 +1921,13 @@ def explain_graph(name: str, b: dict[str, Any], fig: Any, *, after: bool) -> str
             "worker_bars",
             "hda_histogram",
         ]:
-            result += " טיוטה, לפני הכרעות עמית."
+            result += ""
     else:
         result = base + " " + details.get(name, "")
+    if after and name == "training_selector":
+        from ligat.viz.goals_walk_review import selector_gap
+
+        result = selector_gap(b)
     assert len(plain_explanation(result)) >= 250, (name, after, len(plain_explanation(result)))
     return '<div dir="rtl" class="graph-explanation"><p>' + result + "</p></div>"
 
@@ -2005,7 +2010,7 @@ def approved_findings(b: dict[str, Any]) -> str:
         "rule8"
     ]["stats"]
     return (
-        '<div dir="rtl"><p>טיוטה, לפני הכרעות עמית. במשותפות העמוקות, NLL המודל הסופי '
+        '<div dir="rtl"><p> במשותפות העמוקות, NLL המודל הסופי '
         f"{_scope_row(b, 'F6', 'deep')['poisson_nll']:.6f} מול "
         f"{_scope_row(b, 'EXP-002', 'deep')['poisson_nll']:.6f} בסרגל; "
         f"השיפור המזווג {stats.mean_improvement:+.6f}, SE={stats.se:.6f}, "
