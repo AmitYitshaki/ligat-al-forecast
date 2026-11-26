@@ -8,6 +8,7 @@ import pytest
 
 from ligat.evaluate.goals_experiment import load_goal_experiment
 from ligat.evaluate.goals_runner import load_goal_inputs
+from ligat.viz import goals_walk_evidence as evidence_views
 from ligat.viz import goals_walk_review as review
 
 
@@ -53,12 +54,15 @@ def evidence(real_tables):
     if not path.exists():
         pytest.skip("Signed local D3 artifacts are not committed")
     data = load_goal_inputs(load_goal_experiment(), tables=real_tables)
+    from ligat.evaluate.goals_post_hoc import load_post_hoc
+
     return dict(
         report=json.loads(path.read_bytes())["payload"],
         validation=pd.read_parquet(path.parent / "validation_views.parquet").assign(
             season_id=lambda p: p.fold + 10
         ),
         data=data,
+        post=load_post_hoc(load_goal_experiment()),
     )
 
 
@@ -85,3 +89,42 @@ def test_decay_includes_glm_and_all_three_populations(evidence):
 def test_closed_ruler_reference_uses_exact_exponential(evidence):
     result = review.ruler_html(evidence)
     assert "23.292539" in result and "24.352630" in result
+
+
+@pytest.mark.real_data
+def test_candidates_preserve_signed_paired_populations_and_direction(evidence):
+    table = evidence_views.candidate_table(evidence)
+    assert len(table) == 54
+    deep = table.loc[table.scope.eq("deep") & table.metric.eq("poisson_nll")]
+    glm = deep.loc[deep.candidate.eq(review.LABELS["glm"])].iloc[0]
+    assert glm.n == 13
+    assert glm.d == pytest.approx(-0.000471824944, abs=1e-10)
+    assert glm.se == pytest.approx(0.001526782897, abs=1e-10)
+    assert set(deep.loc[~deep.candidate.eq(review.LABELS["glm"]), "n"]) == {14}
+    assert set(table.loc[table.scope.eq("last5"), "n"]) == {5}
+    assert len(evidence_views.candidate_figure(evidence).data) == 9
+
+
+@pytest.mark.real_data
+def test_flagged_seasons_are_distinct_from_configuration_averages(evidence):
+    table = evidence_views.flagged_seasons(evidence)
+    assert len(table) == 10
+    assert set(table.season_id) == {19}
+    assert table.log_loss.min() == pytest.approx(0.972233, abs=5e-7)
+    assert "1.020161" in evidence_views.leakage_html(evidence)
+
+
+@pytest.mark.real_data
+def test_family_order_and_multiple_testing_claim_are_supported(evidence):
+    assert list(evidence_views.family_ranking(evidence).name) == [
+        "F5",
+        "F3",
+        "F1-R",
+        "F1-A",
+        "F4",
+        "F2",
+        "F6",
+    ]
+    text = evidence_views.family_explanation(evidence)
+    assert "11 עונות חיוביות מתוך 14" in text
+    assert "1 ל-4" not in text and "סיכוי מזל" in text
