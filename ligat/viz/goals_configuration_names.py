@@ -42,6 +42,10 @@ def configuration_name(value: Any, *, model: str = "xgb", stage_b: bool = False)
             "preset": "תצורת ייחוס",
             "library_default": "ברירת המחדל של הספרייה",
             "None": "בלי דעיכה",
+            "lower": "פלייאוף תחתון",
+            "middle": "פלייאוף אמצעי",
+            "upper": "פלייאוף עליון",
+            "regular": "עונה סדירה",
         }.items():
             text = re.sub(r"\b" + re.escape(key) + r"\b", label, text)
         text = re.sub(r"(\b(?:2|3|4)(?:\.0)?) עונה\b", r"\1 עונות", text)
@@ -94,7 +98,9 @@ def figure_labels(figure: Any) -> Any:
 
     def walk(value: Any) -> Any:
         if isinstance(value, str):
-            return configuration_name(value)
+            from ligat.viz.goals_decision_display import clean
+
+            return clean(configuration_name(value))
         if isinstance(value, dict):
             styles = {"template", "colorscale", "marker", "line", "font", "bdata", "dtype"}
             return {key: item if key in styles else walk(item) for key, item in value.items()}

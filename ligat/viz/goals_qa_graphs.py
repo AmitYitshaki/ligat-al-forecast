@@ -530,7 +530,7 @@ def metric_by_season(b: dict[str, Any]) -> Any:
 
 
 def win_rate_by_season(b: dict[str, Any]) -> Any:
-    rows = b["report"]["readable_metrics"]["F6"]["by_season"]
+    rows = b["report"]["readable_metrics"]["F5"]["by_season"]
     p = pd.DataFrame(rows)
     values = p.better_non_tie_percent.to_numpy(float)
     n = len(values)
@@ -540,7 +540,7 @@ def win_rate_by_season(b: dict[str, Any]) -> Any:
     fig = go.Figure(
         go.Bar(
             x=p.season_id.map(season_label),
-            y=values,
+            y=values.tolist(),
             marker_color=[GREEN if x >= 50 else RED for x in values],
             text=[f"{x - 50:+.1f}".replace("-", "−") for x in values],
             customdata=p.better_rows + p.worse_rows,
@@ -1041,7 +1041,7 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
         ),
         "win_rate_by_season": (
             (
-                "x: עונה, y: אחוז שורות שבהן המודל הסופי מדויק יותר מ-S2 מתוך "
+                "x: עונה, y: אחוז שורות שבהן M2 שנבחר (F5, ה-ש31) מדויק יותר מ-S2 מתוך "
                 "שורות לא שוות. ירוק מעל 50%, אדום מתחת; הטקסט הוא ההפרש מ-50. הפס"
                 " CI95 לממוצע 15 שיעורי העונות, לא לכל עונה בנפרד."
             ),
@@ -1188,7 +1188,7 @@ def graph_explanation(name: str, fig: Any, *, after: bool) -> str:
         )
     elif name == "elo_by_scope":
         value = float(_array(fig.data[2].y)[2])
-        conclusion += f" בנתון החתום: המודל הסופי בחמש האחרונות {value:.6f}% מתרומת Elo."
+        conclusion += f" בנתון החתום: M2 שנבחר (F5, ה-ש31) בחמש האחרונות {value:.6f}% מתרומת Elo."
     field = (
         "x"
         if name
@@ -1420,7 +1420,7 @@ def post_hoc_chapter_summary(b: dict[str, Any]) -> str:
         "<p>(3) רדוד מנצח עמוק בחלק מהתצורות: עומק 1 ו-CatBoost רדוד "
         "עומדים במספרים של כלל 8 מול S2. CatBoost רדוד משתווה למודל המוצע "
         "בעמוקים; המודל המוצע עדיף בחמש האחרונות.</p>"
-        "<p>(4) מה זה אומר: זו שאלה פתוחה להכרעת עמית על המודל שעובר ל-M3. "
+        "<p>(4) מה זה אומר: עמית הכריע: ל-M3 עוברים F5, GLM בבסיס ו-Maher (ה-ש33). "
         "הבדיקה בדיעבד אינה בוחרת. </p></div>"
     )
 
@@ -2004,24 +2004,9 @@ def explanation_glossary(b: dict[str, Any]) -> str:
 
 
 def approved_findings(b: dict[str, Any]) -> str:
-    a, r = _selected_folds(b, "F6"), _selected_folds(b, "EXP-002")
-    stats = paired_statistics(a, r, score="poisson_nll")
-    d = next(d for d in b["report"]["decisions"] if d["name"] == "F5" and d["kind"] == "entry")[
-        "rule8"
-    ]["stats"]
-    return (
-        '<div dir="rtl"><p> במשותפות העמוקות, NLL המודל הסופי '
-        f"{_scope_row(b, 'F6', 'deep')['poisson_nll']:.6f} מול "
-        f"{_scope_row(b, 'EXP-002', 'deep')['poisson_nll']:.6f} בסרגל; "
-        f"השיפור המזווג {stats.mean_improvement:+.6f}, SE={stats.se:.6f}, "
-        f"CI95=[{stats.ci_lower:+.6f}, {stats.ci_upper:+.6f}]. "
-        "הפס חשוב יותר מהבדל זעיר בדירוג, ולכן אין כאן בחירת מודל.</p><p>"
-        + elo_example(b)
-        + f"</p><p>רק F5 נכנסה בסולם. בכניסתה הקבועה "
-        f"d̄={d['mean_improvement']:.6f}, SE={d['se']:.6f}, "
-        f"ושיפור ב-{d['last5_folds_better']} מתוך {d['last5_folds']} האחרונות. "
-        "אלה המספרים החתומים שאושרו בבדיקת Claude; תיקוני ה-QA אינם משנים את ההכרעה.</p></div>"
-    )
+    from ligat.viz.goals_decision_display import opening
+
+    return opening(b["report"])
 
 
 def historical_leakage_reference() -> str:

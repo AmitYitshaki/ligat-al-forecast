@@ -133,6 +133,8 @@ def metric_by_season(b: dict[str, Any]) -> Any:
     fig.update_xaxes(title="עונת ולידציה", tickangle=-35)
     result = views.finish(fig, "F5 והמתחרים ביחס לסרגל Elo באותה עונה", height=950)
     result.update_layout(legend=dict(y=-0.24), margin=dict(b=230))
+    # An LTR embedding keeps Latin endpoint names in their mathematical order.
+    result.update_yaxes(title=chr(0x202A) + "NLL פחות R1" + chr(0x202C))
     return result
 
 

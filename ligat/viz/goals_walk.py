@@ -5,7 +5,6 @@ import plotly.graph_objects as go  # type: ignore[import-untyped]
 
 from ligat.evaluate.goal_inputs import GoalData
 from ligat.evaluate.goals_experiment import load_goal_experiment
-from ligat.evaluate.selection import paired_statistics
 from ligat.viz.goal_training_curves import frozen_full_report, full_validation_table
 from ligat.viz.goals_notebook import COLORS, finish, season_counts, walk_forward_figure
 
@@ -76,53 +75,10 @@ def input_summary(data: GoalData) -> str:
 
 
 def provisional_summary(data: GoalData) -> str:
-    spec = load_goal_experiment()
-    report = frozen_full_report(spec)
-    validation = full_validation_table(spec)
-    # Entry F5 uses the fixed S2 configuration, before the subsequent short retune.
-    from ligat.evaluate.goals_ladder import LadderConfiguration
+    """Display the dated decision over the immutable report's historical status."""
+    from ligat.viz.goals_decision_display import opening
 
-    selected = report["winners"]["S2"]
-    key = LadderConfiguration(**selected).key
-    candidate = validation.loc[
-        validation.stage_role.eq("F5") & validation.configuration_key.eq(key)
-    ]
-    reference = validation.loc[validation.stage_role.eq("EXP-002")]
-    columns = ["fold", "games", "deep_fold", "poisson_nll"]
-    a = reference.assign(season_id=reference.fold + 10)[columns + ["season_id"]]
-    b = candidate.assign(season_id=candidate.fold + 10)[columns + ["season_id"]]
-    stats = paired_statistics(b, a, score="poisson_nll")
-    if stats.mean_improvement is None or stats.se is None:
-        raise ValueError("Insufficient deep folds for the provisional summary")
-    direction = "טובה" if stats.mean_improvement > 0 else "גרועה"
-    difference = abs(stats.mean_improvement)
-    depth = selected["parameters"]["max_depth"]
-    families = ", ".join(report["entered"])
-    rulers = {"R0": 1.457037, "R1": 1.410383, "EXP-002": 1.409455, "EXP-003": 1.410097}
-    matched = sum(
-        round(
-            next(
-                s["poisson_nll"]
-                for s in report["readable_metrics"][n]["summary"]
-                if s["scope"] == "all"
-            ),
-            6,
-        )
-        == value
-        for n, value in rulers.items()
-    )
-    return f"""<div dir="rtl"><h2>טיוטה, לפני הכרעות עמית</h2>
-<p><b>השאלה:</b> אילו פיצ׳רים ואיזו שיטה חוזים הכי טוב כמה שערים כל קבוצה תבקיע.</p>
-<ol><li>XGBoost ו-GLM הפשוט כמעט שווים: תצורת כניסת F5 {direction} ב-{difference:.6f}
-NLL על {stats.n} העונות העמוקות, בתוך הרעש (±{stats.se:.6f} SE).</li>
-<li>הצעת העצים רדודה: עומק {depth}, על {len(data.context):,} שורות. עצים עמוקים עלולים
-לשנן משחקים במקום ללמוד חוק.</li>
-<li>נכנסה רק משפחת {families}: ״אין על מה לשחק״. לשאר המשפחות לא נמצאה תוספת שעברה את כלל
-הכניסה מעבר ל-Elo ולכושר.</li>
-<li>אין סימן לדליפה בבדיקות שנקבעו: {matched} מתוך {len(rulers)} הסרגלים שוחזרו בדיוק בשש
-ספרות.</li>
-<li>פתוח לעמית: שבירת תיקו בכלל 4, {len(report["open_reviews"])} סימוני כלל 6, והמודל
-שיעבור ל-M3.</li></ol></div>"""
+    return opening(frozen_full_report(load_goal_experiment()))
 
 
 def season_games_figure(data: GoalData):  # type: ignore[no-untyped-def]
@@ -205,5 +161,6 @@ def decay_result_html() -> str:
     return (
         '<div dir="rtl"><p>בתוצאות שלב B, טווח הממוצעים לפי זמן מחצית הוא '
         f"{min(means):.6f}–{max(means):.6f} NLL (פער {max(means) - min(means):.6f}); "
-        "זה תיאור של הרשת. כמה תצורות קרובות לפי כלל 4, וההכרעות בפרק 6 זמניות.</p></div>"
+        "זה תיאור של הרשת. כמה תצורות קרובות לפי כלל 4; "
+        "ההכרעות בפרק 6 נסגרו בה-ש31–ה-ש34.</p></div>"
     )

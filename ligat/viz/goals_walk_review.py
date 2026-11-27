@@ -128,7 +128,7 @@ def rules_html(b: dict[str, Any]) -> str:
             threshold="בתוך SE אחת מהמובילה",
             example="הצעת S2",
             where="טבלת ההכרעות",
-            pending="שובר השוויון בידי עמית",
+            pending="הצעות כלל 4 נשארות (ה-ש32)",
         ),
         dict(
             rule="6",
@@ -136,7 +136,7 @@ def rules_html(b: dict[str, Any]) -> str:
             threshold="המובילות שונות",
             example="חלופות הדעיכה",
             where="טבלת ההכרעות",
-            pending="החלופה והשלכותיה בידי עמית",
+            pending="ההצעה של כלל 4 נשארת (ה-ש32)",
         ),
         dict(
             rule="8 גרסה 2",
@@ -144,7 +144,7 @@ def rules_html(b: dict[str, Any]) -> str:
             threshold="ממוצע מעל SE; שלוש מחמש האחרונות; ממוצע אחרונות חיובי",
             example=f"F5: {s['mean_improvement']:.6f} מול SE {s['se']:.6f}",
             where="כניסות המשפחות ופירוק F5",
-            pending="המודל שעובר ל-M3 בידי עמית",
+            pending="ל-M3 עוברים F5, GLM בבסיס ו-Maher (ה-ש33)",
         ),
         dict(
             rule="10",
@@ -152,7 +152,7 @@ def rules_html(b: dict[str, Any]) -> str:
             threshold="NLL ו-RPS מכריעים הפוך",
             example="דגלי הדוח החתום",
             where="טבלת דגלי כלל 10",
-            pending="בחינת הדגלים בידי עמית",
+            pending="נסגר לפי NLL (ה-ש34)",
         ),
     ]
     return (
@@ -170,7 +170,7 @@ def rules_html(b: dict[str, Any]) -> str:
                 threshold="הסף",
                 example="דוגמה",
                 where="איפה בפרק 6",
-                pending="מה מחכה להכרעת עמית",
+                pending="הכרעת עמית מ-27.11.2026",
             ),
         )
         + paragraph('<a href="#open-decisions">להכרעות הפתוחות ולתלויות שלהן</a>')
@@ -236,9 +236,9 @@ def learning_description(b: dict[str, Any], diagnostic: dict[str, Any]) -> str:
     return (
         '<div dir="rtl"><h2>6.1 — הוולידציה מתייצבת לפני שהאימון מסתיים</h2></div>'
         + paragraph(
-            "מה נבדק: ההצעה הזמנית ושכנותיה בעומק ובקצב, ותקציב הלמידה הארוך. "
-            "יתר הפרמטרים קבועים; האבחון חתום ונפרד מהבחירה המקורית. אם עמית "
-            "יכריע אחרת, נדרש אבחון מתאים לתצורה שתיבחר."
+            "מה נבדק: הצעת S2 ההיסטורית ושכנותיה בעומק ובקצב, ותקציב הלמידה הארוך. "
+            "יתר הפרמטרים קבועים; האבחון חתום ונפרד מהבחירה המקורית. "
+            "הצעות כלל 4 נשארו בה-ש32; אבחון F5 שנבחר יתווסף ב-E4b."
         )
         + paragraph(
             f"איך קוראים: חציון לא משוקלל של {len(short)} קיפולים ופס IQR. "
@@ -510,7 +510,7 @@ def review_table(b: dict[str, Any]) -> Any:
                 se=comparison.se,
                 deep_gap=proposal.gap,
                 deep_se=proposal.se,
-                default="ההצעה הזמנית, כל עוד עמית לא יכריע אחרת",
+                default="ההצעה של כלל 4 נשארת (ה-ש32)",
                 depends=dependencies,
             )
         )
