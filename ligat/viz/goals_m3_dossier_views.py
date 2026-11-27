@@ -26,7 +26,7 @@ NAMES = dict(
     goals="סך שערים",
     outcome="תוצאת משחק",
     bin="קבוצת הסתברות",
-    ece="ECE",
+    ece="ECE ברוחב 0.1 (מקורי, E3g)",
     segment="קבוצה",
     metric="מדד",
     mean="ממוצע",
@@ -41,7 +41,8 @@ NAMES = dict(
     draw_gap="פער תיקו",
     zero_gap="פער 0-0",
     one_gap="פער 1-1",
-    ece_draw="ECE תיקו",
+    ece_draw="ECE ברוחב 0.1 (מקורי, E3g)",
+    ece_draw_deciles="ECE לפי עשירונים",
     maxcorr="מתאם λ הגבוה ביותר למועמד אחר",
 )
 VALUES = {
@@ -64,28 +65,32 @@ def table(frame: Any) -> str:
     for col in p:
         if p[col].dtype == object or isinstance(p[col].dtype, pd.StringDtype):
             p[col] = p[col].map(lambda v: VALUES.get(v, v) if isinstance(v, str) else v)
-    return review.render(p, {c: NAMES.get(c, c) for c in p})
+    names = {c: NAMES.get(c, c) for c in p}
+    if "bin" in p and "ece" in p and "outcome" not in p:
+        names["ece"] = "ECE לפי עשירונים"
+    return review.render(p, names)
 
 
 def summary(result: dict[str, Any]) -> Any:
     p = result["summary"].query("scope == 'deep'").copy()
     recent = result["summary"].query("scope == 'last5'").set_index("candidate")
     p["nll_last5"] = p.candidate.map(recent.nll)
-    return p[
-        [
-            "candidate",
-            "nll",
-            "nll_last5",
-            "draw_gap",
-            "zero_gap",
-            "one_gap",
-            "ece_draw",
-            "maxcorr",
-            "pearson",
-            "seasons",
-            "games",
-        ]
+    columns = [
+        "candidate",
+        "nll",
+        "nll_last5",
+        "draw_gap",
+        "zero_gap",
+        "one_gap",
+        "ece_draw",
+        "maxcorr",
+        "pearson",
+        "seasons",
+        "games",
     ]
+    if "ece_draw_deciles" in p:
+        columns.insert(columns.index("ece_draw") + 1, "ece_draw_deciles")
+    return p[columns]
 
 
 def section_table(result: dict[str, Any], key: str) -> str:
@@ -116,6 +121,10 @@ def section_table(result: dict[str, Any], key: str) -> str:
 
 
 def draw_figure(result: dict[str, Any]) -> Any:
+    if "draw_bootstrap" in result:
+        from ligat.viz.goals_draw_calibration import gap_figure
+
+        return gap_figure(result)
     p = result["draw"].query("scope == 'deep' and group >= 0")
     fig = make_subplots(
         rows=3,
@@ -161,20 +170,48 @@ def calibration_figure(result: dict[str, Any]) -> Any:
         q = p.loc[p.candidate.eq(name)]
         for j, outcome in enumerate(core.OUTCOMES):
             rows = q.loc[q.outcome.eq(outcome) & q.games.gt(0)]
+            if j == 1 and "draw_deciles" in result:
+                rows = result["draw_deciles"].loc[
+                    lambda p, n=name: p.scope.eq("deep") & p.candidate.eq(n)
+                ]
             fig.add_scatter(
                 x=rows.predicted,
                 y=rows.observed,
                 mode="lines+markers",
                 name=outcome,
                 line=dict(color=views.COLORS[j]),
-                marker=dict(symbol="circle-open" if "בדיעבד" in name else "circle"),
+                marker=dict(
+                    symbol="circle-open" if "בדיעבד" in name else "circle",
+                    size=(6 + 7 * np.sqrt(rows.games / rows.games.max())).tolist() if j == 1 else 9,
+                    line=dict(color="white", width=0.6),
+                ),
+                customdata=rows[["games"]],
+                hovertemplate=(
+                    "חזוי %{x:.4f}, נצפה %{y:.4f}<br>"
+                    "%{customdata[0]} משחקים<extra>%{fullData.name}</extra>"
+                ),
                 visible=i == 0,
             )
         eces = q.groupby("outcome", sort=False).ece.first()
+        extra = ""
+        if "draw_deciles" in result:
+            dec = result["draw_deciles"].loc[
+                lambda p, n=name: p.scope.eq("deep") & p.candidate.eq(n)
+            ]
+            extra = (
+                f"<br>ECE לפי עשירונים: {dec.ece.iloc[0]:.6f}<br>"
+                f"{len(dec)} קבוצות; {int(dec.games.min())}–{int(dec.games.max())} "
+                "משחקים בקבוצה.<br>"
+                "ערכים זהים לא מפוצלים; הגדלים אינם בהכרח שווים."
+            )
         annotation = dict(
-            text=name + "<br>" + " · ".join(f"ECE {k}: {v:.4f}" for k, v in eces.items()),
+            text=name
+            + "<br>"
+            + " · ".join(f"ECE מקורי {k}: {v:.4f}" for k, v in eces.items())
+            + extra,
             x=1,
-            y=1.08,
+            y=1.12,
+            yanchor="bottom",
             xref="paper",
             yref="paper",
             xanchor="right",
@@ -194,12 +231,14 @@ def calibration_figure(result: dict[str, Any]) -> Any:
         )
     fig.update_xaxes(title="הסתברות חזויה", range=[0, 1])
     fig.update_yaxes(title="שיעור נצפה", range=[0, 1])
-    fig = views.finish(fig, "D3 — כיול בית, תיקו וחוץ בעמוקים המשותפים", height=1000)
     fig.update_layout(
-        margin=dict(t=260, b=150),
-        title=dict(y=0.98),
         annotations=buttons[0]["args"][1]["annotations"],
         updatemenus=[dict(buttons=buttons, active=0, x=0, y=1.02, yanchor="bottom")],
+    )
+    fig = views.finish(fig, "D3 — כיול בית, תיקו וחוץ בעמוקים המשותפים", height=1050)
+    fig.update_layout(
+        margin=dict(t=320, b=150),
+        title=dict(y=0.98),
     )
     return fig
 
@@ -279,6 +318,10 @@ def figures(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def explanation(name: str, result: dict[str, Any], *, after: bool) -> str:
+    if "draw_deciles" in result and name in {"m3_draw", "m3_calibration"}:
+        from ligat.viz.goals_draw_calibration import explanation as updated
+
+        return updated(result, name, after=after)
     sample = result["summary"].query("scope == 'deep'").iloc[0]
     if name == "m3_draw":
         text = (
