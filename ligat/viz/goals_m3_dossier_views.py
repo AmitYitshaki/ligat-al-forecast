@@ -43,6 +43,10 @@ NAMES = dict(
     one_gap="פער 1-1",
     ece_draw="ECE ברוחב 0.1 (מקורי, E3g)",
     ece_draw_deciles="ECE לפי עשירונים",
+    fixed_noise_mean="רעש ממוצע, רוחב 0.1",
+    fixed_noise_p95="אחוזון 95 לרעש, רוחב 0.1",
+    deciles_noise_mean="רעש ממוצע, עשירונים",
+    deciles_noise_p95="אחוזון 95 לרעש, עשירונים",
     maxcorr="מתאם λ הגבוה ביותר למועמד אחר",
 )
 VALUES = {
@@ -90,7 +94,24 @@ def summary(result: dict[str, Any]) -> Any:
     ]
     if "ece_draw_deciles" in p:
         columns.insert(columns.index("ece_draw") + 1, "ece_draw_deciles")
+    for kind, metric in (("fixed", "ece_draw"), ("deciles", "ece_draw_deciles")):
+        fields = [f"{kind}_noise_mean", f"{kind}_noise_p95"]
+        if fields[0] in p:
+            index = columns.index(metric) + 1
+            columns[index:index] = fields
     return p[columns]
+
+
+def calibration_table(result: dict[str, Any], kind: str) -> str:
+    key = "calibration" if kind == "fixed" else "draw_deciles"
+    p = result[key].copy()
+    mask = p.scope.eq("deep")
+    if kind == "fixed":
+        mask &= p.outcome.eq(core.OUTCOMES[1])
+    for statistic in ("mean", "p95"):
+        column = f"{kind}_noise_{statistic}"
+        p.loc[mask, column] = p.loc[mask, "candidate"].map(result["ece_noise"][column])
+    return table(p)
 
 
 def section_table(result: dict[str, Any], key: str) -> str:
@@ -219,6 +240,14 @@ def calibration_figure(result: dict[str, Any]) -> Any:
             bgcolor="#F1F5F9",
             font=dict(size=12),
         )
+        if "ece_noise" in result:
+            noise = result["ece_noise"].loc[name]
+            annotation["text"] += (
+                f"<br>רעש ברוחב 0.1: ממוצע {noise.fixed_noise_mean:.4f}, "
+                f"אחוזון 95 {noise.fixed_noise_p95:.4f}"
+                f"<br>רעש לפי עשירונים: ממוצע {noise.deciles_noise_mean:.4f}, "
+                f"אחוזון 95 {noise.deciles_noise_p95:.4f}"
+            )
         buttons.append(
             dict(
                 label=name,

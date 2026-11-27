@@ -55,4 +55,4 @@ def test_selected_win_rate_plot_reads_f5_and_summary_uses_common_deep(evidence):
     ]
     np.testing.assert_array_equal(np.asarray(figure.data[0].y), expected)
     summary = decision.final_summary(evidence)
-    assert "1.401967" in summary and "107.7%" in summary and "ה-ש34" in summary
+    assert "1.4020" in summary and "107.7%" in summary and "ה-ש34" in summary

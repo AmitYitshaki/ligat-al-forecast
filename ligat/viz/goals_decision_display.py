@@ -9,7 +9,7 @@ from ligat.viz import goals_qa as qa
 from ligat.viz import goals_walk_review as review
 
 
-def opening(report: dict[str, Any]) -> str:
+def opening(report: dict[str, Any], *, heading: str = "0 — התשובה: M2 שנבחר הוא F5") -> str:
     """Read the selected-model figures and matched feature-entry evidence."""
     rows = {r["scope"]: r for r in report["readable_metrics"]["F5"]["summary"]}
     d = next(d for d in report["decisions"] if d["name"] == "F5" and d["kind"] == "entry")["rule8"][
@@ -20,10 +20,11 @@ def opening(report: dict[str, Any]) -> str:
     ]["stats"]
     positive = sum(x["difference"] > 0 for x in d["differences"])
     return (
-        '<div dir="rtl"><h2>0 — התשובה: M2 שנבחר הוא F5</h2>'
+        f'<div dir="rtl"><h2>{heading}</h2>'
         "<p>השאלה: אילו פיצ׳רים ואיזה מודל נכנסים ל-M2? עמית הכריע ב-27.11.2026 "
         "(ה-ש30–ה-ש34): XGBoost על הבסיס ועוד דגל אין על מה לשחק לשני הצדדים.</p>"
-        f"<p>הסתברות גאומטרית: {rows['deep']['observed_probability_percent']:.2f}% בעמוקים "
+        f"<p>הסתברות גאומטרית: {rows['deep']['observed_probability_percent']:.2f}% "
+        "בעמוקים (14 עונות, 2010/11–2023/24) "
         f"ו-{rows['last5']['observed_probability_percent']:.2f}% בחמש האחרונות; "
         f"{rows['deep']['elo_share_percent']:.1f}% ו-{rows['last5']['elo_share_percent']:.1f}% "
         "מתרומת Elo, בהתאמה.</p>"
@@ -103,7 +104,7 @@ def rule10_html(b: dict[str, Any]) -> str:
     )
 
 
-def final_summary(b: dict[str, Any]) -> str:
+def final_summary(b: dict[str, Any], diagnostic: dict[str, Any] | None = None) -> str:
     from ligat.viz import goals_walk_evidence as evidence
 
     frames = evidence.candidate_folds(b)
@@ -129,9 +130,18 @@ def final_summary(b: dict[str, Any]) -> str:
             for n, m in sorted(means.items(), key=lambda x: x[1])
         ]
     )
+    middle = "חוסר התיקו בשליש האמצעי של האיזון"
+    if diagnostic is not None:
+        p = diagnostic["draw_bootstrap"]
+        row = p.loc[p.candidate.eq(review.LABELS["F5"]) & p.group.eq(1)].iloc[0]
+        middle += (
+            f' אצל F5, בנקודות אחוז <bdi dir="ltr">{100 * row.gap:+.2f} '
+            f"[{100 * row.lower:+.2f}, {100 * row.upper:+.2f}]</bdi>"
+        )
+    ranking["nll"] = ranking.nll.map("{:.4f}".format)
+    ranking["elo"] = ranking.elo.map("{:.1f}%".format)
     return (
-        '<div dir="rtl"><h2>10 — סיכום שנקרא לבד</h2></div>'
-        + opening(b["report"])
+        opening(b["report"], heading="10 — סיכום שנקרא לבד")
         + review.paragraph(
             "דירוג תיאורי לפי NLL בעמוקים המשותפים בלבד; שמות במילים ובדיקות בדיעבד מסומנות. "
             "הדירוג אינו מבטל את בחירת עמית בשלושה, שנעשתה גם לפי פשטות וגיוון."
@@ -141,7 +151,7 @@ def final_summary(b: dict[str, Any]) -> str:
         )
         + review.paragraph(
             "פ-15 וכללים 4, 6 ו-10 נסגרו בה-ש31, ה-ש32 וה-ש34. "
-            "ל-06 נשארו חוסר התיקו במשחקים המאוזנים, דפוס התוצאות הנמוכות ש-Dixon-Coles מתקן, "
+            f"ל-06 נשארו {middle}, דפוס התוצאות הנמוכות ש-Dixon-Coles מתקן, "
             "ועודף 0-0 בחמש האחרונות המחייב לבדוק את יציבות ρ. יעד חדש לפרויקט ייקבע בתכנון 06. "
             "אין סימן לפיזור יתר; המדד לא מפריד בין פיזור יתר לטעות ב-λ. Maher מדווח בנפרד: 1.027. "
             "פרק 7 ושכבת ה-λ יושלמו ב-E4b וב-E4c."
@@ -153,6 +163,11 @@ def clean(text: str) -> str:
     """Remove obsolete presentation wording, preserving every numeric value."""
     for old, new in {
         "טיוטה": "תוצאות EXP-005",
+        "F5 (המוצע)": "F5 (נבחר)",
+        "F5 המוצע": "F5 (נבחר)",
+        "המודל המוצע": "M2 שנבחר",
+        "למודל המוצע": "ל-M2 שנבחר",
+        "במודל המוצע": "ב-M2 שנבחר",
         "המודל הסופי": "M2 שנבחר (F5, ה-ש31)",
         "הכרעות הפתוחות": "הכרעות 27.11.2026",
         "הכרעות פתוחות": "הכרעות 27.11.2026",

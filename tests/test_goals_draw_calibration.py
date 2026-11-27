@@ -40,6 +40,26 @@ def test_equal_count_bins_preserve_every_tie_including_constant_probabilities():
     np.testing.assert_array_equal(diagnostic.equal_count_bins([0.2] * 30), np.zeros(30))
 
 
+def test_paired_bootstrap_recomputes_forecast_with_each_season_sample():
+    counts = [3, 7, 13]
+    observed = [0, 0, 0]
+    predicted = [0.6, 2.1, 5.2]
+    gaps, draws = diagnostic.season_bootstrap(
+        [0, 1, 2], counts, observed, predicted=predicted, B=30
+    )
+    expected = np.asarray(predicted)[draws].sum(axis=1) / np.asarray(counts)[draws].sum(axis=1)
+    np.testing.assert_array_equal(gaps, expected)
+    assert np.ptp(gaps) > 0
+
+
+def test_ece_noise_is_seeded_and_uses_both_bin_definitions():
+    p = np.linspace(0.18, 0.31, 100)
+    noise = diagnostic.ece_noise(p, simulations=100)
+    assert noise == diagnostic.ece_noise(p, simulations=100)
+    assert noise != diagnostic.ece_noise(p, simulations=100, seed=1)
+    assert noise["deciles_noise_mean"] > noise["fixed_noise_mean"]
+
+
 @pytest.mark.real_data
 def test_native_diagnostics_preserve_e3g_ece_nll_counts_and_original_tables(native):
     data, original = native
