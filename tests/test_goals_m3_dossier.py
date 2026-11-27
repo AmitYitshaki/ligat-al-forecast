@@ -56,3 +56,21 @@ def test_pearson_definition_has_unit_poisson_expectation():
     observed = np.array([0.0, 2.0])
     rates = np.ones(2)
     assert np.mean((observed - rates) ** 2 / rates) == 1
+
+
+@pytest.mark.real_data
+def test_dossier_figures_update_selectors_and_do_not_compress_main_season_axis(native):
+    from ligat.viz import goals_m3_dossier_views as display
+    from ligat.viz import goals_walk_plots as plots
+
+    _, result = native
+    for name, figure in display.figures(result).items():
+        assert len(display.explanation(name, result, after=False)) >= 250
+        assert len(display.explanation(name, result, after=True)) >= 250
+        if figure.layout.updatemenus:
+            assert all(
+                "annotations" in button.args[1] for button in figure.layout.updatemenus[0].buttons
+            )
+    season = plots.metric_by_season(dossier.source_bundle())
+    assert season.layout.yaxis.range[1] < 0.30
+    assert season.layout.yaxis2.domain

@@ -129,7 +129,7 @@ def metric_by_season(b: dict[str, Any]) -> Any:
         showarrow=False,
         xanchor="left",
     )
-    fig.update_yaxes(title="NLL פחות R1; אפס = אותה תוצאה כמו Elo ובית; נמוך טוב")
+    fig.update_yaxes(title="NLL פחות R1", title_standoff=15)
     fig.update_xaxes(title="עונת ולידציה", tickangle=-35)
     result = views.finish(fig, "F5 והמתחרים ביחס לסרגל Elo באותה עונה", height=950)
     result.update_layout(legend=dict(y=-0.24), margin=dict(b=230))
