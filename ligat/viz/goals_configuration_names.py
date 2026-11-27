@@ -13,6 +13,22 @@ def configuration_name(value: Any, *, model: str = "xgb", stage_b: bool = False)
     """The one display formatter; native keys and frozen labels remain unchanged."""
     if isinstance(value, str):
         text = value
+        for key, label in {
+            "max_depth": "עומק",
+            "depth": "עומק",
+            "iterations": "איטרציות",
+            "n_estimators": "עצים",
+            "learning_rate": "קצב",
+            "half_life": "זמן מחצית",
+            "min_child_weight": "זהירות",
+            "reg_lambda": "קנס",
+            "subsample": "דגימה",
+            "preset": "תצורת ייחוס",
+            "library_default": "ברירת המחדל של הספרייה",
+            "None": "בלי דעיכה",
+        }.items():
+            text = re.sub(r"\b" + re.escape(key) + r"\b", label, text)
+        text = re.sub(r"(\b(?:2|3|4)(?:\.0)?) עונה\b", r"\1 עונות", text)
         patterns: list[tuple[str, Any]] = [
             (r"\bd(\d+(?:\.\d+)?)\b", r"עומק \1"),
             (r"\bT(\d+)", r"\1 עצים"),

@@ -48,6 +48,21 @@ def test_default_table_has_no_filler_sentence():
     assert "if description:" in setup
 
 
+def test_e3g_counts_and_parameter_names_are_readable():
+    from ligat.viz.goals_configuration_names import configuration_name
+
+    assert "15.000000" not in review.render(pd.DataFrame({"n": [15]}), {"n": "עונות"})
+    value = configuration_name(
+        "depth: 2; iterations: 150; half_life: None; "
+        "reg_lambda: 1; subsample: 0.7; preset: library_default; 2 עונה"
+    )
+    for term in ["depth", "iterations", "half_life", "reg_lambda", "subsample", "preset", "None"]:
+        assert term not in value
+    assert "2 עונות" in value
+    assert "13" not in review.scope_description("all")
+    assert "13" not in review.scope_description("last5")
+
+
 def test_configuration_translation_preserves_plotly_styles_and_readable_catboost():
     import plotly.graph_objects as go
 

@@ -35,6 +35,17 @@ LABELS = {
     "base-without-promoted": "בסיס בלי דגל עולה",
 }
 SCOPES = {"all": "כל הקיפולים", "deep": "העמוקים המשותפים", "last5": "חמש האחרונות"}
+
+
+def scope_description(scope: str) -> str:
+    return {
+        "all": "כל קיפולי הפיתוח, כולל העונות שבהן היסטוריית האימון קצרה.",
+        "deep": "כל המודלים נמדדים על אותן 13 עונות עמוקות משותפות; "
+        "ל-GLM בבסיס פחות היסטוריית אימון.",
+        "last5": "חמש עונות הפיתוח האחרונות, באותה אוכלוסיית משחקים לכל המודלים.",
+    }[scope]
+
+
 TERM_LINKS = {
     term: f"walk-term-{index}"
     for index, term in enumerate(
@@ -257,7 +268,10 @@ def render(frame: Any, names: dict[str, str]) -> str:
         frame,
         names,
         show_index=False,
-        precision={c: 6 for c in frame.select_dtypes(include="number")},
+        precision={
+            c: (0 if c in {"n", "seasons", "games", "rows", "positive", "better", "rank"} else 6)
+            for c in frame.select_dtypes(include="number")
+        },
     ).content
 
 

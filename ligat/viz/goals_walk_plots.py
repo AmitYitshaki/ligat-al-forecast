@@ -83,7 +83,13 @@ def paired_forest(b: dict[str, Any]) -> Any:
 
 
 def metric_by_season(b: dict[str, Any]) -> Any:
-    fig = go.Figure()
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.18,
+        subplot_titles=["המודלים הקרובים לסרגל", "CatBoost מהרשת בנפרד"],
+    )
     r1 = review.folds(b, "R1").set_index("season_id")
     for i, name in enumerate(
         ["S1", "S2", "F5", "EXP-002", "EXP-003", "maher", "glm", "catboost-selected"]
@@ -97,8 +103,32 @@ def metric_by_season(b: dict[str, Any]) -> Any:
             line=dict(
                 width=4 if name == "F5" else 1.5, color=(*views.COLORS, "#0F766E", "#A16207")[i]
             ),
+            row=2 if name == "catboost-selected" else 1,
+            col=1,
         )
+    fig.add_scatter(
+        x=r1.index.map(season_label),
+        y=np.zeros(len(r1)),
+        name=review.LABELS["R1"],
+        line=dict(color=graphs.GRAY, dash="dash"),
+        row=1,
+        col=1,
+    )
     fig.add_hline(y=0, line_dash="dash", line_color=graphs.GRAY)
+    values = np.concatenate(
+        [np.asarray(trace.y, dtype=float) for trace in fig.data if trace.yaxis != "y2"]
+    )
+    pad = (values.max() - values.min()) * 0.1
+    fig.layout.yaxis.range = [float(values.min() - pad), float(values.max() + pad)]
+    fig.add_annotation(
+        text="2009/10: לעצים שלוש עונות אימון בלבד",
+        xref="paper",
+        yref="paper",
+        x=0,
+        y=1.1,
+        showarrow=False,
+        xanchor="left",
+    )
     fig.update_yaxes(title="NLL פחות R1; אפס = אותה תוצאה כמו Elo ובית; נמוך טוב")
     fig.update_xaxes(title="עונת ולידציה", tickangle=-35)
     result = views.finish(fig, "F5 והמתחרים ביחס לסרגל Elo באותה עונה", height=950)
