@@ -269,7 +269,12 @@ def render(frame: Any, names: dict[str, str]) -> str:
         names,
         show_index=False,
         precision={
-            c: (0 if c in {"n", "seasons", "games", "rows", "positive", "better", "rank"} else 6)
+            c: (
+                0
+                if pd.api.types.is_integer_dtype(frame[c])
+                or c in {"n", "seasons", "games", "rows", "positive", "better", "rank"}
+                else 6
+            )
             for c in frame.select_dtypes(include="number")
         },
     ).content

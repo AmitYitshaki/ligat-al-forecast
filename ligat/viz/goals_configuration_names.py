@@ -13,6 +13,16 @@ def configuration_name(value: Any, *, model: str = "xgb", stage_b: bool = False)
     """The one display formatter; native keys and frozen labels remain unchanged."""
     if isinstance(value, str):
         text = value
+        if any(token in text for token in (";", "→", " במקום ")):
+            text = ";".join(
+                part.replace(
+                    "None",
+                    "בלי דעיכה"
+                    if any(term in part for term in ("half_life", "מחצית", "דעיכה"))
+                    else "ברירת המחדל של הספרייה",
+                )
+                for part in text.split(";")
+            )
         for key, label in {
             "max_depth": "עומק",
             "depth": "עומק",
@@ -23,6 +33,12 @@ def configuration_name(value: Any, *, model: str = "xgb", stage_b: bool = False)
             "min_child_weight": "זהירות",
             "reg_lambda": "קנס",
             "subsample": "דגימה",
+            "l2_leaf_reg": "קנס עלים",
+            "colsample_bytree": "דגימת עמודות",
+            "one_hot_max_size": "סף קידוד",
+            "max_delta_step": "ריסון קפיצה",
+            "True": "כן",
+            "False": "לא",
             "preset": "תצורת ייחוס",
             "library_default": "ברירת המחדל של הספרייה",
             "None": "בלי דעיכה",
