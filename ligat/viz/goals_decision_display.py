@@ -9,7 +9,12 @@ from ligat.viz import goals_qa as qa
 from ligat.viz import goals_walk_review as review
 
 
-def opening(report: dict[str, Any], *, heading: str = "0 — התשובה: M2 שנבחר הוא F5") -> str:
+def opening(
+    report: dict[str, Any],
+    *,
+    heading: str = "0 — התשובה: M2 שנבחר הוא F5",
+    chapter7: str = "",
+) -> str:
     """Read the selected-model figures and matched feature-entry evidence."""
     rows = {r["scope"]: r for r in report["readable_metrics"]["F5"]["summary"]}
     d = next(d for d in report["decisions"] if d["name"] == "F5" and d["kind"] == "entry")["rule8"][
@@ -36,7 +41,9 @@ def opening(report: dict[str, Any], *, heading: str = "0 — התשובה: M2 ש
         "הערך מגיע בעיקר מדגל היריבה: הוצאתו לבד פוגעת, "
         f'<bdi dir="ltr">CI95 [{removed["ci_lower"]:.5f}, {removed["ci_upper"]:.5f}]</bdi>.</p>'
         "<p>ל-M3 עוברים F5, GLM בבסיס ו-Maher; R1 הוא קו הבסיס. "
-        "ממשיכים בשרשרת המלאה ללא גרסה 0. פרק 7 ושכבת ה-λ יושלמו ב-E4b וב-E4c.</p></div>"
+        "ממשיכים בשרשרת המלאה ללא גרסה 0. שכבת ה-λ החתומה היא הקלט למחברת 06.</p>"
+        + (f"<p>{chapter7}</p>" if chapter7 else "")
+        + "</div>"
     )
 
 
@@ -104,7 +111,9 @@ def rule10_html(b: dict[str, Any]) -> str:
     )
 
 
-def final_summary(b: dict[str, Any], diagnostic: dict[str, Any] | None = None) -> str:
+def final_summary(
+    b: dict[str, Any], diagnostic: dict[str, Any] | None = None, *, chapter7: str = ""
+) -> str:
     from ligat.viz import goals_walk_evidence as evidence
 
     frames = evidence.candidate_folds(b)
@@ -141,7 +150,7 @@ def final_summary(b: dict[str, Any], diagnostic: dict[str, Any] | None = None) -
     ranking["nll"] = ranking.nll.map("{:.4f}".format)
     ranking["elo"] = ranking.elo.map("{:.1f}%".format)
     return (
-        opening(b["report"], heading="10 — סיכום שנקרא לבד")
+        opening(b["report"], heading="10 — סיכום שנקרא לבד", chapter7=chapter7)
         + review.paragraph(
             "דירוג תיאורי לפי NLL בעמוקים המשותפים בלבד; שמות במילים ובדיקות בדיעבד מסומנות. "
             "הדירוג אינו מבטל את בחירת עמית בשלושה, שנעשתה גם לפי פשטות וגיוון."
@@ -152,9 +161,10 @@ def final_summary(b: dict[str, Any], diagnostic: dict[str, Any] | None = None) -
         + review.paragraph(
             "פ-15 וכללים 4, 6 ו-10 נסגרו בה-ש31, ה-ש32 וה-ש34. "
             f"ל-06 נשארו {middle}, דפוס התוצאות הנמוכות ש-Dixon-Coles מתקן, "
-            "ועודף 0-0 בחמש האחרונות המחייב לבדוק את יציבות ρ. יעד חדש לפרויקט ייקבע בתכנון 06. "
+            "ועודף 0-0 בחמש האחרונות המחייב לבדוק את יציבות ρ. "
+            "פתוחים גם כיול התיקו של Maher והשאלה האם לייצא λ של R1 כקו בסיס ל-M3. "
+            "יעד חדש לפרויקט ייקבע בתכנון 06. "
             "אין סימן לפיזור יתר; המדד לא מפריד בין פיזור יתר לטעות ב-λ. Maher מדווח בנפרד: 1.027. "
-            "פרק 7 ושכבת ה-λ יושלמו ב-E4b וב-E4c."
         )
     )
 
@@ -178,3 +188,22 @@ def clean(text: str) -> str:
     }.items():
         text = text.replace(old, new)
     return text
+
+
+def findings_chapter7(f5: dict[str, Any], review_result: dict[str, Any]) -> str:
+    from ligat.viz.goals_f5_diagnostics import FEATURE_NAMES
+
+    top = f5["importance"].iloc[-1]
+    residuals = review_result["residuals"]
+    flagged = residuals.loc[residuals.flag]
+    count = flagged.team.nunique()
+    conclusion = (
+        f"{count} קבוצות סומנו בשארית של מעל שתי שגיאות תקן באחד המדדים"
+        if count
+        else "אף קבוצה לא סומנה בשאריות"
+    )
+    return (
+        f"בפרק 7 התרומה המוחלטת הגבוהה ביותר היא של {FEATURE_NAMES[top.name]} "
+        f"(חציון SHAP {top['median']:.3f} בסולם log λ). החלפת דגל הבית מעלה את "
+        f"קצב השערים ב-{100 * (f5['overall'] - 1):.1f}% בממוצע גאומטרי. {conclusion}."
+    )
